@@ -1,6 +1,7 @@
-//! Libra 2 masaüstü simülatörü.
+//! Libra 2 masaüstü simülatörü. Kullanım: `legentia-sim kitap.epub`
 //!
-//! Fare tıklaması (ya da dokunmatik ekran) = dokunma.
+//! Fare tıklaması (ya da dokunmatik ekran) = dokunma. Okurken sol üçte bir
+//! önceki sayfa, sağ üçte bir sonraki sayfa, orta içindekiler.
 //! PageUp / Sol ok = üst sayfa tuşu (geri), PageDown / Sağ ok / Boşluk = alt tuş (ileri).
 //! Esc = çıkış. Tam yenileme, ekranın bir an ters renkte gösterilmesiyle işaretlenir.
 //!
@@ -10,7 +11,9 @@ use std::process::ExitCode;
 use std::time::Duration;
 
 use legentia_core::i18n::{self, Msg, tr};
-use legentia_core::{App, Canvas, Event, Font, LIBRA2_HEIGHT, LIBRA2_WIDTH, PageKey, Refresh};
+use legentia_core::{
+    App, Book, Canvas, Event, Font, LIBRA2_HEIGHT, LIBRA2_WIDTH, PageKey, Refresh,
+};
 use minifb::{Key, KeyRepeat, MouseButton, MouseMode, Window, WindowOptions};
 
 const FULL_REFRESH_FLASH: Duration = Duration::from_millis(120);
@@ -44,7 +47,16 @@ fn main() -> ExitCode {
     };
     window.set_target_fps(60);
 
-    let mut app = App::new(font);
+    let mut app = match std::env::args_os().nth(1) {
+        Some(path) => {
+            let path = std::path::PathBuf::from(path);
+            let started = std::time::Instant::now();
+            let book = Book::open(&path);
+            log::info!("opened {} in {:?}", path.display(), started.elapsed());
+            App::new(font, LIBRA2_WIDTH, book)
+        }
+        None => App::with_message(font, LIBRA2_WIDTH, Msg::NoBookGiven),
+    };
     let mut canvas = Canvas::new(LIBRA2_WIDTH, LIBRA2_HEIGHT);
     let mut frame = vec![0u32; (w * h) as usize];
     let refresh = app.start();

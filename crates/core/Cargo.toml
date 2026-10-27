@@ -10,3 +10,6 @@ workspace = true
 [dependencies]
 fontdue = "0.9.5"
 log = "0.4.34"
+quick-xml = { version = "0.42.0", features = ["escape-html"] }
+unicode-normalization = "0.1.26"
+zip = { version = "9.1.2", default-features = false, features = ["deflate-flate2-zlib-rs"] }

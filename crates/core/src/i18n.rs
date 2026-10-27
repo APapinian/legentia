@@ -1,7 +1,8 @@
 //! Kullanıcıya görünen tüm metinlerin katalogu.
 //!
-//! Arayüz metni yalnızca [`Msg`] üzerinden çizilebilir (bkz. `Font::draw_msg`),
-//! bu yüzden koda gömülü bir arayüz metni derlenmez. Yeni bir dil eklemek,
+//! Arayüz metni yalnızca [`Msg`] üzerinden çizilebilir (bkz. `Font::draw_msg`).
+//! Kitap içeriği (başlık, yazar, bölüm metni) arayüz metni değildir ve
+//! crate içinden `Font::draw_content` ile çizilir. Yeni bir dil eklemek,
 //! [`tr`] yanına aynı `match`'i taşıyan bir fonksiyon eklemek demektir;
 //! eksik çeviri derleme hatası verir.
 
@@ -9,13 +10,28 @@
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Msg {
     WindowTitle,
-    TestTitle,
-    TurkishSample,
-    TestHint,
-    NoTapYet,
-    LastTap { x: u32, y: u32 },
-    PageKeys { back: u32, forward: u32 },
-    Refreshes { partial: u32, full: u32 },
+    Contents,
+    UntitledBook,
+    UnknownAuthor,
+    ChapterNumber(usize),
+    EmptyChapter,
+    ContentsFooter {
+        page: usize,
+        pages: usize,
+    },
+    ReadingFooter {
+        chapter: usize,
+        chapters: usize,
+        page: usize,
+        pages: usize,
+    },
+    TapToReturn,
+    NoBookGiven,
+    BookFileUnreadable,
+    BookNotEpub,
+    BookDamaged,
+    BookTooLarge,
+    BookUnsafe,
     FontMissing,
     FontInvalid,
     WindowFailed,
@@ -26,13 +42,22 @@ pub enum Msg {
 pub fn tr(msg: &Msg) -> String {
     match msg {
         Msg::WindowTitle => "Legentia — Libra 2 simülatörü".into(),
-        Msg::TestTitle => "Legentia test ekranı".into(),
-        Msg::TurkishSample => "Türkçe: İı Iı Ğğ Üü Şş Öö Çç — “Ağaç gölgesinde çay.”".into(),
-        Msg::TestHint => "Ekrana dokunun ya da sayfa tuşlarına basın.".into(),
-        Msg::NoTapYet => "Henüz dokunma yok.".into(),
-        Msg::LastTap { x, y } => format!("Son dokunma: x = {x}, y = {y}"),
-        Msg::PageKeys { back, forward } => format!("Sayfa tuşları: geri {back}, ileri {forward}"),
-        Msg::Refreshes { partial, full } => format!("Yenileme: kısmi {partial}, tam {full}"),
+        Msg::Contents => "İçindekiler".into(),
+        Msg::UntitledBook => "Adsız kitap".into(),
+        Msg::UnknownAuthor => "Yazarı bilinmiyor".into(),
+        Msg::ChapterNumber(n) => format!("Bölüm {n}"),
+        Msg::EmptyChapter => "Bu bölümde gösterilecek metin yok (yalnızca görsel olabilir).".into(),
+        Msg::ContentsFooter { page, pages } => format!("Sayfa {page}/{pages}"),
+        Msg::ReadingFooter { chapter, chapters, page, pages } => {
+            format!("Bölüm {chapter}/{chapters} · Sayfa {page}/{pages}")
+        }
+        Msg::TapToReturn => "İçindekilere dönmek için ekrana dokunun.".into(),
+        Msg::NoBookGiven => "Kitap dosyası verilmedi. Kullanım: cargo run -p legentia-sim -- kitap.epub".into(),
+        Msg::BookFileUnreadable => "Kitap dosyası açılamadı. Dosyanın var olduğundan ve okunabildiğinden emin olun.".into(),
+        Msg::BookNotEpub => "Bu dosya bir EPUB kitabı değil ya da bozuk.".into(),
+        Msg::BookDamaged => "Kitap dosyası hasarlı: gerekli bir bölümü eksik ya da okunamıyor.".into(),
+        Msg::BookTooLarge => "Kitabın bir bölümü güvenli boyut sınırını aşıyor; açılmadı.".into(),
+        Msg::BookUnsafe => "Kitap, paketin dışına çıkan güvensiz bir dosya yolu içeriyor; açılmadı.".into(),
         Msg::FontMissing => "Yazı tipi bulunamadı. LEGENTIA_FONT ortam değişkeni bir .ttf dosyasını göstermeli (nix develop bunu ayarlar).".into(),
         Msg::FontInvalid => "Yazı tipi dosyası okunamadı ya da geçersiz.".into(),
         Msg::WindowFailed => "Simülatör penceresi açılamadı.".into(),
@@ -62,19 +87,25 @@ mod tests {
     fn all() -> Vec<Msg> {
         vec![
             Msg::WindowTitle,
-            Msg::TestTitle,
-            Msg::TurkishSample,
-            Msg::TestHint,
-            Msg::NoTapYet,
-            Msg::LastTap { x: 1, y: 2 },
-            Msg::PageKeys {
-                back: 1,
-                forward: 2,
+            Msg::Contents,
+            Msg::UntitledBook,
+            Msg::UnknownAuthor,
+            Msg::ChapterNumber(3),
+            Msg::EmptyChapter,
+            Msg::ContentsFooter { page: 1, pages: 2 },
+            Msg::ReadingFooter {
+                chapter: 1,
+                chapters: 2,
+                page: 3,
+                pages: 4,
             },
-            Msg::Refreshes {
-                partial: 1,
-                full: 2,
-            },
+            Msg::TapToReturn,
+            Msg::NoBookGiven,
+            Msg::BookFileUnreadable,
+            Msg::BookNotEpub,
+            Msg::BookDamaged,
+            Msg::BookTooLarge,
+            Msg::BookUnsafe,
             Msg::FontMissing,
             Msg::FontInvalid,
             Msg::WindowFailed,
@@ -91,17 +122,13 @@ mod tests {
 
     #[test]
     fn arguments_are_formatted() {
-        assert_eq!(
-            tr(&Msg::LastTap { x: 612, y: 840 }),
-            "Son dokunma: x = 612, y = 840"
-        );
-    }
-
-    #[test]
-    fn sample_contains_turkish_letters() {
-        let s = tr(&Msg::TurkishSample);
-        for c in ['İ', 'ı', 'Ğ', 'ğ', 'Ü', 'ü', 'Ş', 'ş', 'Ö', 'ö', 'Ç', 'ç'] {
-            assert!(s.contains(c), "eksik harf: {c}");
-        }
+        let footer = Msg::ReadingFooter {
+            chapter: 2,
+            chapters: 12,
+            page: 3,
+            pages: 9,
+        };
+        assert_eq!(tr(&footer), "Bölüm 2/12 · Sayfa 3/9");
+        assert_eq!(tr(&Msg::ChapterNumber(7)), "Bölüm 7");
     }
 }

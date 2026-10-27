@@ -66,18 +66,31 @@ Bu dosya, `kobo-rust-okuyucu-proje-aktarim.md` belgesindeki hedefleri ölçüleb
 **Amaç:** EPUB dosyası açıp içeriğini simülatörde gösterebilen en küçük dikey dilimi oluşturmak.
 
 ### İşler
-- [ ] EPUB ZIP paketini güvenli biçimde aç (path traversal, zip bomb ve boyut sınırları).
-- [ ] Container/OPF, manifest ve spine bilgisini işle.
-- [ ] XHTML içeriğini güvenli biçimde parse et.
-- [ ] Kitap başlığını, yazarını ve bölüm listesini göster.
-- [ ] Bir bölümün metnini göster; önceki/sonraki bölüme geç.
-- [ ] Bozuk veya desteklenmeyen dosyalarda anlaşılır Türkçe hata göster.
-- [ ] Kullanılacak crate'lerin lisansını ve ARMv7 musl uyumluluğunu kontrol et.
+- [x] EPUB ZIP paketini güvenli biçimde aç (path traversal, zip bomb ve boyut sınırları).
+- [x] Container/OPF, manifest ve spine bilgisini işle.
+- [x] XHTML içeriğini güvenli biçimde parse et.
+- [x] Kitap başlığını, yazarını ve bölüm listesini göster.
+- [x] Bir bölümün metnini göster; önceki/sonraki bölüme geç.
+- [x] Bozuk veya desteklenmeyen dosyalarda anlaşılır Türkçe hata göster.
+- [x] Kullanılacak crate'lerin lisansını ve ARMv7 musl uyumluluğunu kontrol et. (`docs/dependencies.md`)
+- [x] Kitap metnini NFC'ye normalleştir. (Gerçek bir kitapta "İ" `I` + U+0307 olarak yazılmıştı.)
 
 ### Kabul ölçütleri
 - Türkçe karakterli kitaplar dahil en az 5 farklı gerçek EPUB açılıyor.
 - Bozuk dosya testleri (kesik ZIP, eksik OPF, hatalı XHTML) uygulamayı çökertmiyor.
-- Kitap açma süresi ve bellek kullanımı ölçülmüş. `[ölçülecek]`
+- Kitap açma süresi ve bellek kullanımı ölçülmüş.
+
+### Ölçümler (2026-10-27)
+Araç: `cargo run --release -p legentia-core --example epub_check -- <klasör>`. Kullanıcının Kobo'sundaki 8 Türkçe EPUB, salt okuma.
+
+| Ölçüm | NixOS (x86_64, release) | qemu-arm (ARMv7 musl, release) |
+|---|---|---|
+| Hatasız açılan kitap | 8/8 | 8/8 |
+| Kitap açma (OPF + içindekiler) | 8,7–18,7 ms | yalnızca işlevsel test |
+| Tüm bölümleri okuma, en yavaş kitap | 94 ms | yalnızca işlevsel test |
+| En yüksek bellek (VmHWM) | 3,4 MB | 16,6 MB (qemu ek yükü dahil) |
+
+Süreler cihaz performansı değildir (bkz. "Ölçüm yöntemi"). Bellek ölçümü yalnızca ayrıştırmayı kapsar; ekran tamponu ve font önbelleği dahil değil.
 
 **Çıktı:** Simülatörde çalışan EPUB metin görüntüleyici.
 

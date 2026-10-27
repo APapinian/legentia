@@ -10,12 +10,14 @@
 
 mod app;
 mod canvas;
+pub mod epub;
 mod event;
 pub mod i18n;
 mod text;
 
 pub use app::App;
 pub use canvas::Canvas;
+pub use epub::{Book, EpubError};
 pub use event::{Event, PageKey, Refresh};
 pub use text::Font;
 
