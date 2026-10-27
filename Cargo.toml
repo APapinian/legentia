@@ -6,6 +6,7 @@ members = ["crates/core", "crates/sim"]
 version = "0.1.0"
 edition = "2024"
 publish = false
+license = "MIT"
 
 # Kullanıcıya görünen her metin i18n katalogundan gelmeli. Doğrudan
 # println!/eprintln! yasak; izin verilen tek yer i18n::show_error.

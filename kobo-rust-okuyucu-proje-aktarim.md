@@ -116,11 +116,12 @@ Yanıtlananlar:
 - PDF'e aktarma: ikisi de. OCR metni aranabilir katman olarak gömülecek; notlar ve vurgular PDF'e yazılacak.
 - OCR: önce NixOS'ta deney amaçlı; sonra cihaz uygulamasının parçası olacak.
 - Cobalt ve Plato yalnızca referans; kodları kullanılmayacak. Uygulama kendi Rust koduyla yazılacak.
+- Proje lisansı: MIT.
+- PDF motoru: saf Rust (olgunluktan çok hız ve sade derleme öncelikli); MuPDF (AGPL) kullanılmayacak.
 
 Açık kalanlar:
 - Drive kullanım kapsamı: yalnızca kitap indirme mi, yoksa iki yönlü senkronizasyon mu?
 - Çok dilli sözlüklerin öncelik sırası.
-- Bu projenin kendi lisansı.
 
 ## 10. Projenin kısa tanımı
 

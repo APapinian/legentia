@@ -48,7 +48,7 @@ Bu dosya, `kobo-rust-okuyucu-proje-aktarim.md` belgesindeki hedefleri ölçüleb
 - [x] Hata yönetimi ve loglama yaklaşımını belirle; panikte bile Türkçe anlaşılır mesaj göster. (`log` + `env_logger`; panik kancası Türkçe mesaj verir)
 - [x] Biçimlendirme, lint ve test komutlarını tanımla; README'de açıkla.
 - [x] Lisans kararı: Cobalt ve Plato (AGPL-3.0) yalnızca referans olarak okunacak; kodları kullanılmayacak. Uygulama kendi Rust koduyla yazılacak.
-- [ ] Bu projenin kendi lisansını belirle.
+- [x] Bu projenin kendi lisansını belirle. (MIT, `LICENSE`)
 
 ### Kabul ölçütleri
 - Temiz ortamda `nix develop` sonrası proje derleniyor.
@@ -172,12 +172,12 @@ Süreler cihaz performansı değildir; Libra 2'de kat kat yavaş olacak (M10'da 
 **Amaç:** PDF'leri yüksek kalitede göstermek; taranmış PDF'lerde bile metni anlayıp 6 inç ekrana uygun biçimde yeniden düzenleyebilmek.
 
 ### İşler
-- [ ] PDF motorunu araştır ve seç: görüntü kalitesi, hız, bellek, ARMv7 musl uyumluluğu ve lisans (ör. MuPDF AGPL, PDFium BSD, saf Rust seçenekleri).
+- [ ] PDF motorunu araştır ve seç: görüntü kalitesi, hız, bellek, ARMv7 musl uyumluluğu ve lisans. (Karar: saf Rust. Çizim için hayro (MIT/Apache), PDF yazma için lopdf (MIT) değerlendiriliyor.)
 - [ ] Yüksek kaliteli render: gri ton için doğru kenar yumuşatma ve E Ink'e uygun kontrast/gamma.
 - [ ] Yakınlaştırma, kenar boşluğu kırpma (otomatik ve elle), sayfaya/genişliğe sığdırma, sütun modu.
 - [ ] Metin katmanı olan PDF'lerde metni çıkar ve okuyucunun layout motoruyla yeniden akıt (reflow).
 - [ ] Taranmış PDF'ler için OCR: sayfa düzenini (sütunlar, başlıklar, paragraflar) ve metni tanı; sonuca göre yeniden akıt veya bölgeleri yeniden ölçekle.
-- [ ] OCR'ı önce NixOS'ta deney amaçlı çalıştır (Türkçe dil paketiyle); doğruluk ve süreyi ölç.
+- [x] OCR'ı önce NixOS'ta deney amaçlı çalıştır (Türkçe dil paketiyle); doğruluk ve süreyi ölç. (`docs/ocr-deney.md`: `tur` ile temiz ve hafif bozuk görüntüde %0 hata; kötü taramada eğiklik düzeltmesi hatayı %31–69'dan %0'a indirdi)
 - [ ] OCR metnini PDF'e görünmez, aranabilir metin katmanı olarak göm; orijinal dosyayı koru, yeni dosyayı ayrı yaz.
 - [ ] Notları ve vurguları PDF'e standart PDF açıklamaları (annotation) olarak yaz; başka PDF okuyucularında da görünmeli.
 - [ ] Cihazda OCR için ön değerlendirme: tek çekirdekli ARMv7 ve kısıtlı RAM'de sayfa başı süre ve bellek tahmini. Uygulama M10'da.
