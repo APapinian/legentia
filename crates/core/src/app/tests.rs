@@ -316,3 +316,95 @@ fn every_screen_draws_without_panicking() {
     menu(&mut app, MenuItem::Library);
     app.draw(&mut c);
 }
+
+fn pdf_book() -> Vec<u8> {
+    crate::pdf::testutil::pdf_with_pages(&["Bir", "Iki", "Uc", "Dort"])
+}
+
+fn ink(c: &Canvas) -> usize {
+    c.pixels().iter().filter(|&&p| p < 128).count()
+}
+
+#[test]
+fn pdf_opens_on_its_first_page_and_turns_pages() {
+    let (mut app, _, _) = setup(&[("belge.pdf", pdf_book())]);
+    assert_eq!(app.library[0].format, crate::library::Format::Pdf);
+    tap_row(&mut app, &LIBRARY, 0);
+    assert!(matches!(app.view, View::Reading));
+    assert_eq!(session(&app).pages.len(), 4);
+    let mut c = Canvas::new(W, LIBRA2_HEIGHT);
+    app.draw(&mut c);
+    assert!(ink(&c) > 1000, "PDF sayfası çizilmemiş");
+    key(&mut app, true);
+    key(&mut app, true);
+    assert_eq!(session(&app).page, 2);
+    assert_eq!(session(&app).percent(), 75);
+    for _ in 0..5 {
+        key(&mut app, true);
+    }
+    assert_eq!(session(&app).page, 3, "son sayfada durmalı");
+}
+
+#[test]
+fn pdf_position_and_bookmarks_survive_a_restart() {
+    let (mut app, data, root) = setup(&[("belge.pdf", pdf_book())]);
+    tap_row(&mut app, &LIBRARY, 0);
+    key(&mut app, true);
+    key(&mut app, true);
+    menu(&mut app, MenuItem::Bookmark);
+    assert_eq!(session(&app).state.bookmarks[0].snippet, "Sayfa 3");
+    app.shutdown();
+
+    let mut app = restart(&data, &root);
+    tap_row(&mut app, &LIBRARY, 0);
+    assert_eq!(session(&app).page, 2);
+    assert_eq!(session(&app).bookmark_here(), Some(0));
+}
+
+#[test]
+fn pdf_contents_lists_pages_and_jumps() {
+    let (mut app, _, _) = setup(&[("belge.pdf", pdf_book())]);
+    tap_row(&mut app, &LIBRARY, 0);
+    menu(&mut app, MenuItem::Contents);
+    assert!(matches!(app.view, View::Contents { .. }));
+    tap_row(&mut app, &CONTENTS, 3);
+    assert!(matches!(app.view, View::Reading));
+    assert_eq!(session(&app).page, 3);
+}
+
+#[test]
+fn pdf_crop_enlarges_the_content() {
+    let (mut app, _, _) = setup(&[("belge.pdf", pdf_book())]);
+    tap_row(&mut app, &LIBRARY, 0);
+    let mut cropped = Canvas::new(W, LIBRA2_HEIGHT);
+    app.draw(&mut cropped);
+
+    menu(&mut app, MenuItem::Settings);
+    let row = FIELDS.iter().position(|f| *f == Field::PdfCrop).unwrap();
+    let at = app.settings_buttons(row).1.center();
+    tap(&mut app, at);
+    let at = app.settings_ok().center();
+    tap(&mut app, at);
+    assert!(!app.settings().pdf_crop);
+    let mut whole = Canvas::new(W, LIBRA2_HEIGHT);
+    app.draw(&mut whole);
+    assert!(
+        ink(&cropped) > 2 * ink(&whole),
+        "kırpınca içerik büyümeli: {} / {}",
+        ink(&cropped),
+        ink(&whole)
+    );
+}
+
+#[test]
+fn broken_pdf_shows_turkish_error() {
+    let (mut app, _, _) = setup(&[("bozuk.pdf", b"%PDF-1.4 bozuk".to_vec())]);
+    tap_row(&mut app, &LIBRARY, 0);
+    assert!(matches!(
+        &app.view,
+        View::Message {
+            msg: Msg::PdfDamaged,
+            ..
+        }
+    ));
+}

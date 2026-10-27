@@ -24,6 +24,8 @@ pub struct Settings {
     pub hyphenate: bool,
     /// Ters renk: siyah zemin, beyaz yazı.
     pub night: bool,
+    /// PDF sayfalarının beyaz kenarlarını kırpıp içeriği ekrana büyüt.
+    pub pdf_crop: bool,
 }
 
 impl Default for Settings {
@@ -36,6 +38,7 @@ impl Default for Settings {
             justify: true,
             hyphenate: true,
             night: false,
+            pdf_crop: true,
         }
     }
 }
@@ -50,9 +53,10 @@ pub enum Field {
     Align,
     Hyphenate,
     Night,
+    PdfCrop,
 }
 
-pub const FIELDS: [Field; 7] = [
+pub const FIELDS: [Field; 8] = [
     Field::Family,
     Field::Size,
     Field::LineSpacing,
@@ -60,6 +64,7 @@ pub const FIELDS: [Field; 7] = [
     Field::Align,
     Field::Hyphenate,
     Field::Night,
+    Field::PdfCrop,
 ];
 
 impl Field {
@@ -72,6 +77,7 @@ impl Field {
             Field::Align => Msg::SettingAlign,
             Field::Hyphenate => Msg::SettingHyphenate,
             Field::Night => Msg::SettingNight,
+            Field::PdfCrop => Msg::SettingPdfCrop,
         }
     }
 }
@@ -106,6 +112,7 @@ impl Settings {
             Field::Align => s.justify = !s.justify,
             Field::Hyphenate => s.hyphenate = !s.hyphenate,
             Field::Night => s.night = !s.night,
+            Field::PdfCrop => s.pdf_crop = !s.pdf_crop,
         }
         s
     }
@@ -130,6 +137,7 @@ impl Settings {
             }),
             Field::Hyphenate => tr(if self.hyphenate { &Msg::On } else { &Msg::Off }),
             Field::Night => tr(if self.night { &Msg::On } else { &Msg::Off }),
+            Field::PdfCrop => tr(if self.pdf_crop { &Msg::On } else { &Msg::Off }),
         }
     }
 }

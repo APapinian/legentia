@@ -24,7 +24,6 @@ pub enum Msg {
     Back,
     // Kitap
     Contents,
-    UntitledBook,
     UnknownAuthor,
     ChapterNumber(usize),
     EmptyChapter,
@@ -35,6 +34,13 @@ pub enum Msg {
         pages: usize,
         percent: u32,
     },
+    PdfFooter {
+        page: usize,
+        pages: usize,
+        percent: u32,
+    },
+    PageNumber(usize),
+    PdfDocument,
     // Menü
     AddBookmark,
     RemoveBookmark,
@@ -51,6 +57,7 @@ pub enum Msg {
     SettingAlign,
     SettingHyphenate,
     SettingNight,
+    SettingPdfCrop,
     Points {
         tenths: u32,
     },
@@ -72,6 +79,9 @@ pub enum Msg {
     BookDamaged,
     BookTooLarge,
     BookUnsafe,
+    PdfEncrypted,
+    PdfDamaged,
+    PdfPageFailed,
     FontMissing,
     WindowFailed,
     Crashed,
@@ -96,13 +106,15 @@ pub fn tr(msg: &Msg) -> String {
         Msg::ListFooter { page, pages } => format!("Sayfa {page}/{pages}"),
         Msg::Back => "Geri".into(),
         Msg::Contents => "İçindekiler".into(),
-        Msg::UntitledBook => "Adsız kitap".into(),
         Msg::UnknownAuthor => "Yazarı bilinmiyor".into(),
         Msg::ChapterNumber(n) => format!("Bölüm {n}"),
         Msg::EmptyChapter => "Bu bölümde gösterilecek metin yok (yalnızca görsel olabilir).".into(),
         Msg::ReadingFooter { chapter, chapters, page, pages, percent } => {
             format!("Bölüm {chapter}/{chapters} · Sayfa {page}/{pages} · %{percent}")
         }
+        Msg::PdfFooter { page, pages, percent } => format!("Sayfa {page}/{pages} · %{percent}"),
+        Msg::PageNumber(n) => format!("Sayfa {n}"),
+        Msg::PdfDocument => "PDF belgesi".into(),
         Msg::AddBookmark => "Bu sayfaya yer imi koy".into(),
         Msg::RemoveBookmark => "Bu sayfadaki yer imini kaldır".into(),
         Msg::Bookmarks => "Yer imleri".into(),
@@ -117,6 +129,7 @@ pub fn tr(msg: &Msg) -> String {
         Msg::SettingAlign => "Hizalama".into(),
         Msg::SettingHyphenate => "Heceleme".into(),
         Msg::SettingNight => "Gece modu (ters renk)".into(),
+        Msg::SettingPdfCrop => "PDF kenarlarını kırp".into(),
         Msg::Points { tenths } => format!("{} punto", decimal(*tenths)),
         Msg::Decimal { tenths } => decimal(*tenths),
         Msg::Millimeters(mm) => format!("{mm} mm"),
@@ -133,6 +146,9 @@ pub fn tr(msg: &Msg) -> String {
         Msg::BookDamaged => "Kitap dosyası hasarlı: gerekli bir bölümü eksik ya da okunamıyor.".into(),
         Msg::BookTooLarge => "Kitabın bir bölümü güvenli boyut sınırını aşıyor; açılmadı.".into(),
         Msg::BookUnsafe => "Kitap, paketin dışına çıkan güvensiz bir dosya yolu içeriyor; açılmadı.".into(),
+        Msg::PdfEncrypted => "Bu PDF parolayla korunuyor; şimdilik açılamıyor.".into(),
+        Msg::PdfDamaged => "PDF dosyası hasarlı ya da desteklenmeyen bir biçimde.".into(),
+        Msg::PdfPageFailed => "Bu sayfa çizilemedi. Diğer sayfalara geçebilirsiniz.".into(),
         Msg::FontMissing => "Yazı tipleri bulunamadı ya da okunamadı. LEGENTIA_FONTS ortam değişkeni font klasörünü göstermeli (nix develop bunu ayarlar).".into(),
         Msg::WindowFailed => "Simülatör penceresi açılamadı.".into(),
         Msg::Crashed => "Beklenmeyen bir hata oluştu ve uygulama kapandı. Ayrıntılar kayıt dosyasında.".into(),
@@ -146,11 +162,12 @@ pub fn show_error(msg: &Msg) {
     eprintln!("{}", tr(msg));
 }
 
-/// Panikte teknik ayrıntıyı log'a, Türkçe açıklamayı kullanıcıya verir.
+/// Panikte teknik ayrıntıyı log'a yazar. Kullanıcıya mesaj göstermez: yakalanıp
+/// toparlanılan panikler de (ör. bozuk PDF sayfası) buradan geçer. Uygulamanın
+/// gerçekten kapandığını platform katmanı bildirir (`Msg::Crashed`).
 pub fn install_panic_hook() {
     std::panic::set_hook(Box::new(|info| {
         log::error!("panic: {info}");
-        show_error(&Msg::Crashed);
     }));
 }
 
@@ -171,7 +188,6 @@ mod tests {
             ListFooter { page: 1, pages: 2 },
             Back,
             Contents,
-            UntitledBook,
             UnknownAuthor,
             ChapterNumber(3),
             EmptyChapter,
@@ -182,6 +198,13 @@ mod tests {
                 pages: 4,
                 percent: 5,
             },
+            PdfFooter {
+                page: 1,
+                pages: 2,
+                percent: 50,
+            },
+            PageNumber(4),
+            PdfDocument,
             AddBookmark,
             RemoveBookmark,
             Bookmarks,
@@ -196,6 +219,7 @@ mod tests {
             SettingAlign,
             SettingHyphenate,
             SettingNight,
+            SettingPdfCrop,
             Points { tenths: 96 },
             Decimal { tenths: 14 },
             Millimeters(6),
@@ -212,6 +236,9 @@ mod tests {
             BookDamaged,
             BookTooLarge,
             BookUnsafe,
+            PdfEncrypted,
+            PdfDamaged,
+            PdfPageFailed,
             FontMissing,
             WindowFailed,
             Crashed,

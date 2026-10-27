@@ -1,6 +1,6 @@
 # Bağımlılıklar
 
-Doğrudan kullanılan crate'ler. Lisanslar `cargo metadata` ile alınmıştır (2026-10-27). Tüm dolaylı bağımlılıklar da izin verici lisanslıdır (MIT, Apache-2.0, Zlib, Unlicense, Unicode-3.0); GPL zorunluluğu getiren yok.
+Doğrudan kullanılan crate'ler. Lisanslar `cargo metadata` ile alınmıştır (2026-10-27). Tüm dolaylı bağımlılıklar da izin verici lisanslıdır (MIT, Apache-2.0, BSD-3-Clause, Zlib, Unlicense, Unicode-3.0); GPL zorunluluğu getiren yok ve hepsi projenin MIT lisansıyla uyumlu.
 
 | Crate | Sürüm | Lisans | Nerede | Neden | ARMv7 musl |
 |---|---|---|---|---|---|
@@ -10,6 +10,7 @@ Doğrudan kullanılan crate'ler. Lisanslar `cargo metadata` ile alınmıştır (
 | rustybuzz | 0.20.1 | MIT | core | Harf birleştirme (shaping), kerning, bitişik harfler, dile özgü kurallar (`tr`). | Testler qemu'da geçiyor |
 | swash | 0.2.10 | Apache-2.0 OR MIT | core | Glif çizimi (hinting açık), font ölçüleri. | Testler qemu'da geçiyor |
 | unicode-linebreak | 0.1.5 | Apache-2.0 | core | Unicode satır kırma noktaları (UAX #14). | Testler qemu'da geçiyor |
+| hayro | 0.8.0 | Apache-2.0 OR MIT | core | PDF ayrıştırma ve çizme (saf Rust; JPEG 2000, JBIG2, CCITT çözücüleri dahil). Bozuk girdide paniğe karşı sarılı. | Testler qemu'da geçiyor |
 | serde, serde_json | 1.0 | MIT OR Apache-2.0 | core | Ayar ve okuma kayıtları (JSON). | Testler qemu'da geçiyor |
 | log | 0.4.34 | MIT OR Apache-2.0 | core, sim | Teknik log. | Derleniyor |
 | minifb | 0.29.0 | MIT OR Apache-2.0 | sim | Masaüstü penceresi (yalnızca X11 arka ucu). Cihazda kullanılmaz. | Gerekmiyor |

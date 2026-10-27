@@ -1,10 +1,16 @@
 //! Açık kitap: okunan bölüm, sayfaları, kayıtlı konum ve yer imleri.
+//!
+//! PDF'te tek "bölüm" vardır ve her PDF sayfası bir okuyucu sayfasıdır
+//! (`Position.block` = PDF sayfa sırası); böylece sayfa çevirme, konum, yer imi
+//! ve yüzde hesabı EPUB ile aynı kodu kullanır.
 
 use serde::{Deserialize, Serialize};
 
 use super::settings::Settings;
 use super::ui::{BOTTOM, TOP};
-use crate::epub::{Block, BlockKind, Book, EpubError};
+use crate::epub::{Block, BlockKind, Book, EpubError, TocEntry};
+use crate::i18n::{Msg, tr};
+use crate::pdf::PdfDoc;
 use crate::text::{Align, Family, Line, ParaStyle, Style, Text, layout};
 
 /// Bir başlığın altında en az bu kadar satır yer yoksa başlık sonraki sayfaya geçer.
@@ -55,8 +61,15 @@ pub(super) enum Target {
     At(Position),
 }
 
+pub(super) enum Doc {
+    Epub(Book),
+    Pdf(PdfDoc),
+}
+
 pub(super) struct Session {
-    pub book: Book,
+    pub doc: Doc,
+    /// Kitabın başlığı yoksa gösterilecek ad (dosya adı).
+    pub name: String,
     pub id: String,
     pub state: BookState,
     pub spine: usize,
@@ -66,9 +79,10 @@ pub(super) struct Session {
 }
 
 impl Session {
-    pub fn new(book: Book, id: String, state: BookState) -> Self {
+    pub fn new(doc: Doc, name: String, id: String, state: BookState) -> Self {
         Self {
-            book,
+            doc,
+            name,
             id,
             state,
             spine: 0,
@@ -79,7 +93,40 @@ impl Session {
     }
 
     pub fn chapter_count(&self) -> usize {
-        self.book.spine.len()
+        match &self.doc {
+            Doc::Epub(book) => book.spine.len(),
+            Doc::Pdf(_) => 1,
+        }
+    }
+
+    pub fn pdf(&self) -> Option<&PdfDoc> {
+        match &self.doc {
+            Doc::Pdf(pdf) => Some(pdf),
+            Doc::Epub(_) => None,
+        }
+    }
+
+    /// Kitabın başlığı, yoksa dosya adı.
+    pub fn title(&self) -> String {
+        match &self.doc {
+            Doc::Epub(book) => book.title.clone().unwrap_or_else(|| self.name.clone()),
+            Doc::Pdf(_) => self.name.clone(),
+        }
+    }
+
+    /// Kitabın kendi içindekiler listesi (PDF'te şimdilik yok).
+    pub fn toc(&self) -> &[TocEntry] {
+        match &self.doc {
+            Doc::Epub(book) => &book.toc,
+            Doc::Pdf(_) => &[],
+        }
+    }
+
+    fn language(&self) -> Option<&str> {
+        match &self.doc {
+            Doc::Epub(book) => book.language.as_deref(),
+            Doc::Pdf(_) => None,
+        }
     }
 
     /// Bölümü okuyup sayfalara dizer. Hata olursa oturum değişmez.
@@ -91,14 +138,25 @@ impl Session {
         spine: usize,
         target: Target,
     ) -> Result<(), EpubError> {
-        let blocks = self.book.chapter(spine)?;
-        let pages = paginate(
-            text,
-            settings,
-            self.book.language.as_deref(),
-            width,
-            &blocks,
-        );
+        let (blocks, pages) = match &mut self.doc {
+            Doc::Epub(book) => {
+                let blocks = book.chapter(spine)?;
+                let pages = paginate(text, settings, book.language.as_deref(), width, &blocks);
+                (blocks, pages)
+            }
+            Doc::Pdf(pdf) => {
+                let pages = (0..pdf.page_count().max(1))
+                    .map(|i| Page {
+                        lines: Vec::new(),
+                        start: Position {
+                            block: i,
+                            offset: 0,
+                        },
+                    })
+                    .collect();
+                (Vec::new(), pages)
+            }
+        };
         self.page = match target {
             Target::Start => 0,
             Target::End => pages.len() - 1,
@@ -112,14 +170,11 @@ impl Session {
 
     /// Ayar değişince aynı konumu içeren sayfaya döner.
     pub fn relayout(&mut self, text: &Text, settings: &Settings, width: u32) {
+        if self.pdf().is_some() {
+            return; // PDF sayfaları yazı ayarına bağlı değil
+        }
         let at = self.position();
-        self.pages = paginate(
-            text,
-            settings,
-            self.book.language.as_deref(),
-            width,
-            &self.blocks,
-        );
+        self.pages = paginate(text, settings, self.language(), width, &self.blocks);
         self.page = page_of(&self.pages, at);
     }
 
@@ -172,6 +227,9 @@ impl Session {
     }
 
     fn snippet(&self, at: Position) -> String {
+        if self.pdf().is_some() {
+            return tr(&Msg::PageNumber(at.block + 1));
+        }
         let mut out = String::new();
         for block in self.blocks.iter().skip(at.block) {
             let start = if out.is_empty() {

@@ -10,6 +10,7 @@ use super::{App, View};
 use crate::canvas::Canvas;
 use crate::event::{Event, PageKey, Refresh};
 use crate::i18n::{Msg, tr};
+use crate::library::Format;
 use crate::text::{Family, Style};
 
 pub(super) const LIBRARY: List = List {
@@ -104,10 +105,12 @@ impl App {
             let r = LIBRARY.row_rect(canvas.width(), row);
             let title = one_line(t, &entry.display_title(), BOLD, ROW_PX, max_w);
             t.draw_plain(canvas, &title, Family::Ui, BOLD, MARGIN, r.y + 50, ROW_PX);
-            let mut second = if entry.authors.is_empty() {
-                tr(&Msg::UnknownAuthor)
-            } else {
+            let mut second = if !entry.authors.is_empty() {
                 entry.authors.join(", ")
+            } else if entry.format == Format::Pdf {
+                tr(&Msg::PdfDocument)
+            } else {
+                tr(&Msg::UnknownAuthor)
             };
             if !entry.readable {
                 second = tr(&Msg::Unreadable);
@@ -146,37 +149,50 @@ impl App {
 
     // --- İçindekiler ---
 
+    /// İçindekiler satır sayısı: kitabın listesi, yoksa her bölüm; PDF'te her sayfa.
     fn contents_len(&self) -> usize {
-        self.session.as_ref().map_or(0, |s| {
-            if s.book.toc.is_empty() {
-                s.book.spine.len()
-            } else {
-                s.book.toc.len()
-            }
+        self.session.as_ref().map_or(0, |s| match s.pdf() {
+            Some(pdf) => pdf.page_count(),
+            None if s.toc().is_empty() => s.chapter_count(),
+            None => s.toc().len(),
         })
     }
 
-    fn contents_spine(&self, index: usize) -> usize {
-        match &self.session {
-            Some(s) if !s.book.toc.is_empty() => s.book.toc[index].spine_index,
-            _ => index,
+    /// Satırın etiketi, girintisi ve hedefi.
+    fn contents_row(&self, index: usize) -> (String, u32, Jump) {
+        let Some(s) = &self.session else {
+            return (String::new(), 0, Jump::Chapter(0));
+        };
+        if s.pdf().is_some() {
+            return (tr(&Msg::PageNumber(index + 1)), 0, Jump::PdfPage(index));
+        }
+        match s.toc().get(index) {
+            Some(entry) => (
+                entry.title.clone(),
+                entry.depth,
+                Jump::Chapter(entry.spine_index),
+            ),
+            None => (tr(&Msg::ChapterNumber(index + 1)), 0, Jump::Chapter(index)),
         }
     }
 
-    pub(super) fn contents_page_of_current(&self) -> usize {
-        let Some(s) = &self.session else {
-            return 0;
-        };
-        let row = if s.book.toc.is_empty() {
+    /// Okunan yerin içindekilerdeki satırı.
+    fn current_contents_row(&self) -> Option<usize> {
+        let s = self.session.as_ref().filter(|s| !s.pages.is_empty())?;
+        Some(if s.pdf().is_some() {
+            s.page
+        } else if s.toc().is_empty() {
             s.spine
         } else {
-            s.book
-                .toc
+            s.toc()
                 .iter()
                 .rposition(|t| t.spine_index <= s.spine)
                 .unwrap_or(0)
-        };
-        row / CONTENTS.per_page()
+        })
+    }
+
+    pub(super) fn contents_page_of_current(&self) -> usize {
+        self.current_contents_row().unwrap_or(0) / CONTENTS.per_page()
     }
 
     pub(super) fn handle_contents(&mut self, page: usize, event: Event) -> Option<Refresh> {
@@ -185,7 +201,16 @@ impl App {
                 return self.back_to_reading();
             }
             let index = CONTENTS.row_at(page, self.contents_len(), y)?;
-            self.open_chapter(self.contents_spine(index), Target::Start);
+            match self.contents_row(index).2 {
+                Jump::Chapter(spine) => self.open_chapter(spine, Target::Start),
+                Jump::PdfPage(page) => {
+                    if let Some(s) = self.session.as_mut() {
+                        s.page = page;
+                    }
+                    self.save_progress();
+                    self.view = View::Reading;
+                }
+            }
             return Some(self.refresh(true));
         }
         let page = Self::page_list(page, CONTENTS.pages(self.contents_len()), event)?;
@@ -209,21 +234,12 @@ impl App {
             return;
         };
         let t = &self.text;
-        let title = s
-            .book
-            .title
-            .clone()
-            .unwrap_or_else(|| tr(&Msg::UntitledBook));
-        draw_header(t, canvas, &title, &tr(&Msg::Contents), true);
+        draw_header(t, canvas, &s.title(), &tr(&Msg::Contents), true);
+        let current = self.current_contents_row();
         for (index, row) in CONTENTS.visible(page, self.contents_len()) {
-            let (label, depth) = if s.book.toc.is_empty() {
-                (tr(&Msg::ChapterNumber(index + 1)), 0)
-            } else {
-                (s.book.toc[index].title.clone(), s.book.toc[index].depth)
-            };
+            let (label, depth, _) = self.contents_row(index);
             let x = MARGIN + depth.min(4) as i32 * TOC_INDENT;
-            let current = self.contents_spine(index) == s.spine && !s.pages.is_empty();
-            let style = if current { BOLD } else { PLAIN };
+            let style = if current == Some(index) { BOLD } else { PLAIN };
             let text = one_line(
                 t,
                 &label,
@@ -285,6 +301,19 @@ impl App {
         let Some(page) = s.pages.get(s.page) else {
             return;
         };
+        if s.pdf().is_some() {
+            self.draw_pdf_page(canvas, s);
+            if s.bookmark_here().is_some() {
+                draw_dog_ear(canvas);
+            }
+            let footer = Msg::PdfFooter {
+                page: s.page + 1,
+                pages: s.pages.len(),
+                percent: s.percent(),
+            };
+            draw_footer(t, canvas, &footer, MARGIN);
+            return;
+        }
         for placed in &page.lines {
             t.draw_line(canvas, &placed.line, self.settings.margin, placed.baseline);
         }
@@ -434,12 +463,7 @@ impl App {
             return;
         };
         let t = &self.text;
-        let title = s
-            .book
-            .title
-            .clone()
-            .unwrap_or_else(|| tr(&Msg::UntitledBook));
-        draw_header(t, canvas, &title, &tr(&Msg::Bookmarks), true);
+        draw_header(t, canvas, &s.title(), &tr(&Msg::Bookmarks), true);
         if s.state.bookmarks.is_empty() {
             self.draw_message_lines(canvas, &Msg::NoBookmarks, HEADER_BOTTOM + 80);
         }
@@ -457,13 +481,15 @@ impl App {
                 r.y + 50,
                 ROW_PX,
             );
-            t.draw_msg(
-                canvas,
-                &Msg::ChapterNumber(b.spine + 1),
-                MARGIN,
-                r.y + 95,
-                30.0,
-            );
+            if s.pdf().is_none() {
+                t.draw_msg(
+                    canvas,
+                    &Msg::ChapterNumber(b.spine + 1),
+                    MARGIN,
+                    r.y + 95,
+                    30.0,
+                );
+            }
         }
         let footer = Msg::ListFooter {
             page: page + 1,
@@ -590,6 +616,12 @@ impl App {
         draw_button(t, canvas, self.settings_cancel(), &tr(&Msg::Cancel), 40.0);
         draw_button(t, canvas, self.settings_ok(), &tr(&Msg::Ok), 40.0);
     }
+}
+
+/// İçindekiler satırına dokununca gidilecek yer.
+enum Jump {
+    Chapter(usize),
+    PdfPage(usize),
 }
 
 /// Yer imli sayfanın sağ üst köşesinde kıvrık köşe işareti.

@@ -1,4 +1,5 @@
-//! Kütüphane: bir klasördeki EPUB'ları bulur, başlık ve yazarlarını önbellekle okur.
+//! Kütüphane: bir klasördeki EPUB ve PDF'leri bulur, başlık ve yazarlarını önbellekle okur.
+//! PDF'ler taranırken açılmaz (büyük belgede yavaş); başlık olarak dosya adı kullanılır.
 //! Önbellek dosya yolu, boyutu ve değişiklik zamanıyla eşleşir; değişen kitap yeniden okunur.
 
 use std::path::{Path, PathBuf};
@@ -12,6 +13,24 @@ use crate::storage::Store;
 
 const INDEX_FILE: &str = "library.json";
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum Format {
+    #[default]
+    Epub,
+    Pdf,
+}
+
+impl Format {
+    pub fn of(path: &Path) -> Option<Format> {
+        let ext = path.extension()?.to_string_lossy().to_ascii_lowercase();
+        match ext.as_str() {
+            "epub" => Some(Format::Epub),
+            "pdf" => Some(Format::Pdf),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Entry {
     pub path: PathBuf,
@@ -23,6 +42,8 @@ pub struct Entry {
     pub authors: Vec<String>,
     /// Açılamayan kitap da listede kalır; açmaya çalışınca hata gösterilir.
     pub readable: bool,
+    #[serde(default)]
+    pub format: Format,
 }
 
 impl Entry {
@@ -62,7 +83,7 @@ fn fnv1a(bytes: &[u8]) -> u64 {
     h
 }
 
-/// `root` altındaki EPUB'ları tarar (gizli klasörler hariç) ve Türkçe başlık sırasıyla döner.
+/// `root` altındaki EPUB ve PDF'leri tarar (gizli klasörler hariç) ve Türkçe başlık sırasıyla döner.
 pub fn scan(root: &Path, store: &Store) -> Vec<Entry> {
     let cached: Vec<Entry> = store.load(INDEX_FILE).unwrap_or_default();
     let mut files = Vec::new();
@@ -86,12 +107,28 @@ pub fn scan(root: &Path, store: &Store) -> Vec<Entry> {
             entries.push(hit.clone());
             continue;
         }
-        let entry = match Book::open(&path) {
-            Ok(book) => Entry {
+        let format = Format::of(&path).unwrap_or_default();
+        let opened = match format {
+            Format::Epub => Book::open(&path).map(Some),
+            Format::Pdf => Ok(None),
+        };
+        let entry = match opened {
+            Ok(None) => Entry {
+                id: book_id(None, &path, size),
+                title: None,
+                authors: Vec::new(),
+                readable: true,
+                format,
+                path,
+                size,
+                modified,
+            },
+            Ok(Some(book)) => Entry {
                 id: book_id(book.identifier.as_deref(), &path, size),
                 title: book.title,
                 authors: book.authors,
                 readable: true,
+                format,
                 path,
                 size,
                 modified,
@@ -103,6 +140,7 @@ pub fn scan(root: &Path, store: &Store) -> Vec<Entry> {
                     title: None,
                     authors: Vec::new(),
                     readable: false,
+                    format,
                     path,
                     size,
                     modified,
@@ -132,10 +170,7 @@ fn collect(dir: &Path, out: &mut Vec<PathBuf>) {
         }
         if path.is_dir() {
             collect(&path, out);
-        } else if path
-            .extension()
-            .is_some_and(|e| e.eq_ignore_ascii_case("epub"))
-        {
+        } else if Format::of(&path).is_some() {
             out.push(path);
         }
     }
@@ -178,11 +213,18 @@ mod tests {
         std::fs::write(root.join("alt/kuyu.epub"), epub2_sample()).unwrap(); // Kuyucaklı Yusuf
         std::fs::write(root.join(".gizli/x.epub"), epub2_sample()).unwrap();
         std::fs::write(root.join("bozuk.epub"), b"zip degil").unwrap();
+        std::fs::write(
+            root.join("alt/Ödev.pdf"),
+            crate::pdf::testutil::minimal_pdf("x"),
+        )
+        .unwrap();
+        std::fs::write(root.join("notlar.txt"), b"kitap degil").unwrap();
 
         let entries = scan(&root, &store);
         let titles: Vec<_> = entries.iter().map(|e| e.display_title()).collect();
-        assert_eq!(titles, vec!["bozuk", "Çalıkuşu", "Kuyucaklı Yusuf"]);
+        assert_eq!(titles, vec!["bozuk", "Çalıkuşu", "Kuyucaklı Yusuf", "Ödev"]);
         assert!(!entries[0].readable);
+        assert_eq!(entries[3].format, Format::Pdf);
         assert!(store.dir().join("library.json").exists());
 
         // İkinci tarama önbellekten gelir ve aynı sonucu verir.

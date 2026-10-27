@@ -1,6 +1,6 @@
 # Legentia
 
-Kobo Libra 2 için Rust ile yazılan, tamamen Türkçe arayüzlü e-kitap okuyucu. Şu an M4 tamamlandı: simülatörde kütüphane, içindekiler, okuma, menü, yer imleri ve yazı ayarları; okuma konumu ve ayarlar kalıcı.
+Kobo Libra 2 için Rust ile yazılan, tamamen Türkçe arayüzlü e-kitap okuyucu. Şu an M4 tamamlandı, M5 (PDF) sürüyor: simülatörde EPUB ve PDF okuma; kütüphane, içindekiler, menü, yer imleri, yazı ayarları; PDF'te otomatik kenar kırpma.
 
 Belgeler: `kobo-rust-okuyucu-proje-aktarim.md` (vizyon), `milestone.md` (plan), `dikkat-edilmesi-gerekenler.md` (kurallar), `docs/device-compatibility.md` (cihaz bilgisi), `docs/epub-support.md` (desteklenen EPUB özellikleri), `docs/dependencies.md` (bağımlılıklar, fontlar ve lisansları).
 
@@ -21,6 +21,12 @@ cargo test --workspace                    # masaüstü testleri
 
 # Bir klasördeki tüm EPUB'ları dene (salt okuma; süre, bellek, hata raporu)
 cargo run --release -p legentia-core --example epub_check -- /run/media/$USER/KOBOeReader
+
+# Bir klasördeki tüm PDF'leri çiz (salt okuma; süre, bellek, hata raporu)
+cargo run --release -p legentia-core --example pdf_check -- <klasör | belge.pdf> [ilk sayfaları yazacağı klasör]
+
+# OCR deneyi (Tesseract, NixOS): docs/ocr-deney.md
+tools/ocr/deney.sh <belge.pdf> <çıktı klasörü>
 
 # Pencere açmadan ekran görüntüleri (PGM): kütüphane, içindekiler, okuma, menü, ayarlar
 cargo run --release -p legentia-core --example screenshots -- <kütüphane> <çıktı klasörü> [kitap sırası]

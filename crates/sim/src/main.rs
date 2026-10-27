@@ -23,7 +23,13 @@ const FULL_REFRESH_FLASH: Duration = Duration::from_millis(120);
 fn main() -> ExitCode {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
     i18n::install_panic_hook();
+    std::panic::catch_unwind(run).unwrap_or_else(|_| {
+        i18n::show_error(&Msg::Crashed);
+        ExitCode::FAILURE
+    })
+}
 
+fn run() -> ExitCode {
     let Some(font) = load_fonts() else {
         return ExitCode::FAILURE;
     };

@@ -2,12 +2,15 @@
 //!
 //! Ekranlar: kütüphane → (kitap) içindekiler / okuma → menü → yer imleri,
 //! yazı ayarları. Okurken ekranın ortasına dokunmak menüyü açar.
+//! PDF'ler aynı ekranlarla okunur; sayfa görüntüsü çizilip önbellekte tutulur.
 
+mod pdf_view;
 mod screens;
 mod session;
 mod settings;
 mod ui;
 
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::path::Path;
 
@@ -15,11 +18,12 @@ use crate::canvas::Canvas;
 use crate::epub::Book;
 use crate::event::{Event, Refresh};
 use crate::i18n::Msg;
-use crate::library::{self, Entry};
+use crate::library::{self, Entry, Format};
+use crate::pdf::{Area, GrayImage, PdfDoc};
 use crate::storage::Store;
 use crate::text::Text;
 pub use session::{BookState, Bookmark, Position};
-use session::{Session, Target};
+use session::{Doc, Session, Target};
 pub use settings::Settings;
 
 /// Kaç kısmi yenilemeden sonra bir tam yenileme yapılacağı.
@@ -61,6 +65,19 @@ pub struct App {
     since_full: u32,
     /// Son kayıttan beri çevrilen sayfa sayısı.
     unsaved_turns: u32,
+    /// Son çizilen PDF sayfası; menü açılıp kapanınca yeniden çizilmez.
+    pdf_frame: RefCell<Option<PdfFrame>>,
+    /// PDF sayfası → kırpılmış içerik alanı (oturum boyunca).
+    pdf_areas: RefCell<HashMap<usize, Area>>,
+}
+
+/// Ekrana yerleştirilmiş PDF sayfa görüntüsü.
+struct PdfFrame {
+    page: usize,
+    crop: bool,
+    image: GrayImage,
+    x: i32,
+    y: i32,
 }
 
 impl App {
@@ -87,6 +104,8 @@ impl App {
             view: View::Library { page: 0 },
             since_full: 0,
             unsaved_turns: 0,
+            pdf_frame: RefCell::new(None),
+            pdf_areas: RefCell::new(HashMap::new()),
         }
     }
 
@@ -99,7 +118,8 @@ impl App {
         &self.settings
     }
 
-    /// Kitabı açar: kayıtlı konum varsa oradan, yoksa içindekilerden.
+    /// Kitabı açar: kayıtlı konum varsa oradan, yoksa EPUB'da içindekilerden,
+    /// PDF'te ilk sayfadan.
     pub fn open_book(&mut self, path: &Path) {
         let id = self
             .library
@@ -107,24 +127,49 @@ impl App {
             .find(|e| e.path == path)
             .map(|e| e.id.clone());
         let size = std::fs::metadata(path).map_or(0, |m| m.len());
-        let book = match Book::open(path) {
-            Ok(b) => b,
-            Err(e) => {
-                log::error!("cannot open {}: {e:?}", path.display());
+        let opened = match Format::of(path).unwrap_or_default() {
+            Format::Epub => Book::open(path)
+                .map(|b| {
+                    let id =
+                        id.unwrap_or_else(|| library::book_id(b.identifier.as_deref(), path, size));
+                    (Doc::Epub(b), id)
+                })
+                .map_err(|e| (format!("{e:?}"), e.message())),
+            Format::Pdf => PdfDoc::open(path)
+                .map(|d| {
+                    (
+                        Doc::Pdf(d),
+                        id.unwrap_or_else(|| library::book_id(None, path, size)),
+                    )
+                })
+                .map_err(|e| (format!("{e:?}"), e.message())),
+        };
+        let (doc, id) = match opened {
+            Ok(v) => v,
+            Err((detail, msg)) => {
+                log::error!("cannot open {}: {detail}", path.display());
                 self.view = View::Message {
-                    msg: e.message(),
+                    msg,
                     back: Back::Library,
                 };
                 return;
             }
         };
-        let id = id.unwrap_or_else(|| library::book_id(book.identifier.as_deref(), path, size));
+        let is_pdf = matches!(doc, Doc::Pdf(_));
         let state: BookState = self.store.load(&book_file(&id)).unwrap_or_default();
         let last = state.last;
-        self.session = Some(Session::new(book, id, state));
+        let name = path
+            .file_stem()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        self.session = Some(Session::new(doc, name, id, state));
+        self.pdf_frame.replace(None);
+        self.pdf_areas.borrow_mut().clear();
         self.view = View::Contents { page: 0 };
-        if let Some((spine, at)) = last {
-            self.open_chapter(spine, Target::At(at));
+        match last {
+            Some((spine, at)) => self.open_chapter(spine, Target::At(at)),
+            None if is_pdf => self.open_chapter(0, Target::Start),
+            None => {}
         }
     }
 

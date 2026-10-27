@@ -172,9 +172,9 @@ Süreler cihaz performansı değildir; Libra 2'de kat kat yavaş olacak (M10'da 
 **Amaç:** PDF'leri yüksek kalitede göstermek; taranmış PDF'lerde bile metni anlayıp 6 inç ekrana uygun biçimde yeniden düzenleyebilmek.
 
 ### İşler
-- [ ] PDF motorunu araştır ve seç: görüntü kalitesi, hız, bellek, ARMv7 musl uyumluluğu ve lisans. (Karar: saf Rust. Çizim için hayro (MIT/Apache), PDF yazma için lopdf (MIT) değerlendiriliyor.)
-- [ ] Yüksek kaliteli render: gri ton için doğru kenar yumuşatma ve E Ink'e uygun kontrast/gamma.
-- [ ] Yakınlaştırma, kenar boşluğu kırpma (otomatik ve elle), sayfaya/genişliğe sığdırma, sütun modu.
+- [x] PDF motorunu araştır ve seç: görüntü kalitesi, hız, bellek, ARMv7 musl uyumluluğu ve lisans. (Saf Rust: hayro 0.8, MIT/Apache; ARMv7 musl'da derleniyor, testler qemu'da geçiyor. PDF yazma için lopdf (MIT) değerlendirilecek.)
+- [x] Yüksek kaliteli render: gri ton için doğru kenar yumuşatma. (E Ink'e uygun kontrast/gamma ayarı cihazda değerlendirilecek.)
+- [ ] Yakınlaştırma, kenar boşluğu kırpma (otomatik ve elle), sayfaya/genişliğe sığdırma, sütun modu. (Yapıldı: otomatik kırpma + sayfaya sığdırma, yalnızca görünen alan çizilir, aşırı büyütme 2× ile sınırlı. Kalan: elle yakınlaştırma, sütun modu.)
 - [ ] Metin katmanı olan PDF'lerde metni çıkar ve okuyucunun layout motoruyla yeniden akıt (reflow).
 - [ ] Taranmış PDF'ler için OCR: sayfa düzenini (sütunlar, başlıklar, paragraflar) ve metni tanı; sonuca göre yeniden akıt veya bölgeleri yeniden ölçekle.
 - [x] OCR'ı önce NixOS'ta deney amaçlı çalıştır (Türkçe dil paketiyle); doğruluk ve süreyi ölç. (`docs/ocr-deney.md`: `tur` ile temiz ve hafif bozuk görüntüde %0 hata; kötü taramada eğiklik düzeltmesi hatayı %31–69'dan %0'a indirdi)
@@ -191,6 +191,19 @@ Süreler cihaz performansı değildir; Libra 2'de kat kat yavaş olacak (M10'da 
 - OCR katmanı gömülmüş PDF başka bir PDF okuyucusunda aranabiliyor ve seçilebiliyor.
 - PDF'e yazılan notlar ve vurgular başka bir PDF okuyucusunda görünüyor.
 - Yazma işlemi yarıda kesilse bile orijinal PDF bozulmuyor.
+
+### Ara ölçümler (2026-10-27, NixOS x86_64, release, Libra 2 genişliği 1264 px)
+`cargo run --release -p legentia-core --example pdf_check -- <klasör>`; kullanıcının Kobo'sundaki 7 PDF, 1528 sayfa.
+
+| Ölçüm | Değer |
+|---|---|
+| Hatasız çizilen sayfa | 1528/1528 (JBIG2 ve JPEG 2000 içeren taranmış kitap dahil) |
+| Belge açma | 145–463 ms |
+| Sayfa çizme, ortanca | 12–23 ms (metin PDF'leri), 99 ms (taranmış) |
+| En yavaş sayfa | 367 ms (taranmış) |
+| En yüksek bellek | 32–41 MB çoğu belge, 78 MB (10 MB'lık dosya), 150 MB (taranmış) |
+
+Taranmış belgedeki bellek kullanımı cihaz için yüksek; M5 içinde düşürülecek. Belge şu an tamamen belleğe okunuyor.
 
 **Çıktı:** Simülatörde PDF görüntüleme, reflow ve OCR akışı.
 
