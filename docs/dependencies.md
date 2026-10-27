@@ -10,6 +10,7 @@ Doğrudan kullanılan crate'ler. Lisanslar `cargo metadata` ile alınmıştır (
 | rustybuzz | 0.20.1 | MIT | core | Harf birleştirme (shaping), kerning, bitişik harfler, dile özgü kurallar (`tr`). | Testler qemu'da geçiyor |
 | swash | 0.2.10 | Apache-2.0 OR MIT | core | Glif çizimi (hinting açık), font ölçüleri. | Testler qemu'da geçiyor |
 | unicode-linebreak | 0.1.5 | Apache-2.0 | core | Unicode satır kırma noktaları (UAX #14). | Testler qemu'da geçiyor |
+| serde, serde_json | 1.0 | MIT OR Apache-2.0 | core | Ayar ve okuma kayıtları (JSON). | Testler qemu'da geçiyor |
 | log | 0.4.34 | MIT OR Apache-2.0 | core, sim | Teknik log. | Derleniyor |
 | minifb | 0.29.0 | MIT OR Apache-2.0 | sim | Masaüstü penceresi (yalnızca X11 arka ucu). Cihazda kullanılmaz. | Gerekmiyor |
 | env_logger | 0.11.11 | MIT OR Apache-2.0 | sim | Simülatörde log çıktısı. | Gerekmiyor |

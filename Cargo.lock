@@ -429,6 +429,8 @@ dependencies = [
  "log",
  "quick-xml",
  "rustybuzz",
+ "serde",
+ "serde_json",
  "swash",
  "unicode-linebreak",
  "unicode-normalization",

@@ -10,15 +10,19 @@
 
 mod app;
 mod canvas;
+mod collate;
 pub mod epub;
 mod event;
 pub mod i18n;
+pub mod library;
+mod storage;
 mod text;
 
-pub use app::{App, Position, Settings};
+pub use app::{App, BookState, Bookmark, Position, Settings};
 pub use canvas::Canvas;
 pub use epub::{Book, EpubError};
 pub use event::{Event, PageKey, Refresh};
+pub use storage::Store;
 pub use text::{Family, FontError, Fonts, Span, Style, Text, book_family_count, book_family_name};
 
 /// Kobo Libra 2 ekranı, dikey konum (bkz. docs/device-compatibility.md).

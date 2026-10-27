@@ -68,6 +68,7 @@ pub struct Book {
     pub title: Option<String>,
     pub authors: Vec<String>,
     pub language: Option<String>,
+    pub identifier: Option<String>,
     /// Okuma sırasındaki XHTML dosyaları (paket köküne göre yol).
     pub spine: Vec<String>,
     pub toc: Vec<TocEntry>,
@@ -111,6 +112,7 @@ impl Book {
             title: package.title,
             authors: package.authors,
             language: package.language,
+            identifier: package.identifier,
             spine: package.spine,
             toc,
             archive,
@@ -277,6 +279,7 @@ mod tests {
         assert_eq!(book.title.as_deref(), Some("Çalıkuşu"));
         assert_eq!(book.authors, vec!["Reşat Nuri Güntekin"]);
         assert_eq!(book.language.as_deref(), Some("tr"));
+        assert_eq!(book.identifier.as_deref(), Some("urn:uuid:calikusu-0001"));
         assert_eq!(book.spine.len(), 2);
         let titles: Vec<_> = book
             .toc

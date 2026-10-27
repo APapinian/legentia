@@ -140,19 +140,28 @@ Süreler cihaz performansı değildir; Libra 2'de kat kat yavaş olacak (M10'da 
 **Amaç:** Günlük okumada kullanılabilecek ilk sürümü simülatörde tamamlamak.
 
 ### İşler
-- [ ] Yerel depolama katmanını seç (SQLite veya gerekçelendirilmiş alternatif); şema ve migration stratejisini belirle.
-- [ ] Kütüphane ekranı: USB ile `/mnt/onboard` altına kopyalanan kitapları tara ve listele (simülatörde bir klasör).
-- [ ] Okuma ekranı, menüler ve ayarlar.
-- [ ] İçindekiler, bölüm/sayfa gezinmesi, okuma konumu ve yer imleri.
-- [ ] Ayarların ve ilerlemenin kalıcı saklanması.
-- [ ] E Ink'e uygun kontrast ve ters renk seçeneklerini değerlendir.
-- [ ] Türkçe imla, tarih, sayı biçimi ve hata mesajlarını gözden geçir; Türkçe sıralama ve aramayı uygula.
+- [x] Yerel depolama katmanını seç (SQLite veya gerekçelendirilmiş alternatif); şema ve migration stratejisini belirle. (Sürüm numaralı JSON dosyaları, `crates/core/src/storage.rs`. Gerekçe: veri küçük, okunabilir ve yedeklenebilir, saf Rust; atomik yazma (geçici dosya + yeniden adlandırma). Bozuk ya da daha yeni sürümlü dosya `.bozuk` olarak kenara alınır, üzerine yazılmaz. Notlar/arama (M6) SQLite gerektirirse JSON'dan aktarılır.)
+- [x] Kütüphane ekranı: USB ile `/mnt/onboard` altına kopyalanan kitapları tara ve listele (simülatörde bir klasör). (Gizli klasörler atlanır; başlıklar yol/boyut/tarih anahtarlı önbellekte)
+- [x] Okuma ekranı, menüler ve ayarlar. (Ekranın ortası menü; yazı ayarları ekranı önizlemeli, "Tamam"la uygulanır)
+- [x] İçindekiler, bölüm/sayfa gezinmesi, okuma konumu ve yer imleri. (Yer imli sayfada köşe işareti)
+- [x] Ayarların ve ilerlemenin kalıcı saklanması. (Konum her 10 sayfa çevirmede, bölüm değişince, menü açılınca ve kapanışta kaydedilir)
+- [x] E Ink'e uygun kontrast ve ters renk seçeneklerini değerlendir. (Gece modu: ters renk; kontrast ayarı cihazda değerlendirilecek)
+- [x] Türkçe imla, tarih, sayı biçimi ve hata mesajlarını gözden geçir; Türkçe sıralama ve aramayı uygula. (Yüzde "%45", ondalık virgül "1,4", Türk alfabesiyle sıralama, `I/ı`–`İ/i` dönüşümü. Kütüphanede arama henüz yok.)
+- [x] Kitap kimliği: EPUB'ın kendi tanımlayıcısı (ISBN/UUID), yoksa dosya adı + boyut; kitap taşınsa da konum ve yer imleri korunur.
+- [x] Pencere açmadan ekran görüntüsü alan geliştirici aracı (`examples/screenshots.rs`).
 
 ### Kabul ölçütleri
-- Kullanıcıya görünen İngilizce metin kalmıyor.
-- Ayarlar, okuma konumu, yer imleri ve kütüphane bilgileri yeniden açılışta korunuyor.
-- Türkçe karakterli dosya adları ve kitap başlıkları doğru sıralanıyor.
-- Bellek tavanı belirlenmiş ve büyük kitaplarla test edilmiş. `[ölçülecek]`
+- Kullanıcıya görünen İngilizce metin kalmıyor. (Tüm arayüz metni `Msg` katalogundan; font adları ve kitap içeriği hariç)
+- Ayarlar, okuma konumu, yer imleri ve kütüphane bilgileri yeniden açılışta korunuyor. (testli)
+- Türkçe karakterli dosya adları ve kitap başlıkları doğru sıralanıyor. (testli)
+- Bellek tavanı belirlenmiş ve büyük kitaplarla test edilmiş.
+
+### Ölçümler (2026-10-27, NixOS x86_64, release)
+| Ölçüm | Değer |
+|---|---|
+| Kütüphane taraması, 8 kitap, önbellek boş | 12 ms |
+| Uygulamanın en yüksek belleği (fontlar, ekran tamponu, glif önbelleği, en büyük kitap ~500 bin karakter) | 12,6 MB |
+| Sayfa çevirme, kayıtsız / kayıtlı (her 10'da bir, `fsync`) | < 0,01 ms / ~10 ms |
 
 **Çıktı:** Simülatörde Türkçe temel okuyucu.
 

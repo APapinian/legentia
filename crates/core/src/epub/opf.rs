@@ -15,6 +15,8 @@ pub(super) struct Package {
     pub title: Option<String>,
     pub authors: Vec<String>,
     pub language: Option<String>,
+    /// İlk `dc:identifier` (ISBN, UUID…); kitabın kimliği için.
+    pub identifier: Option<String>,
     pub spine: Vec<String>,
     pub manifest: HashMap<String, ManifestItem>,
     /// EPUB2: spine'ın `toc` özniteliğindeki NCX öğesinin kimliği.
@@ -54,6 +56,7 @@ pub(super) fn parse(text: &str, opf_path: &str) -> Result<Package, EpubError> {
         title: None,
         authors: Vec::new(),
         language: None,
+        identifier: None,
         spine: Vec::new(),
         manifest: HashMap::new(),
         ncx_id: None,
@@ -69,7 +72,7 @@ pub(super) fn parse(text: &str, opf_path: &str) -> Result<Package, EpubError> {
             Event::Start(e) => {
                 let name = e.local_name().as_ref().to_string();
                 match name.as_str() {
-                    "title" | "creator" | "language" => {
+                    "title" | "creator" | "language" | "identifier" => {
                         field = Some(name);
                         buf.clear();
                     }
@@ -100,6 +103,9 @@ pub(super) fn parse(text: &str, opf_path: &str) -> Result<Package, EpubError> {
                             Some("creator") => pkg.authors.push(value),
                             Some("language") if pkg.language.is_none() => {
                                 pkg.language = Some(value)
+                            }
+                            Some("identifier") if pkg.identifier.is_none() => {
+                                pkg.identifier = Some(value)
                             }
                             _ => {}
                         }

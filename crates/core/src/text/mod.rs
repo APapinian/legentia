@@ -220,6 +220,21 @@ impl Text {
         );
     }
 
+    /// Tek satırlık düz metnin genişliği (piksel).
+    pub(crate) fn width_plain(&self, text: &str, family: Family, style: Style, px: f32) -> f32 {
+        let mut glyphs = Vec::new();
+        self.shape(
+            text,
+            self.fonts.face(family, style),
+            px,
+            Some("tr"),
+            false,
+            0,
+            &mut glyphs,
+        );
+        glyphs.iter().map(|g| g.advance).sum()
+    }
+
     /// Düz metni `max_width` genişliğinde satırlara böler (heceleme yok).
     pub(crate) fn wrap_plain(
         &self,

@@ -1,22 +1,20 @@
-//! Libra 2 masaüstü simülatörü. Kullanım: `legentia-sim kitap.epub`
+//! Libra 2 masaüstü simülatörü. Kullanım: `legentia-sim <kitap klasörü | kitap.epub>`
+//! Kitap verilirse bulunduğu klasör kütüphane olur ve kitap doğrudan açılır.
 //!
 //! Fare tıklaması (ya da dokunmatik ekran) = dokunma. Okurken sol üçte bir
-//! önceki sayfa, sağ üçte bir sonraki sayfa, orta içindekiler.
+//! önceki sayfa, sağ üçte bir sonraki sayfa, orta menü.
 //! PageUp / Sol ok = üst sayfa tuşu (geri), PageDown / Sağ ok / Boşluk = alt tuş (ileri).
 //! Esc = çıkış. Tam yenileme, ekranın bir an ters renkte gösterilmesiyle işaretlenir.
 //!
-//! Geçici geliştirici tuşları (ayar menüsü M4'te): + / - yazı boyutu,
-//! F yazı tipi, L satır aralığı, M kenar boşluğu, J iki yana yaslama, H heceleme.
-//!
 //! LEGENTIA_SIM_SCALE: pencere küçültme katsayısı (tam sayı, varsayılan 2).
+//! LEGENTIA_DATA: ayar ve okuma kayıtlarının klasörü (varsayılan ~/.local/share/legentia).
 
 use std::process::ExitCode;
 use std::time::Duration;
 
 use legentia_core::i18n::{self, Msg, tr};
 use legentia_core::{
-    App, Book, Canvas, Event, Fonts, LIBRA2_HEIGHT, LIBRA2_WIDTH, PageKey, Refresh, Settings, Text,
-    book_family_count, book_family_name,
+    App, Canvas, Event, Fonts, LIBRA2_HEIGHT, LIBRA2_WIDTH, PageKey, Refresh, Store, Text,
 };
 use minifb::{Key, KeyRepeat, MouseButton, MouseMode, Window, WindowOptions};
 
@@ -51,16 +49,24 @@ fn main() -> ExitCode {
     };
     window.set_target_fps(60);
 
-    let mut app = match std::env::args_os().nth(1) {
-        Some(path) => {
-            let path = std::path::PathBuf::from(path);
-            let started = std::time::Instant::now();
-            let book = Book::open(&path);
-            log::info!("opened {} in {:?}", path.display(), started.elapsed());
-            App::new(font, LIBRA2_WIDTH, book)
-        }
-        None => App::with_message(font, LIBRA2_WIDTH, Msg::NoBookGiven),
+    let Some(arg) = std::env::args_os().nth(1).map(std::path::PathBuf::from) else {
+        i18n::show_error(&Msg::Usage);
+        return ExitCode::FAILURE;
     };
+    let (root, book) = if arg.is_dir() {
+        (arg, None)
+    } else {
+        let parent = arg.parent().map(|p| p.to_path_buf()).unwrap_or_default();
+        (parent, Some(arg))
+    };
+    let store = Store::new(&data_dir());
+    log::info!("library {}, data {}", root.display(), store.dir().display());
+    let started = std::time::Instant::now();
+    let mut app = App::new(font, LIBRA2_WIDTH, store, &root);
+    log::info!("library scanned in {:?}", started.elapsed());
+    if let Some(book) = book {
+        app.open_book(&book);
+    }
     let mut canvas = Canvas::new(LIBRA2_WIDTH, LIBRA2_HEIGHT);
     let mut frame = vec![0u32; (w * h) as usize];
     let refresh = app.start();
@@ -88,25 +94,7 @@ fn main() -> ExitCode {
                 Key::PageDown | Key::Right | Key::Space => {
                     events.push(Event::Key(PageKey::Forward))
                 }
-                _ => {
-                    if let Some(settings) = adjust(app.settings(), key) {
-                        log::info!(
-                            "settings: {} {}px, line {}, margin {}, justify {}, hyphenate {}",
-                            book_family_name(settings.family),
-                            settings.font_px,
-                            settings.line_spacing,
-                            settings.margin,
-                            settings.justify,
-                            settings.hyphenate
-                        );
-                        let started = std::time::Instant::now();
-                        let refresh = app.set_settings(settings);
-                        log::info!("relayout in {:?}", started.elapsed());
-                        if let Some(refresh) = refresh {
-                            present(&mut window, &app, &mut canvas, &mut frame, scale, refresh);
-                        }
-                    }
-                }
+                _ => {}
             }
         }
 
@@ -119,7 +107,23 @@ fn main() -> ExitCode {
             }
         }
     }
+    app.shutdown();
+    log::info!(
+        "peak memory (VmHWM): {}",
+        peak_rss().unwrap_or_else(|| "?".into())
+    );
     ExitCode::SUCCESS
+}
+
+fn peak_rss() -> Option<String> {
+    let status = std::fs::read_to_string("/proc/self/status").ok()?;
+    let line = status.lines().find(|l| l.starts_with("VmHWM"))?;
+    Some(
+        line.split_whitespace()
+            .skip(1)
+            .collect::<Vec<_>>()
+            .join(" "),
+    )
 }
 
 fn load_fonts() -> Option<Text> {
@@ -137,26 +141,14 @@ fn load_fonts() -> Option<Text> {
     }
 }
 
-/// Geliştirici tuşları: ayarın değiştirilmiş bir kopyası.
-fn adjust(current: &Settings, key: Key) -> Option<Settings> {
-    let mut s = current.clone();
-    match key {
-        Key::Equal | Key::NumPadPlus => s.font_px = (s.font_px + 4.0).min(80.0),
-        Key::Minus | Key::NumPadMinus => s.font_px = (s.font_px - 4.0).max(24.0),
-        Key::F => s.family = (s.family + 1) % book_family_count(),
-        Key::L => {
-            s.line_spacing = if s.line_spacing >= 1.75 {
-                1.2
-            } else {
-                s.line_spacing + 0.2
-            }
-        }
-        Key::M => s.margin = if s.margin >= 150 { 30 } else { s.margin + 40 },
-        Key::J => s.justify = !s.justify,
-        Key::H => s.hyphenate = !s.hyphenate,
-        _ => return None,
+fn data_dir() -> std::path::PathBuf {
+    if let Some(dir) = std::env::var_os("LEGENTIA_DATA") {
+        return dir.into();
     }
-    Some(s)
+    let home = std::env::var_os("HOME")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_default();
+    home.join(".local/share/legentia")
 }
 
 fn present(

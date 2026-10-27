@@ -43,6 +43,22 @@ impl Canvas {
         }
     }
 
+    /// Dikdörtgenin `thickness` kalınlığında siyah çerçevesi.
+    pub fn stroke_rect(&mut self, x: i32, y: i32, w: u32, h: u32, thickness: u32) {
+        let t = thickness.min(w).min(h);
+        self.fill_rect(x, y, w, t, 0);
+        self.fill_rect(x, y + h as i32 - t as i32, w, t, 0);
+        self.fill_rect(x, y, t, h, 0);
+        self.fill_rect(x + w as i32 - t as i32, y, t, h, 0);
+    }
+
+    /// Renkleri ters çevirir (gece modu).
+    pub fn invert(&mut self) {
+        for p in &mut self.pixels {
+            *p = 255 - *p;
+        }
+    }
+
     /// Mevcut pikseli daha koyu olanla değiştirir (beyaz zemine siyah metin).
     pub(crate) fn darken(&mut self, x: i32, y: i32, gray: u8) {
         if x < 0 || y < 0 || x >= self.width as i32 || y >= self.height as i32 {
@@ -63,6 +79,16 @@ mod tests {
         c.fill_rect(-5, 8, 20, 20, 0);
         let black = c.pixels().iter().filter(|&&p| p == 0).count();
         assert_eq!(black, 10 * 2);
+    }
+
+    #[test]
+    fn stroke_draws_only_the_border() {
+        let mut c = Canvas::new(10, 10);
+        c.stroke_rect(0, 0, 10, 10, 1);
+        let black = c.pixels().iter().filter(|&&p| p == 0).count();
+        assert_eq!(black, 36);
+        c.invert();
+        assert_eq!(c.pixels().iter().filter(|&&p| p == 0).count(), 64);
     }
 
     #[test]

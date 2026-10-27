@@ -59,6 +59,7 @@ pub fn epub3_sample() -> Vec<u8> {
     <dc:title>Çalıkuşu</dc:title>
     <dc:creator>Reşat Nuri Güntekin</dc:creator>
     <dc:language>tr</dc:language>
+    <dc:identifier id="uid">urn:uuid:calikusu-0001</dc:identifier>
   </metadata>
   <manifest>
     <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
