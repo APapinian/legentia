@@ -151,37 +151,33 @@ impl App {
 
     /// İçindekiler satır sayısı: kitabın listesi, yoksa her bölüm; PDF'te her sayfa.
     fn contents_len(&self) -> usize {
-        self.session.as_ref().map_or(0, |s| match s.pdf() {
-            Some(pdf) => pdf.page_count(),
-            None if s.toc().is_empty() => s.chapter_count(),
-            None => s.toc().len(),
+        self.session.as_ref().map_or(0, |s| {
+            if s.pdf().is_some() || s.toc().is_empty() {
+                s.chapter_count()
+            } else {
+                s.toc().len()
+            }
         })
     }
 
-    /// Satırın etiketi, girintisi ve hedefi.
-    fn contents_row(&self, index: usize) -> (String, u32, Jump) {
+    /// Satırın etiketi, girintisi ve açacağı bölüm (PDF'te sayfa).
+    fn contents_row(&self, index: usize) -> (String, u32, usize) {
         let Some(s) = &self.session else {
-            return (String::new(), 0, Jump::Chapter(0));
+            return (String::new(), 0, 0);
         };
         if s.pdf().is_some() {
-            return (tr(&Msg::PageNumber(index + 1)), 0, Jump::PdfPage(index));
+            return (tr(&Msg::PageNumber(index + 1)), 0, index);
         }
         match s.toc().get(index) {
-            Some(entry) => (
-                entry.title.clone(),
-                entry.depth,
-                Jump::Chapter(entry.spine_index),
-            ),
-            None => (tr(&Msg::ChapterNumber(index + 1)), 0, Jump::Chapter(index)),
+            Some(entry) => (entry.title.clone(), entry.depth, entry.spine_index),
+            None => (tr(&Msg::ChapterNumber(index + 1)), 0, index),
         }
     }
 
     /// Okunan yerin içindekilerdeki satırı.
     fn current_contents_row(&self) -> Option<usize> {
         let s = self.session.as_ref().filter(|s| !s.pages.is_empty())?;
-        Some(if s.pdf().is_some() {
-            s.page
-        } else if s.toc().is_empty() {
+        Some(if s.pdf().is_some() || s.toc().is_empty() {
             s.spine
         } else {
             s.toc()
@@ -201,16 +197,7 @@ impl App {
                 return self.back_to_reading();
             }
             let index = CONTENTS.row_at(page, self.contents_len(), y)?;
-            match self.contents_row(index).2 {
-                Jump::Chapter(spine) => self.open_chapter(spine, Target::Start),
-                Jump::PdfPage(page) => {
-                    if let Some(s) = self.session.as_mut() {
-                        s.page = page;
-                    }
-                    self.save_progress();
-                    self.view = View::Reading;
-                }
-            }
+            self.open_chapter(self.contents_row(index).2, Target::Start);
             return Some(self.refresh(true));
         }
         let page = Self::page_list(page, CONTENTS.pages(self.contents_len()), event)?;
@@ -274,6 +261,8 @@ impl App {
             }
         };
         let s = self.session.as_mut()?;
+        // EPUB'da bölüm değişimi tam yenilenir; PDF'te her sayfa bir bölüm olduğundan normal sayaç.
+        let full = s.pdf().is_none();
         if forward && s.page + 1 < s.pages.len() {
             s.page += 1;
         } else if !forward && s.page > 0 {
@@ -281,11 +270,11 @@ impl App {
         } else if forward && s.spine + 1 < s.chapter_count() {
             let next = s.spine + 1;
             self.open_chapter(next, Target::Start);
-            return Some(self.refresh(true));
+            return Some(self.refresh(full));
         } else if !forward && s.spine > 0 {
             let prev = s.spine - 1;
             self.open_chapter(prev, Target::End);
-            return Some(self.refresh(true));
+            return Some(self.refresh(full));
         } else {
             return None;
         }
@@ -301,14 +290,14 @@ impl App {
         let Some(page) = s.pages.get(s.page) else {
             return;
         };
-        if s.pdf().is_some() {
+        if s.showing_pdf_image() {
             self.draw_pdf_page(canvas, s);
             if s.bookmark_here().is_some() {
                 draw_dog_ear(canvas);
             }
             let footer = Msg::PdfFooter {
-                page: s.page + 1,
-                pages: s.pages.len(),
+                page: s.spine + 1,
+                pages: s.chapter_count(),
                 percent: s.percent(),
             };
             draw_footer(t, canvas, &footer, MARGIN);
@@ -323,12 +312,22 @@ impl App {
         if s.bookmark_here().is_some() {
             draw_dog_ear(canvas);
         }
-        let footer = Msg::ReadingFooter {
-            chapter: s.spine + 1,
-            chapters: s.chapter_count(),
-            page: s.page + 1,
-            pages: s.pages.len(),
-            percent: s.percent(),
+        let footer = if s.pdf().is_some() {
+            Msg::PdfReflowFooter {
+                page: s.spine + 1,
+                pages: s.chapter_count(),
+                screen: s.page + 1,
+                screens: s.pages.len(),
+                percent: s.percent(),
+            }
+        } else {
+            Msg::ReadingFooter {
+                chapter: s.spine + 1,
+                chapters: s.chapter_count(),
+                page: s.page + 1,
+                pages: s.pages.len(),
+                percent: s.percent(),
+            }
         };
         draw_footer(t, canvas, &footer, self.settings.margin);
     }
@@ -616,12 +615,6 @@ impl App {
         draw_button(t, canvas, self.settings_cancel(), &tr(&Msg::Cancel), 40.0);
         draw_button(t, canvas, self.settings_ok(), &tr(&Msg::Ok), 40.0);
     }
-}
-
-/// İçindekiler satırına dokununca gidilecek yer.
-enum Jump {
-    Chapter(usize),
-    PdfPage(usize),
 }
 
 /// Yer imli sayfanın sağ üst köşesinde kıvrık köşe işareti.

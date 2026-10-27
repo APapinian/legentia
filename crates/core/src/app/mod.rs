@@ -218,10 +218,9 @@ impl App {
                 self.view = View::Reading;
                 self.save_progress();
             }
-            Err(e) => {
-                log::error!("cannot read chapter {spine}: {e:?}");
+            Err(msg) => {
                 self.view = View::Message {
-                    msg: e.message(),
+                    msg,
                     back: Back::Contents,
                 };
             }

@@ -1,6 +1,8 @@
 //! Geliştirici aracı: bir klasördeki (ya da tek bir) PDF'in tüm sayfalarını
 //! Libra 2 genişliğine (1264 px) sığdırarak çizer; süre, bellek ve hata raporu verir.
 //! İsteğe bağlı çıktı klasörüne her belgenin ilk sayfasını PGM olarak yazar.
+//! `PDF_CHECK_MEM=1` ile sayfa başına en yüksek bellek ölçülür ve en çok
+//! bellek isteyen sayfalar listelenir (Linux `/proc/self/clear_refs`).
 //! Dosyalar yalnızca okunur.
 //!
 //!     cargo run --release -p legentia-core --example pdf_check -- <klasör | belge.pdf> [çıktı klasörü]
@@ -40,8 +42,14 @@ fn main() {
         };
         let open = started.elapsed();
         let mut times = Vec::new();
+        let per_page_mem = std::env::var_os("PDF_CHECK_MEM").is_some();
+        let mut mem: Vec<(u64, usize)> = Vec::new();
         for i in 0..doc.page_count() {
             let (w, _) = doc.page_size(i).unwrap_or((595.0, 842.0));
+            if per_page_mem {
+                // En yüksek bellek sayacını sıfırla: ölçüm yalnızca bu sayfayı kapsar.
+                let _ = std::fs::write("/proc/self/clear_refs", "5");
+            }
             let t = Instant::now();
             match doc.render(i, LIBRA2_WIDTH as f32 / w) {
                 Ok(img) => {
@@ -61,6 +69,22 @@ fn main() {
                 }
             }
             times.push(t.elapsed());
+            if per_page_mem {
+                mem.push((peak_kb().unwrap_or(0), i));
+            }
+        }
+        if per_page_mem {
+            mem.sort_unstable_by(|a, b| b.cmp(a));
+            let top: Vec<String> = mem
+                .iter()
+                .take(5)
+                .map(|(kb, i)| format!("p{i}={} MB", kb / 1024))
+                .collect();
+            let median = mem.get(mem.len() / 2).map_or(0, |m| m.0 / 1024);
+            println!(
+                "      memory per page: median {median} MB, highest {}",
+                top.join(", ")
+            );
         }
         pages_total += times.len();
         times.sort();
@@ -100,6 +124,12 @@ fn collect(dir: &Path, out: &mut Vec<PathBuf>) {
             out.push(path);
         }
     }
+}
+
+fn peak_kb() -> Option<u64> {
+    let status = std::fs::read_to_string("/proc/self/status").ok()?;
+    let line = status.lines().find(|l| l.starts_with("VmHWM"))?;
+    line.split_whitespace().nth(1)?.parse().ok()
 }
 
 fn peak_rss() -> Option<String> {

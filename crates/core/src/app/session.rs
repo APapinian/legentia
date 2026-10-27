@@ -1,14 +1,14 @@
 //! Açık kitap: okunan bölüm, sayfaları, kayıtlı konum ve yer imleri.
 //!
-//! PDF'te tek "bölüm" vardır ve her PDF sayfası bir okuyucu sayfasıdır
-//! (`Position.block` = PDF sayfa sırası); böylece sayfa çevirme, konum, yer imi
-//! ve yüzde hesabı EPUB ile aynı kodu kullanır.
+//! PDF'te her PDF sayfası bir "bölüm"dür (`spine` = PDF sayfa sırası). Sayfa
+//! görünümünde bölüm tek ekrandır; yeniden akıtmada sayfanın metni EPUB gibi
+//! ekranlara dizilir. İki görünümde de konum aynı anlamı taşır.
 
 use serde::{Deserialize, Serialize};
 
 use super::settings::Settings;
 use super::ui::{BOTTOM, TOP};
-use crate::epub::{Block, BlockKind, Book, EpubError, TocEntry};
+use crate::epub::{Block, BlockKind, Book, TocEntry};
 use crate::i18n::{Msg, tr};
 use crate::pdf::PdfDoc;
 use crate::text::{Align, Family, Line, ParaStyle, Style, Text, layout};
@@ -95,8 +95,13 @@ impl Session {
     pub fn chapter_count(&self) -> usize {
         match &self.doc {
             Doc::Epub(book) => book.spine.len(),
-            Doc::Pdf(_) => 1,
+            Doc::Pdf(pdf) => pdf.page_count(),
         }
+    }
+
+    /// Şu an PDF sayfa görüntüsü mü gösteriliyor (yeniden akıtma kapalı ya da sayfada metin yok)?
+    pub fn showing_pdf_image(&self) -> bool {
+        self.pdf().is_some() && self.blocks.is_empty()
     }
 
     pub fn pdf(&self) -> Option<&PdfDoc> {
@@ -137,25 +142,26 @@ impl Session {
         width: u32,
         spine: usize,
         target: Target,
-    ) -> Result<(), EpubError> {
-        let (blocks, pages) = match &mut self.doc {
-            Doc::Epub(book) => {
-                let blocks = book.chapter(spine)?;
-                let pages = paginate(text, settings, book.language.as_deref(), width, &blocks);
-                (blocks, pages)
-            }
-            Doc::Pdf(pdf) => {
-                let pages = (0..pdf.page_count().max(1))
-                    .map(|i| Page {
-                        lines: Vec::new(),
-                        start: Position {
-                            block: i,
-                            offset: 0,
-                        },
-                    })
-                    .collect();
-                (Vec::new(), pages)
-            }
+    ) -> Result<(), Msg> {
+        let blocks = match &mut self.doc {
+            Doc::Epub(book) => book.chapter(spine).map_err(|e| {
+                log::error!("cannot read chapter {spine}: {e:?}");
+                e.message()
+            })?,
+            // Metin çıkarılamazsa sayfa görüntüsüne düşülür; okuma kesilmez.
+            Doc::Pdf(pdf) if settings.pdf_reflow => pdf.page_blocks(spine).unwrap_or_else(|e| {
+                log::warn!("no text for pdf page {spine}: {e:?}");
+                Vec::new()
+            }),
+            Doc::Pdf(_) => Vec::new(),
+        };
+        let pages = if self.pdf().is_some() && blocks.is_empty() {
+            vec![Page {
+                lines: Vec::new(),
+                start: Position::default(),
+            }]
+        } else {
+            paginate(text, settings, self.language(), width, &blocks)
         };
         self.page = match target {
             Target::Start => 0,
@@ -170,10 +176,13 @@ impl Session {
 
     /// Ayar değişince aynı konumu içeren sayfaya döner.
     pub fn relayout(&mut self, text: &Text, settings: &Settings, width: u32) {
-        if self.pdf().is_some() {
-            return; // PDF sayfaları yazı ayarına bağlı değil
-        }
         let at = self.position();
+        if self.pdf().is_some() {
+            // Yeniden akıtma açılıp kapanmış olabilir: sayfanın metnini yeniden oku.
+            let spine = self.spine;
+            let _ = self.load_chapter(text, settings, width, spine, Target::At(at));
+            return;
+        }
         self.pages = paginate(text, settings, self.language(), width, &self.blocks);
         self.page = page_of(&self.pages, at);
     }
@@ -228,7 +237,7 @@ impl Session {
 
     fn snippet(&self, at: Position) -> String {
         if self.pdf().is_some() {
-            return tr(&Msg::PageNumber(at.block + 1));
+            return tr(&Msg::PageNumber(self.spine + 1));
         }
         let mut out = String::new();
         for block in self.blocks.iter().skip(at.block) {

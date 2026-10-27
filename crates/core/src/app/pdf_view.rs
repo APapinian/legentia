@@ -26,12 +26,12 @@ impl App {
         let mut frame = self.pdf_frame.borrow_mut();
         if !frame
             .as_ref()
-            .is_some_and(|f| f.page == s.page && f.crop == crop)
+            .is_some_and(|f| f.page == s.spine && f.crop == crop)
         {
-            *frame = match self.render_frame(doc, s.page, crop, canvas.width()) {
+            *frame = match self.render_frame(doc, s.spine, crop, canvas.width()) {
                 Ok(f) => Some(f),
                 Err(e) => {
-                    log::error!("cannot render pdf page {}: {e:?}", s.page);
+                    log::error!("cannot render pdf page {}: {e:?}", s.spine);
                     None
                 }
             };

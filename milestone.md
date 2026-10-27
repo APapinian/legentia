@@ -175,7 +175,7 @@ Süreler cihaz performansı değildir; Libra 2'de kat kat yavaş olacak (M10'da 
 - [x] PDF motorunu araştır ve seç: görüntü kalitesi, hız, bellek, ARMv7 musl uyumluluğu ve lisans. (Saf Rust: hayro 0.8, MIT/Apache; ARMv7 musl'da derleniyor, testler qemu'da geçiyor. PDF yazma için lopdf (MIT) değerlendirilecek.)
 - [x] Yüksek kaliteli render: gri ton için doğru kenar yumuşatma. (E Ink'e uygun kontrast/gamma ayarı cihazda değerlendirilecek.)
 - [ ] Yakınlaştırma, kenar boşluğu kırpma (otomatik ve elle), sayfaya/genişliğe sığdırma, sütun modu. (Yapıldı: otomatik kırpma + sayfaya sığdırma, yalnızca görünen alan çizilir, aşırı büyütme 2× ile sınırlı. Kalan: elle yakınlaştırma, sütun modu.)
-- [ ] Metin katmanı olan PDF'lerde metni çıkar ve okuyucunun layout motoruyla yeniden akıt (reflow).
+- [x] Metin katmanı olan PDF'lerde metni çıkar ve okuyucunun layout motoruyla yeniden akıt (reflow). (`pdf/text.rs`: glif konumu, boyutu ve genişliğinden satır ve paragraf; satır sonu tiresi birleştirilir, büyük yazı başlık olur; görünmez OCR katmanı da okunur. "PDF metnini yeniden akıt" ayarı; metni olmayan sayfa görüntü olarak kalır. Hukuk metninde karakter hatası %0. Sınav kitapçığı gibi karmaşık düzenler yeniden akıtmaya uygun değil.)
 - [ ] Taranmış PDF'ler için OCR: sayfa düzenini (sütunlar, başlıklar, paragraflar) ve metni tanı; sonuca göre yeniden akıt veya bölgeleri yeniden ölçekle.
 - [x] OCR'ı önce NixOS'ta deney amaçlı çalıştır (Türkçe dil paketiyle); doğruluk ve süreyi ölç. (`docs/ocr-deney.md`: `tur` ile temiz ve hafif bozuk görüntüde %0 hata; kötü taramada eğiklik düzeltmesi hatayı %31–69'dan %0'a indirdi)
 - [ ] OCR metnini PDF'e görünmez, aranabilir metin katmanı olarak göm; orijinal dosyayı koru, yeni dosyayı ayrı yaz.
@@ -203,7 +203,7 @@ Süreler cihaz performansı değildir; Libra 2'de kat kat yavaş olacak (M10'da 
 | En yavaş sayfa | 367 ms (taranmış) |
 | En yüksek bellek | 32–41 MB çoğu belge, 78 MB (10 MB'lık dosya), 150 MB (taranmış) |
 
-Taranmış belgedeki bellek kullanımı cihaz için yüksek; M5 içinde düşürülecek. Belge şu an tamamen belleğe okunuyor.
+Bellek incelemesi (`PDF_CHECK_MEM=1`, sayfa başına en yüksek bellek, 15 KPSS PDF'i): ortanca 21–37 MB; tepe değerler (75–150 MB) yalnızca tam sayfa 300 dpi görüntü içeren sayfalarda görülüyor (ör. 2480×3425 CMYK görüntü tek başına ~34 MB açılıyor). Bu tepe geçicidir, sayfa çizilince geri verilir; uygulamanın kalıcı belleği küçüktür (önbellekte tek sayfa görüntüsü, ~2 MB). Görüntüleri düşük çözünürlükte açmak hayro'da değişiklik gerektirir (ileride). Dosyayı bellek eşlemesi (mmap) ile açmak `unsafe` gerektirdiği ve kazancı dosya boyutuyla sınırlı kaldığı için yapılmadı.
 
 **Çıktı:** Simülatörde PDF görüntüleme, reflow ve OCR akışı.
 

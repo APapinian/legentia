@@ -1,4 +1,4 @@
-//! PDF okuma ve çizme (hayro, saf Rust).
+//! PDF okuma, çizme ve metin çıkarma (hayro, saf Rust).
 //!
 //! Güvenlik: dosya boyutu sınırlıdır; hayro bozuk girdide paniğe kapılabildiği
 //! için her sayfa çizimi panik yakalayıcıyla sarılır ve hata olarak döner.
@@ -14,6 +14,8 @@ use hayro::vello_cpu::{Pixmap, RasterizerSettings, RenderContext, Resources, Tar
 use hayro::{RenderCache, RenderSettings};
 
 use crate::i18n::Msg;
+
+mod text;
 
 /// Belleğe alınacak en büyük PDF (cihazda RAM sınırlı).
 const MAX_FILE_BYTES: u64 = 256 * 1024 * 1024;
@@ -238,9 +240,18 @@ pub(crate) mod testutil {
     }
 
     /// Her metin için bir sayfa; her sayfada metin ve mavi bir dikdörtgen.
-    /// Nesne konumları (xref) hesaplanarak üretilir.
     pub fn pdf_with_pages(texts: &[&str]) -> Vec<u8> {
-        let n = texts.len();
+        let contents: Vec<String> = texts
+            .iter()
+            .map(|t| format!("BT /F1 24 Tf 72 720 Td ({t}) Tj ET 0 0 1 rg 72 600 200 50 re f"))
+            .collect();
+        pdf_with_content(&contents.iter().map(String::as_str).collect::<Vec<_>>())
+    }
+
+    /// Her içerik akışı için bir sayfa (Helvetica /F1 kullanılabilir).
+    /// Nesne konumları (xref) hesaplanarak üretilir.
+    pub fn pdf_with_content(contents: &[&str]) -> Vec<u8> {
+        let n = contents.len();
         // Nesneler: 1 katalog, 2 sayfa ağacı, 3 font, sonra her sayfa için (sayfa, içerik).
         let kids: Vec<String> = (0..n).map(|i| format!("{} 0 R", 4 + 2 * i)).collect();
         let mut objects = vec![
@@ -248,9 +259,7 @@ pub(crate) mod testutil {
             format!("<< /Type /Pages /Kids [{}] /Count {n} >>", kids.join(" ")),
             "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>".to_string(),
         ];
-        for (i, text) in texts.iter().enumerate() {
-            let content =
-                format!("BT /F1 24 Tf 72 720 Td ({text}) Tj ET 0 0 1 rg 72 600 200 50 re f");
+        for (i, content) in contents.iter().enumerate() {
             objects.push(format!(
                 "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents {} 0 R /Resources << /Font << /F1 3 0 R >> >> >>",
                 5 + 2 * i

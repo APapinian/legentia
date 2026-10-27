@@ -39,6 +39,13 @@ pub enum Msg {
         pages: usize,
         percent: u32,
     },
+    PdfReflowFooter {
+        page: usize,
+        pages: usize,
+        screen: usize,
+        screens: usize,
+        percent: u32,
+    },
     PageNumber(usize),
     PdfDocument,
     // Menü
@@ -58,6 +65,7 @@ pub enum Msg {
     SettingHyphenate,
     SettingNight,
     SettingPdfCrop,
+    SettingPdfReflow,
     Points {
         tenths: u32,
     },
@@ -113,6 +121,9 @@ pub fn tr(msg: &Msg) -> String {
             format!("Bölüm {chapter}/{chapters} · Sayfa {page}/{pages} · %{percent}")
         }
         Msg::PdfFooter { page, pages, percent } => format!("Sayfa {page}/{pages} · %{percent}"),
+        Msg::PdfReflowFooter { page, pages, screen, screens, percent } => {
+            format!("Sayfa {page}/{pages} ({screen}/{screens}) · %{percent}")
+        }
         Msg::PageNumber(n) => format!("Sayfa {n}"),
         Msg::PdfDocument => "PDF belgesi".into(),
         Msg::AddBookmark => "Bu sayfaya yer imi koy".into(),
@@ -130,6 +141,7 @@ pub fn tr(msg: &Msg) -> String {
         Msg::SettingHyphenate => "Heceleme".into(),
         Msg::SettingNight => "Gece modu (ters renk)".into(),
         Msg::SettingPdfCrop => "PDF kenarlarını kırp".into(),
+        Msg::SettingPdfReflow => "PDF metnini yeniden akıt".into(),
         Msg::Points { tenths } => format!("{} punto", decimal(*tenths)),
         Msg::Decimal { tenths } => decimal(*tenths),
         Msg::Millimeters(mm) => format!("{mm} mm"),
@@ -203,6 +215,13 @@ mod tests {
                 pages: 2,
                 percent: 50,
             },
+            PdfReflowFooter {
+                page: 1,
+                pages: 2,
+                screen: 1,
+                screens: 3,
+                percent: 10,
+            },
             PageNumber(4),
             PdfDocument,
             AddBookmark,
@@ -220,6 +239,7 @@ mod tests {
             SettingHyphenate,
             SettingNight,
             SettingPdfCrop,
+            SettingPdfReflow,
             Points { tenths: 96 },
             Decimal { tenths: 14 },
             Millimeters(6),

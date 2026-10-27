@@ -2,7 +2,9 @@
 //! ilk kitabı okur, menü ve yazı ayarlarını gezer; her ekranı PGM olarak yazar.
 //! Kayıtlar geçici bir veri klasörüne gider; kullanıcının verisine dokunulmaz.
 //!
-//!     cargo run --release -p legentia-core --example screenshots -- <kütüphane> <çıktı klasörü> [kitap sırası]
+//!     cargo run --release -p legentia-core --example screenshots -- <kütüphane> <çıktı klasörü> [kitap sırası] [reflow]
+//!
+//! `reflow` verilirse PDF'ler yeniden akıtılmış açılır.
 #![allow(clippy::print_stdout, clippy::print_stderr)]
 
 use std::path::{Path, PathBuf};
@@ -32,6 +34,14 @@ fn main() {
     .expect("fonts");
     let data = std::env::temp_dir().join(format!("legentia-screens-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&data);
+    if rest.iter().any(|a| a.as_os_str() == "reflow") {
+        std::fs::create_dir_all(&data).expect("data dir");
+        std::fs::write(
+            data.join("settings.json"),
+            r#"{"version": 1, "data": {"pdf_reflow": true}}"#,
+        )
+        .expect("settings");
+    }
 
     let mut app = App::new(Text::new(fonts), LIBRA2_WIDTH, Store::new(&data), library);
     let mut canvas = Canvas::new(LIBRA2_WIDTH, LIBRA2_HEIGHT);

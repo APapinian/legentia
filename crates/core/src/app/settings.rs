@@ -26,6 +26,8 @@ pub struct Settings {
     pub night: bool,
     /// PDF sayfalarının beyaz kenarlarını kırpıp içeriği ekrana büyüt.
     pub pdf_crop: bool,
+    /// PDF'in metnini sayfa görüntüsü yerine EPUB gibi yeniden diz.
+    pub pdf_reflow: bool,
 }
 
 impl Default for Settings {
@@ -39,6 +41,7 @@ impl Default for Settings {
             hyphenate: true,
             night: false,
             pdf_crop: true,
+            pdf_reflow: false,
         }
     }
 }
@@ -54,9 +57,10 @@ pub enum Field {
     Hyphenate,
     Night,
     PdfCrop,
+    PdfReflow,
 }
 
-pub const FIELDS: [Field; 8] = [
+pub const FIELDS: [Field; 9] = [
     Field::Family,
     Field::Size,
     Field::LineSpacing,
@@ -65,6 +69,7 @@ pub const FIELDS: [Field; 8] = [
     Field::Hyphenate,
     Field::Night,
     Field::PdfCrop,
+    Field::PdfReflow,
 ];
 
 impl Field {
@@ -78,6 +83,7 @@ impl Field {
             Field::Hyphenate => Msg::SettingHyphenate,
             Field::Night => Msg::SettingNight,
             Field::PdfCrop => Msg::SettingPdfCrop,
+            Field::PdfReflow => Msg::SettingPdfReflow,
         }
     }
 }
@@ -113,6 +119,7 @@ impl Settings {
             Field::Hyphenate => s.hyphenate = !s.hyphenate,
             Field::Night => s.night = !s.night,
             Field::PdfCrop => s.pdf_crop = !s.pdf_crop,
+            Field::PdfReflow => s.pdf_reflow = !s.pdf_reflow,
         }
         s
     }
@@ -138,6 +145,7 @@ impl Settings {
             Field::Hyphenate => tr(if self.hyphenate { &Msg::On } else { &Msg::Off }),
             Field::Night => tr(if self.night { &Msg::On } else { &Msg::Off }),
             Field::PdfCrop => tr(if self.pdf_crop { &Msg::On } else { &Msg::Off }),
+            Field::PdfReflow => tr(if self.pdf_reflow { &Msg::On } else { &Msg::Off }),
         }
     }
 }

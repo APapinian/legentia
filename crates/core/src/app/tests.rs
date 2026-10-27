@@ -331,18 +331,19 @@ fn pdf_opens_on_its_first_page_and_turns_pages() {
     assert_eq!(app.library[0].format, crate::library::Format::Pdf);
     tap_row(&mut app, &LIBRARY, 0);
     assert!(matches!(app.view, View::Reading));
-    assert_eq!(session(&app).pages.len(), 4);
+    assert_eq!(session(&app).chapter_count(), 4);
+    assert!(session(&app).showing_pdf_image());
     let mut c = Canvas::new(W, LIBRA2_HEIGHT);
     app.draw(&mut c);
     assert!(ink(&c) > 1000, "PDF sayfası çizilmemiş");
     key(&mut app, true);
     key(&mut app, true);
-    assert_eq!(session(&app).page, 2);
+    assert_eq!(session(&app).spine, 2);
     assert_eq!(session(&app).percent(), 75);
     for _ in 0..5 {
         key(&mut app, true);
     }
-    assert_eq!(session(&app).page, 3, "son sayfada durmalı");
+    assert_eq!(session(&app).spine, 3, "son sayfada durmalı");
 }
 
 #[test]
@@ -357,7 +358,7 @@ fn pdf_position_and_bookmarks_survive_a_restart() {
 
     let mut app = restart(&data, &root);
     tap_row(&mut app, &LIBRARY, 0);
-    assert_eq!(session(&app).page, 2);
+    assert_eq!(session(&app).spine, 2);
     assert_eq!(session(&app).bookmark_here(), Some(0));
 }
 
@@ -369,7 +370,7 @@ fn pdf_contents_lists_pages_and_jumps() {
     assert!(matches!(app.view, View::Contents { .. }));
     tap_row(&mut app, &CONTENTS, 3);
     assert!(matches!(app.view, View::Reading));
-    assert_eq!(session(&app).page, 3);
+    assert_eq!(session(&app).spine, 3);
 }
 
 #[test]
@@ -407,4 +408,74 @@ fn broken_pdf_shows_turkish_error() {
             ..
         }
     ));
+}
+
+/// Her sayfada bir başlık ve uzun bir paragraf: yeniden akıtınca birden çok ekran tutar.
+fn text_pdf() -> Vec<u8> {
+    let long = "Bu uzun paragraf yeniden akitma icin birden cok satir ve ekran tutacak kadar metin icerir.";
+    let page = |title: &str| {
+        let mut c = format!("BT /F1 20 Tf 72 740 Td ({title}) Tj ET BT /F1 11 Tf 72 710 Td");
+        for _ in 0..45 {
+            c.push_str(&format!(" ({long}) Tj 0 -13 Td"));
+        }
+        c.push_str(" ET");
+        c
+    };
+    let pages = [page("Birinci"), page("Ikinci")];
+    crate::pdf::testutil::pdf_with_content(&pages.iter().map(String::as_str).collect::<Vec<_>>())
+}
+
+fn toggle_reflow(app: &mut App) {
+    menu(app, MenuItem::Settings);
+    let row = FIELDS.iter().position(|f| *f == Field::PdfReflow).unwrap();
+    let at = app.settings_buttons(row).1.center();
+    tap(app, at);
+    let at = app.settings_ok().center();
+    tap(app, at);
+}
+
+#[test]
+fn pdf_reflow_shows_text_screens_and_keeps_the_page() {
+    let (mut app, _, _) = setup(&[("metin.pdf", text_pdf())]);
+    tap_row(&mut app, &LIBRARY, 0);
+    key(&mut app, true);
+    assert_eq!(session(&app).spine, 1);
+
+    toggle_reflow(&mut app);
+    assert!(app.settings().pdf_reflow);
+    let s = session(&app);
+    assert_eq!(s.spine, 1, "yeniden akıtınca aynı PDF sayfasında kalmalı");
+    assert!(!s.showing_pdf_image());
+    assert!(s.pages.len() > 1, "uzun sayfa birden çok ekran tutmalı");
+    assert!(s.blocks.iter().any(|b| b.text == "Ikinci"));
+
+    // Ekranlar arasında ilerleyip sonraki PDF sayfasına geçilmez, son ekrandan sonra geçilir.
+    let screens = s.pages.len();
+    for _ in 0..screens {
+        key(&mut app, true);
+    }
+    assert_eq!(session(&app).spine, 1, "son sayfada durmalı");
+    let mut c = Canvas::new(W, LIBRA2_HEIGHT);
+    app.draw(&mut c);
+
+    toggle_reflow(&mut app);
+    assert!(session(&app).showing_pdf_image());
+    assert_eq!(session(&app).spine, 1);
+}
+
+#[test]
+fn reflow_falls_back_to_the_image_on_pages_without_text() {
+    let (mut app, _, _) = setup(&[(
+        "belge.pdf",
+        crate::pdf::testutil::pdf_with_content(&["0 0 1 rg 72 600 200 50 re f"]),
+    )]);
+    tap_row(&mut app, &LIBRARY, 0);
+    toggle_reflow(&mut app);
+    assert!(
+        session(&app).showing_pdf_image(),
+        "metinsiz sayfa görüntü olarak kalmalı"
+    );
+    let mut c = Canvas::new(W, LIBRA2_HEIGHT);
+    app.draw(&mut c);
+    assert!(ink(&c) > 1000);
 }
