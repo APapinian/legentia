@@ -10,11 +10,15 @@ use super::settings::Settings;
 use super::ui::{BOTTOM, TOP};
 use crate::epub::{Block, BlockKind, Book, TocEntry};
 use crate::i18n::{Msg, tr};
+use crate::ocr;
 use crate::pdf::PdfDoc;
+use crate::storage::Store;
 use crate::text::{Align, Family, Line, ParaStyle, Style, Text, layout};
 
 /// Bir başlığın altında en az bu kadar satır yer yoksa başlık sonraki sayfaya geçer.
 const LINES_AFTER_HEADING: f32 = 3.0;
+/// OCR için sayfanın çizildiği çözünürlük (deneyde 150 dpi yeterliydi; pay bırakıldı).
+const OCR_DPI: u32 = 200;
 /// Yer imi listesinde gösterilen alıntının en fazla karakter sayısı.
 const SNIPPET_CHARS: usize = 70;
 
@@ -70,6 +74,8 @@ pub(super) struct Session {
     pub doc: Doc,
     /// Kitabın başlığı yoksa gösterilecek ad (dosya adı).
     pub name: String,
+    /// OCR sonuçlarının kitap başına önbelleği (`ocr/<kimlik>/<sayfa>.json`).
+    pub ocr_cache: Option<Store>,
     pub id: String,
     pub state: BookState,
     pub spine: usize,
@@ -83,6 +89,7 @@ impl Session {
         Self {
             doc,
             name,
+            ocr_cache: None,
             id,
             state,
             spine: 0,
@@ -149,10 +156,17 @@ impl Session {
                 e.message()
             })?,
             // Metin çıkarılamazsa sayfa görüntüsüne düşülür; okuma kesilmez.
-            Doc::Pdf(pdf) if settings.pdf_reflow => pdf.page_blocks(spine).unwrap_or_else(|e| {
-                log::warn!("no text for pdf page {spine}: {e:?}");
-                Vec::new()
-            }),
+            Doc::Pdf(pdf) if settings.pdf_reflow => {
+                let blocks = pdf.page_blocks(spine).unwrap_or_else(|e| {
+                    log::warn!("no text for pdf page {spine}: {e:?}");
+                    Vec::new()
+                });
+                if blocks.is_empty() && settings.ocr {
+                    ocr_page(pdf, self.ocr_cache.as_ref(), spine)
+                } else {
+                    blocks
+                }
+            }
             Doc::Pdf(_) => Vec::new(),
         };
         let pages = if self.pdf().is_some() && blocks.is_empty() {
@@ -259,6 +273,40 @@ impl Session {
             None => out,
         }
     }
+}
+
+/// Metin katmanı olmayan PDF sayfasını OCR ile okur: çiz → eğikliği düzelt →
+/// Tesseract (Türkçe). Sonuç önbelleğe yazılır; hata olursa boş (sayfa görüntüsü gösterilir).
+fn ocr_page(pdf: &PdfDoc, cache: Option<&Store>, page: usize) -> Vec<Block> {
+    let key = format!("{page}.json");
+    if let Some(blocks) = cache.and_then(|c| c.load::<Vec<Block>>(&key)) {
+        return blocks;
+    }
+    let started = std::time::Instant::now();
+    let image = match pdf.render(page, OCR_DPI as f32 / 72.0) {
+        Ok(img) => img,
+        Err(e) => {
+            log::warn!("cannot render page {page} for OCR: {e:?}");
+            return Vec::new();
+        }
+    };
+    let (straight, angle) = ocr::deskew(&image);
+    let blocks = match ocr::recognize(&straight, "tur", OCR_DPI) {
+        Ok(result) => result.blocks(),
+        Err(e) => {
+            log::warn!("OCR failed on page {page}: {e:?}");
+            return Vec::new();
+        }
+    };
+    log::info!(
+        "OCR page {page}: skew {angle:.2}°, {} blocks in {:?}",
+        blocks.len(),
+        started.elapsed()
+    );
+    if let Some(c) = cache {
+        c.save(&key, &blocks);
+    }
+    blocks
 }
 
 /// Blokları sayfalara dizer. Her zaman en az bir (belki boş) sayfa döner.

@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use super::screens::{BOOKMARKS, CONTENTS, LIBRARY, MENU, MenuItem};
-use super::settings::{FIELDS, Field};
+use super::settings::{FIELD_PAGES, Field};
 use super::*;
 use crate::LIBRA2_HEIGHT;
 use crate::LIBRA2_WIDTH;
@@ -58,6 +58,21 @@ fn menu(app: &mut App, item: MenuItem) -> Option<Refresh> {
     assert!(matches!(app.view, View::Menu));
     let index = MENU.iter().position(|m| *m == item).unwrap();
     tap(app, app.menu_rect(index).center())
+}
+
+/// Ayarlar ekranında bir alanın "+" düğmesine basar; gerekirse önce o alanın sayfasına geçer.
+fn press_plus(app: &mut App, field: Field) {
+    let (page, row) = FIELD_PAGES
+        .iter()
+        .enumerate()
+        .find_map(|(p, fields)| fields.iter().position(|f| *f == field).map(|r| (p, r)))
+        .expect("alan bir ayar sayfasında olmalı");
+    while !matches!(app.view, View::Settings { page: p, .. } if p == page) {
+        let at = app.settings_page_button().center();
+        tap(app, at);
+    }
+    let at = app.settings_buttons(row).1.center();
+    tap(app, at);
 }
 
 /// Tek bölümlük uzun kitabı açıp okumaya başlar.
@@ -179,7 +194,10 @@ fn settings_apply_on_ok_keep_position_and_persist() {
     let before = session(&app).position();
     let pages_before = session(&app).pages.len();
     menu(&mut app, MenuItem::Settings);
-    let size_row = FIELDS.iter().position(|f| *f == Field::Size).unwrap();
+    let size_row = FIELD_PAGES[0]
+        .iter()
+        .position(|f| *f == Field::Size)
+        .unwrap();
     let (_, plus) = app.settings_buttons(size_row);
     tap(&mut app, plus.center());
     tap(&mut app, plus.center());
@@ -219,9 +237,7 @@ fn settings_cancel_discards_changes() {
 fn night_mode_inverts_the_screen() {
     let (mut app, _, _) = reading_long_book();
     menu(&mut app, MenuItem::Settings);
-    let night = FIELDS.iter().position(|f| *f == Field::Night).unwrap();
-    let at = app.settings_buttons(night).1.center();
-    tap(&mut app, at);
+    press_plus(&mut app, Field::Night);
     let at = app.settings_ok().center();
     tap(&mut app, at);
     let mut c = Canvas::new(W, LIBRA2_HEIGHT);
@@ -381,9 +397,7 @@ fn pdf_crop_enlarges_the_content() {
     app.draw(&mut cropped);
 
     menu(&mut app, MenuItem::Settings);
-    let row = FIELDS.iter().position(|f| *f == Field::PdfCrop).unwrap();
-    let at = app.settings_buttons(row).1.center();
-    tap(&mut app, at);
+    press_plus(&mut app, Field::PdfCrop);
     let at = app.settings_ok().center();
     tap(&mut app, at);
     assert!(!app.settings().pdf_crop);
@@ -427,9 +441,7 @@ fn text_pdf() -> Vec<u8> {
 
 fn toggle_reflow(app: &mut App) {
     menu(app, MenuItem::Settings);
-    let row = FIELDS.iter().position(|f| *f == Field::PdfReflow).unwrap();
-    let at = app.settings_buttons(row).1.center();
-    tap(app, at);
+    press_plus(app, Field::PdfReflow);
     let at = app.settings_ok().center();
     tap(app, at);
 }
@@ -478,4 +490,71 @@ fn reflow_falls_back_to_the_image_on_pages_without_text() {
     let mut c = Canvas::new(W, LIBRA2_HEIGHT);
     app.draw(&mut c);
     assert!(ink(&c) > 1000);
+}
+
+/// Taranmış sayfa taklidi: "Merhaba Dunya" yazısının görüntüsü, metin katmanı yok.
+fn scanned_pdf() -> Vec<u8> {
+    use crate::pdf::{Area, PdfDoc};
+    let text = PdfDoc::from_bytes(crate::pdf::testutil::minimal_pdf("Merhaba Dunya")).unwrap();
+    let area = Area {
+        x: 60.0,
+        y: 50.0,
+        w: 340.0,
+        h: 50.0,
+    };
+    let image = text.render_area(0, area, 4.0).unwrap();
+    crate::pdf::testutil::pdf_with_image(&image, area.w, area.h)
+}
+
+#[test]
+fn ocr_reads_a_scanned_page_and_caches_the_result() {
+    if std::env::var_os("LEGENTIA_TESSERACT").is_none() {
+        return; // Tesseract yok (nix develop dışı); OCR testi atlanır.
+    }
+    let (mut app, data, root) = setup(&[("tarama.pdf", scanned_pdf())]);
+    tap_row(&mut app, &LIBRARY, 0);
+    toggle_reflow(&mut app);
+    assert!(
+        session(&app).showing_pdf_image(),
+        "OCR kapalıyken görüntü kalmalı"
+    );
+
+    menu(&mut app, MenuItem::Settings);
+    press_plus(&mut app, Field::Ocr);
+    let at = app.settings_ok().center();
+    tap(&mut app, at);
+    let text: String = session(&app)
+        .blocks
+        .iter()
+        .map(|b| b.text.clone())
+        .collect();
+    assert!(text.contains("Merhaba"), "OCR metni okunmadı: {text:?}");
+    assert!(!session(&app).showing_pdf_image());
+
+    // Önbellek: kitap kimliği klasöründe 0.json.
+    let id = session(&app).id.clone();
+    assert!(data.join("ocr").join(&id).join("0.json").exists());
+    drop(app);
+    let mut app = restart(&data, &root);
+    tap_row(&mut app, &LIBRARY, 0);
+    let text: String = session(&app)
+        .blocks
+        .iter()
+        .map(|b| b.text.clone())
+        .collect();
+    assert!(text.contains("Merhaba"));
+}
+
+#[test]
+fn settings_rows_never_overlap_the_bottom_buttons() {
+    // Hata: ayar sayısı artınca son satırın "+" düğmesi "Tamam"ın üstüne taşmıştı.
+    let (app, _, _) = setup(&[]);
+    for fields in FIELD_PAGES {
+        let (_, plus) = app.settings_buttons(fields.len() - 1);
+        assert!(
+            plus.y + plus.h <= app.settings_page_button().y,
+            "{} satır sığmıyor",
+            fields.len()
+        );
+    }
 }

@@ -42,7 +42,7 @@ enum View {
     Reading,
     Menu,
     Bookmarks { page: usize },
-    Settings { draft: Settings },
+    Settings { draft: Settings, page: usize },
 }
 
 /// Mesaj ekranından dokununca dönülecek yer.
@@ -162,7 +162,11 @@ impl App {
             .file_stem()
             .map(|n| n.to_string_lossy().into_owned())
             .unwrap_or_default();
-        self.session = Some(Session::new(doc, name, id, state));
+        let mut session = Session::new(doc, name, id.clone(), state);
+        if is_pdf {
+            session.ocr_cache = Some(Store::new(&self.store.dir().join("ocr").join(&id)));
+        }
+        self.session = Some(session);
         self.pdf_frame.replace(None);
         self.pdf_areas.borrow_mut().clear();
         self.view = View::Contents { page: 0 };
@@ -191,9 +195,9 @@ impl App {
             View::Reading => self.handle_reading(event),
             View::Menu => self.handle_menu(event),
             View::Bookmarks { page } => self.handle_bookmarks(*page, event),
-            View::Settings { draft } => {
-                let draft = draft.clone();
-                self.handle_settings(draft, event)
+            View::Settings { draft, page } => {
+                let (draft, page) = (draft.clone(), *page);
+                self.handle_settings(draft, page, event)
             }
         }
     }
@@ -278,7 +282,7 @@ impl App {
                 self.draw_menu(canvas);
             }
             View::Bookmarks { page } => self.draw_bookmarks(canvas, *page),
-            View::Settings { draft } => self.draw_settings(canvas, draft),
+            View::Settings { draft, page } => self.draw_settings(canvas, draft, *page),
         }
         if self.settings.night {
             canvas.invert();

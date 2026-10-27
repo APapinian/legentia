@@ -192,7 +192,7 @@ fn paragraphs(lines: &[TextLine]) -> Vec<Block> {
         if new_para {
             para_size = line.size;
         }
-        join(&mut text, &line.text);
+        join_line(&mut text, &line.text);
     }
     if !text.is_empty() {
         out.push(block(text, para_size, body));
@@ -227,7 +227,7 @@ fn ends_with_hyphen(text: &str) -> bool {
 }
 
 /// Satırı paragrafa ekler; satır sonu tiresi ve küçük harfle devam eden kelime birleştirilir.
-fn join(text: &mut String, line: &str) {
+pub(crate) fn join_line(text: &mut String, line: &str) {
     if text.is_empty() {
         text.push_str(line);
         return;

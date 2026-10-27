@@ -15,6 +15,7 @@ pub mod epub;
 mod event;
 pub mod i18n;
 pub mod library;
+pub mod ocr;
 pub mod pdf;
 mod storage;
 mod text;

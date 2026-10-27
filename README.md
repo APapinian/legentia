@@ -28,6 +28,9 @@ cargo run --release -p legentia-core --example pdf_check -- <klasör | belge.pdf
 # OCR deneyi (Tesseract, NixOS): docs/ocr-deney.md
 tools/ocr/deney.sh <belge.pdf> <çıktı klasörü>
 
+# Uygulamanın OCR akışını uçtan uca ölç (eğikliği bilinen açıyla taklit eder)
+cargo run --release -p legentia-core --example ocr_check -- <belge.pdf> <sayfa> [eğiklik°] [dpi]
+
 # PDF'ten çıkarılan paragrafları yazdır (yeniden akıtmanın girdisi)
 cargo run --release -p legentia-core --example pdf_text -- <belge.pdf> [ilk sayfa] [son sayfa]
 

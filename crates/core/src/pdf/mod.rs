@@ -15,7 +15,7 @@ use hayro::{RenderCache, RenderSettings};
 
 use crate::i18n::Msg;
 
-mod text;
+pub(crate) mod text;
 
 /// Belleğe alınacak en büyük PDF (cihazda RAM sınırlı).
 const MAX_FILE_BYTES: u64 = 256 * 1024 * 1024;
@@ -246,6 +246,57 @@ pub(crate) mod testutil {
             .map(|t| format!("BT /F1 24 Tf 72 720 Td ({t}) Tj ET 0 0 1 rg 72 600 200 50 re f"))
             .collect();
         pdf_with_content(&contents.iter().map(String::as_str).collect::<Vec<_>>())
+    }
+
+    /// Metin katmanı olmayan, tek gri görüntüden oluşan sayfa (taranmış sayfa taklidi).
+    /// Görüntü sayfada (72, 700) noktasına `w_pt`×`h_pt` punto boyutunda yerleşir.
+    pub fn pdf_with_image(image: &super::GrayImage, w_pt: f32, h_pt: f32) -> Vec<u8> {
+        let content = format!("q {w_pt} 0 0 {h_pt} 72 700 cm /Im1 Do Q");
+        let mut objects: Vec<Vec<u8>> = vec![
+            b"<< /Type /Catalog /Pages 2 0 R >>".to_vec(),
+            b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_vec(),
+            b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 5 0 R /Resources << /XObject << /Im1 4 0 R >> >> >>".to_vec(),
+        ];
+        let mut img = format!(
+            "<< /Type /XObject /Subtype /Image /Width {} /Height {} /ColorSpace /DeviceGray /BitsPerComponent 8 /Length {} >>\nstream\n",
+            image.width,
+            image.height,
+            image.pixels.len()
+        )
+        .into_bytes();
+        img.extend_from_slice(&image.pixels);
+        img.extend_from_slice(b"\nendstream");
+        objects.push(img);
+        objects.push(
+            format!(
+                "<< /Length {} >>\nstream\n{content}\nendstream",
+                content.len()
+            )
+            .into_bytes(),
+        );
+        let mut out = b"%PDF-1.4\n".to_vec();
+        let mut offsets = Vec::new();
+        for (i, body) in objects.iter().enumerate() {
+            offsets.push(out.len());
+            out.extend_from_slice(format!("{} 0 obj\n", i + 1).as_bytes());
+            out.extend_from_slice(body);
+            out.extend_from_slice(b"\nendobj\n");
+        }
+        let xref = out.len();
+        out.extend_from_slice(
+            format!("xref\n0 {}\n0000000000 65535 f \n", objects.len() + 1).as_bytes(),
+        );
+        for o in offsets {
+            out.extend_from_slice(format!("{o:010} 00000 n \n").as_bytes());
+        }
+        out.extend_from_slice(
+            format!(
+                "trailer\n<< /Size {} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n",
+                objects.len() + 1
+            )
+            .as_bytes(),
+        );
+        out
     }
 
     /// Her içerik akışı için bir sayfa (Helvetica /F1 kullanılabilir).

@@ -28,6 +28,8 @@ pub struct Settings {
     pub pdf_crop: bool,
     /// PDF'in metnini sayfa görüntüsü yerine EPUB gibi yeniden diz.
     pub pdf_reflow: bool,
+    /// Yeniden akıtırken metin katmanı olmayan (taranmış) sayfaları OCR ile oku.
+    pub ocr: bool,
 }
 
 impl Default for Settings {
@@ -42,6 +44,7 @@ impl Default for Settings {
             night: false,
             pdf_crop: true,
             pdf_reflow: false,
+            ocr: false,
         }
     }
 }
@@ -58,18 +61,22 @@ pub enum Field {
     Night,
     PdfCrop,
     PdfReflow,
+    Ocr,
 }
 
-pub const FIELDS: [Field; 9] = [
-    Field::Family,
-    Field::Size,
-    Field::LineSpacing,
-    Field::Margin,
-    Field::Align,
-    Field::Hyphenate,
-    Field::Night,
-    Field::PdfCrop,
-    Field::PdfReflow,
+/// Ayarlar ekranının sayfaları: önce yazı, sonra PDF ayarları. Hepsi tek
+/// ekrana sığmaz (alttaki Tamam/Vazgeç düğmelerine taşar).
+pub const FIELD_PAGES: [&[Field]; 2] = [
+    &[
+        Field::Family,
+        Field::Size,
+        Field::LineSpacing,
+        Field::Margin,
+        Field::Align,
+        Field::Hyphenate,
+        Field::Night,
+    ],
+    &[Field::PdfCrop, Field::PdfReflow, Field::Ocr],
 ];
 
 impl Field {
@@ -84,6 +91,7 @@ impl Field {
             Field::Night => Msg::SettingNight,
             Field::PdfCrop => Msg::SettingPdfCrop,
             Field::PdfReflow => Msg::SettingPdfReflow,
+            Field::Ocr => Msg::SettingOcr,
         }
     }
 }
@@ -120,6 +128,7 @@ impl Settings {
             Field::Night => s.night = !s.night,
             Field::PdfCrop => s.pdf_crop = !s.pdf_crop,
             Field::PdfReflow => s.pdf_reflow = !s.pdf_reflow,
+            Field::Ocr => s.ocr = !s.ocr,
         }
         s
     }
@@ -146,6 +155,7 @@ impl Settings {
             Field::Night => tr(if self.night { &Msg::On } else { &Msg::Off }),
             Field::PdfCrop => tr(if self.pdf_crop { &Msg::On } else { &Msg::Off }),
             Field::PdfReflow => tr(if self.pdf_reflow { &Msg::On } else { &Msg::Off }),
+            Field::Ocr => tr(if self.ocr { &Msg::On } else { &Msg::Off }),
         }
     }
 }

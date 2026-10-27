@@ -83,6 +83,8 @@ fn main() {
     let (x, y) = menu_item(3);
     tap(&mut app, x, y);
     shot(&app, "7-yazi-ayarlari");
+    app.handle(Event::Key(PageKey::Forward)); // PDF ayarları sayfası
+    shot(&app, "8-pdf-ayarlari");
     let _ = std::fs::remove_dir_all(&data);
 }
 

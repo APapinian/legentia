@@ -57,6 +57,21 @@ Süreler Ryzen 7 8840HS'te tek sayfa içindir ve Tesseract birden çok çekirdek
 - **Cihazda OCR (M10), henüz doğrulanmadı:** Libra 2'nin tek çekirdekli ARMv7 işlemcisinde sayfa başına süre tahminen onlarca saniye olur. Bu yüzden OCR arka planda, iptal edilebilir biçimde ve sayfa sayfa çalışmalı. Tesseract C++ olduğundan cihaza taşımak için iki seçenek değerlendirilecek: saf Rust bir OCR motoru ya da Tesseract'ı çapraz derlemek. İkisi de kalite (bu deneydeki ölçüler), hız ve bellek açısından karşılaştırılacak.
 - **Dil verisi:** `tur.traineddata` yaklaşık 16 MB (tessdata, Apache-2.0); 22 GB'lık cihaz için sorun değil. Osmanlıca (`ota`) verisi nixpkgs'teki Tesseract'ta yok; ayrıca araştırılacak.
 
+## Uygulamadaki OCR akışı (Rust eğiklik düzeltmesiyle)
+
+Akış şöyle: hayro ile çizim (200 dpi) → `ocr::deskew` (izdüşüm profili, saf Rust) → Tesseract `tur`, TSV → paragraf blokları. Ölçüm aracı: `cargo run --release -p legentia-core --example ocr_check -- <belge.pdf> <sayfa> [eğiklik°] [dpi]`. Bu araç sayfayı bilinen bir açıyla eğip doğru metinle (sayfanın metin katmanı) karşılaştırır.
+
+| Belge, sayfa | Uygulanan eğiklik | Bulunan | Düzeltmesiz hata | Düzeltmeli hata | Düzeltme süresi |
+|---|---|---|---|---|---|
+| Hukuk metni, s.1 | 2,5° | 2,50° | %0 | %0 | 58 ms |
+| Hukuk metni, s.1 | −4° | −4,00° | **%83** | **%0** | 61 ms |
+| KPSS 2020, s.3 (iki sütun) | 3° | 2,95° | %7,7 | %7,2 | 68 ms |
+
+- KPSS'te kalan fark okuma sırasından geliyor (sınav düzeni); harf tanıma hatası değil.
+- İlk sürümdeki bir hata gerçek sayfada yakalandı: büyük görüntüler 2 pikselde bir örneklenirken koordinatlar ölçeklenmiyordu. Bu, 0°'de yapay bir tarak deseni oluşturuyor ve her zaman 0° bulunuyordu. Düzeltildi; büyük sayfa testi eklendi.
+- OCR sonucu kitap başına önbelleğe yazılır (`ocr/<kimlik>/<sayfa>.json`); sayfa ikinci kez açıldığında Tesseract çalışmaz.
+- Şimdilik OCR sayfa açılırken çalışıyor ve arayüzü bekletiyor (masaüstünde ~1 sn). Cihazda arka planda çalışmalı (M10).
+
 ## Eksikler
 
 - Gerçek bir taranmış kitap sayfasıyla (kâğıt dokusu, gölge, iki sütun, sayfa numarası, dipnot) henüz denenmedi. Kullanıcıdan örnek istenecek.

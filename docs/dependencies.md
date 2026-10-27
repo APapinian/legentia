@@ -18,6 +18,12 @@ Doğrudan kullanılan crate'ler. Lisanslar `cargo metadata` ile alınmıştır (
 
 Türkçe heceleme kendi kodumuzdur (`crates/core/src/text/hyphen.rs`, TDK kuralları); dış desen dosyası yoktur.
 
+## Masaüstü araçları (cihaza girmez)
+
+| Araç | Sürüm | Lisans | Kullanım |
+|---|---|---|---|
+| Tesseract | 5.5.3 (nixpkgs, `tur` `eng` `osd` dil verileri) | Apache-2.0 | OCR deneyi ve simülatörde "Taranmış sayfaları OCR ile oku"; `LEGENTIA_TESSERACT` ile bulunur. Cihaz için OCR motoru M10'da seçilecek. |
+
 ## Fontlar
 
 Nix'ten gelir (`flake.nix` → `LEGENTIA_FONTS`), depoya girmez. Cihaz paketine M10'da eklenecek; OFL, fontların uygulamayla birlikte dağıtılmasına izin verir (lisans metni yanında dağıtılmalı).

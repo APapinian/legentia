@@ -27,6 +27,9 @@
       # Simülatör penceresinin çalışma zamanında yüklediği kütüphaneler.
       simLibs = with pkgs; [ libx11 libxcursor libxrandr libxi libxkbcommon ];
 
+      # OCR deneyi (yalnızca NixOS'ta; cihaz için ayrı karar verilecek). Apache-2.0.
+      tesseract = pkgs.tesseract.override { enableLanguages = [ "tur" "eng" "osd" ]; };
+
       # Uygulamanın kullandığı fontlar (hepsi SIL OFL 1.1), tek klasörde.
       # Dosya adları crates/core/src/text/fonts.rs ile aynı olmalı.
       fonts = pkgs.runCommand "legentia-fonts" { } ''
@@ -52,6 +55,7 @@
         LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath simLibs;
 
         LEGENTIA_FONTS = "${fonts}";
+        LEGENTIA_TESSERACT = "${tesseract}/bin/tesseract";
 
         CARGO_TARGET_ARMV7_UNKNOWN_LINUX_MUSLEABIHF_RUNNER = "qemu-arm";
       };

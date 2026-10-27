@@ -5,7 +5,7 @@ use unicode_normalization::UnicodeNormalization;
 use super::{EpubError, attr, lenient_reader};
 use crate::text::{Span, Style};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum BlockKind {
     Paragraph,
     /// 1–6, `<h1>`–`<h6>`.
@@ -14,7 +14,7 @@ pub enum BlockKind {
 
 /// Bir paragraf ya da başlık. `spans` metnin tamamını sırayla kaplar ve
 /// satır içi biçimi (kalın, italik, bağlantı) taşır. CSS okunmaz.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Block {
     pub kind: BlockKind,
     pub text: String,

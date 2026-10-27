@@ -2,7 +2,9 @@ use std::cell::OnceCell;
 use std::path::{Path, PathBuf};
 
 /// Satır içi biçim. Bağlantılar altı çizili gösterilir.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, Default, serde::Serialize, serde::Deserialize,
+)]
 pub struct Style {
     pub bold: bool,
     pub italic: bool,

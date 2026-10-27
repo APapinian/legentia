@@ -7,7 +7,7 @@ use super::fonts::{Family, Style};
 use super::{Glyph, Text, hyphen};
 
 /// Paragraf metninin `[start, end)` bayt aralığının biçimi.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Span {
     pub start: usize,
     pub end: usize,

@@ -1,7 +1,7 @@
 //! Ekranlar: her biri için olay işleme ve çizim.
 
 use super::session::Target;
-use super::settings::{FIELDS, Settings};
+use super::settings::{FIELD_PAGES, Settings};
 use super::ui::{
     BOLD, BOTTOM, HEADER_BOTTOM, List, MARGIN, PLAIN, ROW_PX, Rect, TOP, back_button, draw_button,
     draw_footer, draw_header, one_line,
@@ -392,6 +392,7 @@ impl App {
             MenuItem::Settings => {
                 self.view = View::Settings {
                     draft: self.settings.clone(),
+                    page: 0,
                 }
             }
             MenuItem::Library => {
@@ -536,10 +537,32 @@ impl App {
         }
     }
 
-    pub(super) fn handle_settings(&mut self, draft: Settings, event: Event) -> Option<Refresh> {
+    /// Yazı ve PDF ayarları sayfaları arasında geçiş düğmesi.
+    pub(super) fn settings_page_button(&self) -> Rect {
+        Rect {
+            x: MARGIN,
+            y: BOTTOM - 220,
+            w: self.width as i32 - 2 * MARGIN,
+            h: 90,
+        }
+    }
+
+    pub(super) fn handle_settings(
+        &mut self,
+        draft: Settings,
+        page: usize,
+        event: Event,
+    ) -> Option<Refresh> {
+        let other = (page + 1) % FIELD_PAGES.len();
         let Event::Tap { x, y } = event else {
-            return None;
+            // Sayfa tuşları ayar sayfasını değiştirir.
+            self.view = View::Settings { draft, page: other };
+            return Some(self.refresh(false));
         };
+        if self.settings_page_button().contains(x, y) {
+            self.view = View::Settings { draft, page: other };
+            return Some(self.refresh(false));
+        }
         if self.settings_ok().contains(x, y) {
             self.apply_settings(draft);
             return self.back_to_reading();
@@ -547,7 +570,7 @@ impl App {
         if self.settings_cancel().contains(x, y) {
             return self.back_to_reading();
         }
-        for (row, field) in FIELDS.iter().enumerate() {
+        for (row, field) in FIELD_PAGES[page].iter().enumerate() {
             let (minus, plus) = self.settings_buttons(row);
             let up = if plus.contains(x, y) {
                 true
@@ -558,22 +581,22 @@ impl App {
             };
             self.view = View::Settings {
                 draft: draft.step(*field, up),
+                page,
             };
             return Some(self.refresh(false));
         }
         None
     }
 
-    pub(super) fn draw_settings(&self, canvas: &mut Canvas, draft: &Settings) {
+    pub(super) fn draw_settings(&self, canvas: &mut Canvas, draft: &Settings, page: usize) {
         let t = &self.text;
-        draw_header(
-            t,
-            canvas,
-            &tr(&Msg::TextSettings),
-            &tr(&Msg::SettingsHint),
-            false,
-        );
-        for (row, field) in FIELDS.iter().enumerate() {
+        let title = if page == 0 {
+            Msg::TextSettings
+        } else {
+            Msg::PdfSettings
+        };
+        draw_header(t, canvas, &tr(&title), &tr(&Msg::SettingsHint), false);
+        for (row, field) in FIELD_PAGES[page].iter().enumerate() {
             let top = HEADER_BOTTOM + row as i32 * SETTINGS_ROW;
             t.draw_msg(canvas, &field.label(), MARGIN, top + 52, ROW_PX);
             t.draw_plain(
@@ -589,9 +612,20 @@ impl App {
             draw_button(t, canvas, minus, "−", 52.0);
             draw_button(t, canvas, plus, "+", 52.0);
         }
+        let other = if page == 0 {
+            Msg::PdfSettingsNext
+        } else {
+            Msg::TextSettingsBack
+        };
+        draw_button(t, canvas, self.settings_page_button(), &tr(&other), 40.0);
+        draw_button(t, canvas, self.settings_cancel(), &tr(&Msg::Cancel), 40.0);
+        draw_button(t, canvas, self.settings_ok(), &tr(&Msg::Ok), 40.0);
+        if page != 0 {
+            return;
+        }
         // Önizleme: seçilen yazı tipi ve boyutuyla örnek cümle.
         let preview_y =
-            HEADER_BOTTOM + FIELDS.len() as i32 * SETTINGS_ROW + 40 + draft.font_px as i32;
+            HEADER_BOTTOM + FIELD_PAGES[0].len() as i32 * SETTINGS_ROW + 40 + draft.font_px as i32;
         let book = Family::Book(draft.family);
         let max_w = (canvas.width() as i32 - 2 * draft.margin) as f32;
         let sample = t.wrap_plain(
@@ -612,8 +646,6 @@ impl App {
                 draft.font_px,
             );
         }
-        draw_button(t, canvas, self.settings_cancel(), &tr(&Msg::Cancel), 40.0);
-        draw_button(t, canvas, self.settings_ok(), &tr(&Msg::Ok), 40.0);
     }
 }
 
