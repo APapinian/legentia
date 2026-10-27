@@ -1,0 +1,4 @@
+# Kobo Libra 2: ARMv7 hard-float, statik musl. Cihazdaki paylaşılan
+# kütüphanelere hiç bağlanmıyoruz; linker Rust araç zinciriyle gelen rust-lld.
+[target.armv7-unknown-linux-musleabihf]
+linker = "rust-lld"

@@ -1,0 +1,14 @@
+[workspace]
+resolver = "3"
+members = ["crates/core", "crates/sim"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+# Kullanıcıya görünen her metin i18n katalogundan gelmeli. Doğrudan
+# println!/eprintln! yasak; izin verilen tek yer i18n::show_error.
+[workspace.lints.clippy]
+print_stdout = "deny"
+print_stderr = "deny"
