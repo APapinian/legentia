@@ -80,10 +80,21 @@ pub enum FontError {
     Missing(PathBuf),
 }
 
+/// Yüklenmiş bir yüz: dosya verisi ve tabloları bir kez okunmuş rustybuzz yüzü.
+///
+/// Veri bilerek program sonuna kadar bellekte tutulur (`Box::leak`): bir yüz
+/// yüklendikten sonra hiç bırakılmaz, böylece tablo okuması paragraf başına
+/// değil yüz başına bir kez yapılır (Gentium'da yeniden dizme süresini yarıya indirir).
+/// En fazla 16 yüz vardır.
+struct Loaded {
+    data: &'static [u8],
+    hb: rustybuzz::Face<'static>,
+}
+
 /// Font dosyaları ilk kullanıldıklarında yüklenir; seçilmeyen aileler belleğe girmez.
 pub struct Fonts {
     dir: PathBuf,
-    faces: Vec<OnceCell<Option<Vec<u8>>>>,
+    faces: Vec<OnceCell<Option<Loaded>>>,
 }
 
 impl Fonts {
@@ -123,7 +134,7 @@ impl Fonts {
         self.dir.join(def.files[id.0 as usize % 4])
     }
 
-    fn load(&self, id: FaceId) -> Option<&[u8]> {
+    fn load(&self, id: FaceId) -> Option<&Loaded> {
         self.faces[id.0 as usize]
             .get_or_init(|| {
                 let path = self.path_of(id);
@@ -132,9 +143,11 @@ impl Fonts {
                     log::warn!("not a usable font: {}", path.display());
                     return None;
                 }
-                Some(data)
+                let data: &'static [u8] = Box::leak(data.into_boxed_slice());
+                let hb = rustybuzz::Face::from_slice(data, 0)?;
+                Some(Loaded { data, hb })
             })
-            .as_deref()
+            .as_ref()
     }
 
     /// İstenen yüz, yoksa ailenin normal yüzü, o da yoksa arayüz fontu.
@@ -152,6 +165,15 @@ impl Fonts {
 
     /// `face` ile çözülmüş bir yüzün verisi.
     pub(crate) fn data(&self, id: FaceId) -> &[u8] {
+        self.loaded(id).data
+    }
+
+    /// `face` ile çözülmüş bir yüzün harf birleştirme nesnesi.
+    pub(crate) fn shaper(&self, id: FaceId) -> &rustybuzz::Face<'static> {
+        &self.loaded(id).hb
+    }
+
+    fn loaded(&self, id: FaceId) -> &Loaded {
         self.load(id)
             .expect("FaceId yalnızca yüklü yüzler için verilir")
     }

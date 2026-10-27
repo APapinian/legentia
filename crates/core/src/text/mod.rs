@@ -83,9 +83,7 @@ impl Text {
         base: usize,
         out: &mut Vec<Glyph>,
     ) {
-        let Some(hb) = rustybuzz::Face::from_slice(self.fonts.data(face), 0) else {
-            return;
-        };
+        let hb = self.fonts.shaper(face);
         let scale = px / hb.units_per_em() as f32;
         let mut buffer = rustybuzz::UnicodeBuffer::new();
         buffer.push_str(text);
@@ -93,7 +91,7 @@ impl Text {
             buffer.set_language(lang);
         }
         buffer.guess_segment_properties();
-        let shaped = rustybuzz::shape(&hb, &[], buffer);
+        let shaped = rustybuzz::shape(hb, &[], buffer);
         for (info, pos) in shaped.glyph_infos().iter().zip(shaped.glyph_positions()) {
             out.push(Glyph {
                 id: info.glyph_id as u16,
