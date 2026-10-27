@@ -5,6 +5,9 @@
 //! PageUp / Sol ok = üst sayfa tuşu (geri), PageDown / Sağ ok / Boşluk = alt tuş (ileri).
 //! Esc = çıkış. Tam yenileme, ekranın bir an ters renkte gösterilmesiyle işaretlenir.
 //!
+//! Geçici geliştirici tuşları (ayar menüsü M4'te): + / - yazı boyutu,
+//! F yazı tipi, L satır aralığı, M kenar boşluğu, J iki yana yaslama, H heceleme.
+//!
 //! LEGENTIA_SIM_SCALE: pencere küçültme katsayısı (tam sayı, varsayılan 2).
 
 use std::process::ExitCode;
@@ -12,7 +15,8 @@ use std::time::Duration;
 
 use legentia_core::i18n::{self, Msg, tr};
 use legentia_core::{
-    App, Book, Canvas, Event, Font, LIBRA2_HEIGHT, LIBRA2_WIDTH, PageKey, Refresh,
+    App, Book, Canvas, Event, Fonts, LIBRA2_HEIGHT, LIBRA2_WIDTH, PageKey, Refresh, Settings, Text,
+    book_family_count, book_family_name,
 };
 use minifb::{Key, KeyRepeat, MouseButton, MouseMode, Window, WindowOptions};
 
@@ -22,7 +26,7 @@ fn main() -> ExitCode {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
     i18n::install_panic_hook();
 
-    let Some(font) = load_font() else {
+    let Some(font) = load_fonts() else {
         return ExitCode::FAILURE;
     };
     let scale = std::env::var("LEGENTIA_SIM_SCALE")
@@ -84,13 +88,33 @@ fn main() -> ExitCode {
                 Key::PageDown | Key::Right | Key::Space => {
                     events.push(Event::Key(PageKey::Forward))
                 }
-                _ => {}
+                _ => {
+                    if let Some(settings) = adjust(app.settings(), key) {
+                        log::info!(
+                            "settings: {} {}px, line {}, margin {}, justify {}, hyphenate {}",
+                            book_family_name(settings.family),
+                            settings.font_px,
+                            settings.line_spacing,
+                            settings.margin,
+                            settings.justify,
+                            settings.hyphenate
+                        );
+                        let started = std::time::Instant::now();
+                        let refresh = app.set_settings(settings);
+                        log::info!("relayout in {:?}", started.elapsed());
+                        if let Some(refresh) = refresh {
+                            present(&mut window, &app, &mut canvas, &mut frame, scale, refresh);
+                        }
+                    }
+                }
             }
         }
 
         for event in events {
-            log::info!("event: {event:?}");
-            if let Some(refresh) = app.handle(event) {
+            let started = std::time::Instant::now();
+            let handled = app.handle(event);
+            log::info!("event: {event:?}, handled in {:?}", started.elapsed());
+            if let Some(refresh) = handled {
                 present(&mut window, &app, &mut canvas, &mut frame, scale, refresh);
             }
         }
@@ -98,17 +122,41 @@ fn main() -> ExitCode {
     ExitCode::SUCCESS
 }
 
-fn load_font() -> Option<Font> {
-    let Ok(path) = std::env::var("LEGENTIA_FONT") else {
+fn load_fonts() -> Option<Text> {
+    let Ok(dir) = std::env::var("LEGENTIA_FONTS") else {
         i18n::show_error(&Msg::FontMissing);
         return None;
     };
-    let font = std::fs::read(&path).ok().and_then(|b| Font::from_bytes(&b));
-    if font.is_none() {
-        log::error!("cannot load font from {path}");
-        i18n::show_error(&Msg::FontInvalid);
+    match Fonts::open(std::path::Path::new(&dir)) {
+        Ok(fonts) => Some(Text::new(fonts)),
+        Err(e) => {
+            log::error!("cannot load fonts: {e:?}");
+            i18n::show_error(&Msg::FontMissing);
+            None
+        }
     }
-    font
+}
+
+/// Geliştirici tuşları: ayarın değiştirilmiş bir kopyası.
+fn adjust(current: &Settings, key: Key) -> Option<Settings> {
+    let mut s = current.clone();
+    match key {
+        Key::Equal | Key::NumPadPlus => s.font_px = (s.font_px + 4.0).min(80.0),
+        Key::Minus | Key::NumPadMinus => s.font_px = (s.font_px - 4.0).max(24.0),
+        Key::F => s.family = (s.family + 1) % book_family_count(),
+        Key::L => {
+            s.line_spacing = if s.line_spacing >= 1.75 {
+                1.2
+            } else {
+                s.line_spacing + 0.2
+            }
+        }
+        Key::M => s.margin = if s.margin >= 150 { 30 } else { s.margin + 40 },
+        Key::J => s.justify = !s.justify,
+        Key::H => s.hyphenate = !s.hyphenate,
+        _ => return None,
+    }
+    Some(s)
 }
 
 fn present(
@@ -119,8 +167,9 @@ fn present(
     scale: u32,
     refresh: Refresh,
 ) {
-    log::info!("refresh: {refresh:?}");
+    let started = std::time::Instant::now();
     app.draw(canvas);
+    log::info!("refresh: {refresh:?}, drawn in {:?}", started.elapsed());
     let (w, h) = window.get_size();
     if refresh == Refresh::Full {
         downscale(canvas, frame, scale, true);

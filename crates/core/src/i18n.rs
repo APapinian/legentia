@@ -33,7 +33,6 @@ pub enum Msg {
     BookTooLarge,
     BookUnsafe,
     FontMissing,
-    FontInvalid,
     WindowFailed,
     Crashed,
 }
@@ -58,8 +57,7 @@ pub fn tr(msg: &Msg) -> String {
         Msg::BookDamaged => "Kitap dosyası hasarlı: gerekli bir bölümü eksik ya da okunamıyor.".into(),
         Msg::BookTooLarge => "Kitabın bir bölümü güvenli boyut sınırını aşıyor; açılmadı.".into(),
         Msg::BookUnsafe => "Kitap, paketin dışına çıkan güvensiz bir dosya yolu içeriyor; açılmadı.".into(),
-        Msg::FontMissing => "Yazı tipi bulunamadı. LEGENTIA_FONT ortam değişkeni bir .ttf dosyasını göstermeli (nix develop bunu ayarlar).".into(),
-        Msg::FontInvalid => "Yazı tipi dosyası okunamadı ya da geçersiz.".into(),
+        Msg::FontMissing => "Yazı tipleri bulunamadı ya da okunamadı. LEGENTIA_FONTS ortam değişkeni font klasörünü göstermeli (nix develop bunu ayarlar).".into(),
         Msg::WindowFailed => "Simülatör penceresi açılamadı.".into(),
         Msg::Crashed => "Beklenmeyen bir hata oluştu ve uygulama kapandı. Ayrıntılar kayıt dosyasında.".into(),
     }
@@ -107,7 +105,6 @@ mod tests {
             Msg::BookTooLarge,
             Msg::BookUnsafe,
             Msg::FontMissing,
-            Msg::FontInvalid,
             Msg::WindowFailed,
             Msg::Crashed,
         ]

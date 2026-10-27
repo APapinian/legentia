@@ -1,12 +1,12 @@
 # Legentia
 
-Kobo Libra 2 için Rust ile yazılan, tamamen Türkçe arayüzlü e-kitap okuyucu. Şu an M2 tamamlandı: simülatörde EPUB açma, içindekiler ve bölüm okuma.
+Kobo Libra 2 için Rust ile yazılan, tamamen Türkçe arayüzlü e-kitap okuyucu. Şu an M3 tamamlandı: simülatörde EPUB okuma; harf birleştirme, Türkçe heceleme, iki yana yaslama, kalın/italik ve ayarlanabilir yazı.
 
-Belgeler: `kobo-rust-okuyucu-proje-aktarim.md` (vizyon), `milestone.md` (plan), `dikkat-edilmesi-gerekenler.md` (kurallar), `docs/device-compatibility.md` (cihaz bilgisi).
+Belgeler: `kobo-rust-okuyucu-proje-aktarim.md` (vizyon), `milestone.md` (plan), `dikkat-edilmesi-gerekenler.md` (kurallar), `docs/device-compatibility.md` (cihaz bilgisi), `docs/epub-support.md` (desteklenen EPUB özellikleri), `docs/dependencies.md` (bağımlılıklar, fontlar ve lisansları).
 
 ## Yapı
 
-- `crates/core`: platformdan bağımsız çekirdek. Çizim yüzeyi, olaylar, E Ink yenileme türleri, Türkçe metin katalogu, EPUB okuma (`epub/`), uygulama ekranları.
+- `crates/core`: platformdan bağımsız çekirdek. Çizim yüzeyi, olaylar, E Ink yenileme türleri, Türkçe metin katalogu, EPUB okuma (`epub/`), metin motoru (`text/`: fontlar, harf birleştirme, satır kırma, Türkçe heceleme), uygulama ekranları ve ayarlar.
 - `crates/sim`: Libra 2 ekranını (1264×1680, gri ton) taklit eden masaüstü penceresi.
 
 ## Komutlar
@@ -35,6 +35,14 @@ cargo test  -p legentia-core --target armv7-unknown-linux-musleabihf
 | PageUp, Sol ok | Üst sayfa tuşu (geri) |
 | PageDown, Sağ ok, Boşluk | Alt sayfa tuşu (ileri) |
 | Esc | Çıkış |
+| + / - | Yazı boyutu (geçici geliştirici tuşu) |
+| F | Yazı tipi: Literata → Source Serif 4 → Gentium |
+| L | Satır aralığı |
+| M | Kenar boşluğu |
+| J | İki yana yaslama aç/kapa |
+| H | Heceleme aç/kapa |
+
+Geliştirici tuşları ayar menüsü gelene (M4) kadar geçicidir. Ayar değişince okuma konumu korunur; log'da yeniden dizme süresi yazar.
 
 Tam yenileme, ekranın 120 ms ters renkte gösterilmesiyle işaretlenir. Şu an her 6. yenileme tamdır; bu sayı geçicidir. Pencere varsayılan olarak yarı boyuttadır; `LEGENTIA_SIM_SCALE=1` tam boyut verir.
 
@@ -43,4 +51,4 @@ Tam yenileme, ekranın 120 ms ters renkte gösterilmesiyle işaretlenir. Şu an 
 - Kullanıcıya görünen her metin `crates/core/src/i18n.rs` içindeki `Msg` katalogundan gelir. Arayüz metni yalnızca `Font::draw_msg` ile çizilebilir; `println!`/`eprintln!` clippy tarafından reddedilir.
 - Kitap içeriği (başlık, yazar, metin) arayüz metni değildir; crate içinden `Font::draw_content` ile çizilir.
 - Kod, log ve teknik tanımlayıcılar İngilizce olabilir.
-- Test fontu (DejaVu Sans) geçicidir; asıl font ve metin düzeni M3'te seçilecek.
+- Fontlar `LEGENTIA_FONTS` klasöründen gelir (`nix develop` ayarlar); hepsi SIL OFL 1.1.

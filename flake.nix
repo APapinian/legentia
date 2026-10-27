@@ -26,6 +26,20 @@
 
       # Simülatör penceresinin çalışma zamanında yüklediği kütüphaneler.
       simLibs = with pkgs; [ libx11 libxcursor libxrandr libxi libxkbcommon ];
+
+      # Uygulamanın kullandığı fontlar (hepsi SIL OFL 1.1), tek klasörde.
+      # Dosya adları crates/core/src/text/fonts.rs ile aynı olmalı.
+      fonts = pkgs.runCommand "legentia-fonts" { } ''
+        mkdir -p $out
+        for s in Regular Italic Bold BoldItalic; do
+          cp ${pkgs.literata}/share/fonts/truetype/Literata-$s.ttf $out/
+          cp ${pkgs.gentium}/share/fonts/truetype/Gentium-$s.ttf $out/
+        done
+        for s in Regular It Bold BoldIt; do
+          cp ${pkgs.source-serif}/share/fonts/opentype/SourceSerif4-$s.otf $out/
+          cp ${pkgs.source-sans}/share/fonts/opentype/SourceSans3-$s.otf $out/
+        done
+      '';
     in
     {
       devShells.${system}.default = pkgs.mkShell {
@@ -37,9 +51,7 @@
 
         LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath simLibs;
 
-        # Geçici test fontu (Bitstream Vera lisansı, Türkçe karakterleri kapsar).
-        # Asıl font seçimi M3'te yapılacak.
-        LEGENTIA_FONT = "${pkgs.dejavu_fonts}/share/fonts/truetype/DejaVuSans.ttf";
+        LEGENTIA_FONTS = "${fonts}";
 
         CARGO_TARGET_ARMV7_UNKNOWN_LINUX_MUSLEABIHF_RUNNER = "qemu-arm";
       };

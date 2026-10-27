@@ -15,11 +15,11 @@ mod event;
 pub mod i18n;
 mod text;
 
-pub use app::App;
+pub use app::{App, Position, Settings};
 pub use canvas::Canvas;
 pub use epub::{Book, EpubError};
 pub use event::{Event, PageKey, Refresh};
-pub use text::Font;
+pub use text::{Family, FontError, Fonts, Span, Style, Text, book_family_count, book_family_name};
 
 /// Kobo Libra 2 ekranı, dikey konum (bkz. docs/device-compatibility.md).
 pub const LIBRA2_WIDTH: u32 = 1264;

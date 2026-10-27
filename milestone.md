@@ -101,22 +101,35 @@ Süreler cihaz performansı değildir (bkz. "Ölçüm yöntemi"). Bellek ölçü
 **Amaç:** Türkçe için doğru, ileride diğer yazı sistemlerine genişletilebilir bir metin düzeni motoru kurmak.
 
 ### İşler
-- [ ] Font yükleme, ölçüm ve harf birleştirme (shaping) altyapısını seç; seçimde sağdan sola (Osmanlıca/Arapça) ve CJK (Japonca) desteğinin sonradan eklenebilmesini şart koş.
-- [ ] Türkçe karakterleri tam kapsayan, lisansı uygun (ör. OFL) fontları seç ve belgele.
-- [ ] Unicode satır kırma kurallarını uygula.
-- [ ] Türkçe heceleme (tireleme) ekle; iki yana yaslı metinde boşluk dağılımını kontrol et.
-- [ ] Punto, yazı tipi, satır aralığı, kenar boşlukları ve hizalamayı ayarlanabilir yap.
-- [ ] Paragraf, başlık, italik/kalın ve temel bağlantı biçimlendirmesini uygula.
-- [ ] Ekran boyutuna göre sayfalama yap; sayfa konumunu kararlı bir içerik konumuyla ilişkilendir.
-- [ ] E Ink için yenileme planı: sayfa çevirmede kısmi yenileme, belirli aralıkla tam yenileme.
-- [ ] Çok uzun kelimeler, tablolar, görseller, dipnotlar ve CSS sınırlamalarını test et.
+- [x] Font yükleme, ölçüm ve harf birleştirme (shaping) altyapısını seç; seçimde sağdan sola (Osmanlıca/Arapça) ve CJK (Japonca) desteğinin sonradan eklenebilmesini şart koş. (rustybuzz + swash; glifler kaynak bayt konumu taşır, satırlar bayt aralığıyla tanımlı. Bidi henüz yok.)
+- [x] Türkçe karakterleri tam kapsayan, lisansı uygun (ör. OFL) fontları seç ve belgele. (Literata, Source Serif 4, Gentium, arayüz: Source Sans 3; `docs/dependencies.md`)
+- [x] Unicode satır kırma kurallarını uygula. (unicode-linebreak, UAX #14)
+- [x] Türkçe heceleme (tireleme) ekle; iki yana yaslı metinde boşluk dağılımını kontrol et. (TDK kuralları; boşluk en fazla 3 katına genişler, fazlası sola yaslanır)
+- [x] Punto, yazı tipi, satır aralığı, kenar boşlukları ve hizalamayı ayarlanabilir yap. (`Settings`; arayüzü M4'te, şimdilik simülatörde geliştirici tuşları)
+- [x] Paragraf, başlık, italik/kalın ve temel bağlantı biçimlendirmesini uygula.
+- [x] Ekran boyutuna göre sayfalama yap; sayfa konumunu kararlı bir içerik konumuyla ilişkilendir. (`Position { block, offset }`)
+- [x] E Ink için yenileme planı: sayfa çevirmede kısmi yenileme, belirli aralıkla tam yenileme. (Her 6. çevirme ve her bölüm/ekran değişimi tam; sayı cihazda ayarlanacak)
+- [x] Çok uzun kelimeler, tablolar, görseller, dipnotlar ve CSS sınırlamalarını test et. (Uzun kelime testli; diğerlerinin davranışı `docs/epub-support.md`)
+- [x] `tr` dil etiketini harf birleştiriciye ver: Literata'da "fi" bitişik harfi Türkçede uygulanmıyor (testli).
+- [x] Yabancı kelimeleri Türkçe kurallarla bölme (q/w/x içerenler). Gerçek kitapta "Luxembo-urg" hatası görüldü.
 
 ### Kabul ölçütleri
-- Yazı ayarları değişince sayfalama yeniden hesaplanıyor ve okuma konumu korunuyor.
-- `İ/ı`, `I/i`, `ğ, ü, ş, ö, ç` ve Unicode normalizasyon testleri geçiyor.
+- Yazı ayarları değişince sayfalama yeniden hesaplanıyor ve okuma konumu korunuyor. (testli)
+- `İ/ı`, `I/i`, `ğ, ü, ş, ö, ç` ve Unicode normalizasyon testleri geçiyor. (her font ailesi ve stil için glif kapsamı testli)
 - Türkçe heceleme için örnek kelime listesiyle birim testleri var.
-- Sayfa çevirme süresi ve bölüm sayfalama süresi ölçülmüş. `[ölçülecek]`
-- Desteklenmeyen EPUB özellikleri belgelenmiş.
+- Sayfa çevirme süresi ve bölüm sayfalama süresi ölçülmüş.
+- Desteklenmeyen EPUB özellikleri belgelenmiş. (`docs/epub-support.md`)
+
+### Ölçümler (2026-10-27, NixOS x86_64, release, Libra 2 ekranı 1264×1680)
+"Dar Kapı", 6. bölüm (18 sayfa), Literata 40 px, iki yana yaslı, heceleme açık.
+
+| Ölçüm | Süre |
+|---|---|
+| Bölümü okuyup tamamını sayfalara dizme | 15 ms |
+| Sayfa çevirme (olay işleme) | < 0,01 ms |
+| Bir sayfayı çizme (glif önbelleği dolu / boş) | 2,6 ms / 7 ms |
+
+Süreler cihaz performansı değildir; Libra 2'de kat kat yavaş olacak (M10'da ölçülecek). Glif önbelleği en fazla 4096 glif tutar.
 
 **Çıktı:** Simülatörde okunabilir sayfalama.
 

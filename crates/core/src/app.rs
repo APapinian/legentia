@@ -1,33 +1,70 @@
 use crate::LIBRA2_HEIGHT;
 use crate::canvas::Canvas;
-use crate::epub::{BlockKind, Book, EpubError};
+use crate::epub::{Block, BlockKind, Book, EpubError};
 use crate::event::{Event, PageKey, Refresh};
 use crate::i18n::{Msg, tr};
-use crate::text::Font;
+use crate::text::{Align, Family, Line, ParaStyle, Style, Text, layout};
 
 /// Kaç kısmi yenilemeden sonra bir tam yenileme yapılacağı.
 /// Geçici değer; gerçek cihazda gölgelenmeye bakılarak ayarlanacak.
 const PARTIALS_PER_FULL: u32 = 6;
 
-// Geçici sayfa düzeni (piksel, 300 ppi). Ayarlanabilir hali M3/M4'te.
-const MARGIN: i32 = 80;
-const TOP: i32 = 110;
-const BOTTOM: i32 = LIBRA2_HEIGHT as i32 - 120;
-const FOOTER_BASELINE: i32 = LIBRA2_HEIGHT as i32 - 55;
-const BODY_PX: f32 = 34.0;
-const LINE_SPACING: f32 = 1.45;
+// Sayfa iskeleti (piksel, 300 ppi). Metin alanının yan boşlukları ayarlardan gelir.
+const TOP: i32 = 90;
+const BOTTOM: i32 = LIBRA2_HEIGHT as i32 - 110;
+const FOOTER_BASELINE: i32 = LIBRA2_HEIGHT as i32 - 50;
+const UI_MARGIN: i32 = 80;
 const FOOTER_PX: f32 = 28.0;
 const TOC_PX: f32 = 36.0;
 const TOC_ROW: i32 = 64;
 const TOC_INDENT: i32 = 40;
+/// Bir başlığın altında en az bu kadar satır yer yoksa başlık sonraki sayfaya geçer.
+const LINES_AFTER_HEADING: f32 = 3.0;
 
-struct Line {
-    text: String,
-    px: f32,
+/// Okuma ayarları. Değişince bölüm yeniden dizilir, okuma konumu korunur.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Settings {
+    /// `text::book_family_name` sırası.
+    pub family: usize,
+    /// Gövde metni boyutu (piksel; 300 ppi'de 40 px ≈ 9,6 punto).
+    pub font_px: f32,
+    pub line_spacing: f32,
+    /// Sol ve sağ kenar boşluğu (piksel).
+    pub margin: i32,
+    pub justify: bool,
+    pub hyphenate: bool,
+}
+
+impl Default for Settings {
+    fn default() -> Self {
+        Self {
+            family: 0,
+            font_px: 40.0,
+            line_spacing: 1.4,
+            margin: 70,
+            justify: true,
+            hyphenate: true,
+        }
+    }
+}
+
+/// Bölüm içinde kararlı konum: blok sırası ve blok metnindeki bayt konumu.
+/// Sayfa numarasından farklı olarak yazı ayarı değişince de geçerlidir.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default)]
+pub struct Position {
+    pub block: usize,
+    pub offset: usize,
+}
+
+struct PlacedLine {
+    line: Line,
     baseline: i32,
 }
 
-type Page = Vec<Line>;
+struct Page {
+    lines: Vec<PlacedLine>,
+    start: Position,
+}
 
 enum View {
     Message(Msg),
@@ -36,22 +73,24 @@ enum View {
     },
     Reading {
         spine: usize,
+        blocks: Vec<Block>,
         pages: Vec<Page>,
         page: usize,
     },
 }
 
 pub struct App {
-    font: Font,
+    text: Text,
     width: u32,
     book: Option<Book>,
     view: View,
+    settings: Settings,
     since_full: u32,
 }
 
 impl App {
     /// `book` açılamadıysa hata ekranıyla başlar.
-    pub fn new(font: Font, width: u32, book: Result<Book, EpubError>) -> Self {
+    pub fn new(text: Text, width: u32, book: Result<Book, EpubError>) -> Self {
         let (book, view) = match book {
             Ok(b) => (Some(b), View::Contents { page: 0 }),
             Err(e) => {
@@ -60,21 +99,23 @@ impl App {
             }
         };
         Self {
-            font,
+            text,
             width,
             book,
             view,
+            settings: Settings::default(),
             since_full: 0,
         }
     }
 
     /// Kitapsız, yalnızca bir mesaj gösteren uygulama.
-    pub fn with_message(font: Font, width: u32, msg: Msg) -> Self {
+    pub fn with_message(text: Text, width: u32, msg: Msg) -> Self {
         Self {
-            font,
+            text,
             width,
             book: None,
             view: View::Message(msg),
+            settings: Settings::default(),
             since_full: 0,
         }
     }
@@ -82,6 +123,54 @@ impl App {
     /// İlk açılışta ekran her zaman tam yenilenir.
     pub fn start(&mut self) -> Refresh {
         self.refresh(true)
+    }
+
+    pub fn settings(&self) -> &Settings {
+        &self.settings
+    }
+
+    /// Ayarları uygular. Okurken bölüm yeniden dizilir ve aynı metin
+    /// konumunu içeren sayfa açılır.
+    pub fn set_settings(&mut self, settings: Settings) -> Option<Refresh> {
+        if settings == self.settings {
+            return None;
+        }
+        self.settings = settings;
+        let View::Reading {
+            blocks,
+            pages,
+            page,
+            ..
+        } = &mut self.view
+        else {
+            return None;
+        };
+        let at = pages[*page].start;
+        let blocks = std::mem::take(blocks);
+        let new_pages = self.paginate(&blocks);
+        let new_page = page_of(&new_pages, at);
+        if let View::Reading {
+            blocks: b,
+            pages,
+            page,
+            ..
+        } = &mut self.view
+        {
+            *b = blocks;
+            *pages = new_pages;
+            *page = new_page;
+        }
+        Some(self.refresh(true))
+    }
+
+    /// Okunan sayfanın başlangıç konumu (bölüm, konum).
+    pub fn position(&self) -> Option<(usize, Position)> {
+        match &self.view {
+            View::Reading {
+                spine, pages, page, ..
+            } => Some((*spine, pages[*page].start)),
+            _ => None,
+        }
     }
 
     /// Bir olayı işler; ekran değişmediyse `None` döner (E Ink'e boşuna yenileme yok).
@@ -99,6 +188,7 @@ impl App {
                 spine,
                 page,
                 ref pages,
+                ..
             } => {
                 let last = pages.len() - 1;
                 self.handle_reading(spine, page, last, event)
@@ -113,7 +203,7 @@ impl App {
             Event::Key(PageKey::Back) if page > 0 => page - 1,
             Event::Tap { y, .. } => {
                 let index = self.contents_row_at(page, y)?;
-                self.open_chapter(self.contents_spine(index), false);
+                self.open_chapter(self.contents_spine(index), Target::Start);
                 return Some(self.refresh(true));
             }
             Event::Key(_) => return None,
@@ -143,11 +233,11 @@ impl App {
             Step::Forward if page < last => page + 1,
             Step::Back if page > 0 => page - 1,
             Step::Forward if spine + 1 < self.chapter_count() => {
-                self.open_chapter(spine + 1, false);
+                self.open_chapter(spine + 1, Target::Start);
                 return Some(self.refresh(true));
             }
             Step::Back if spine > 0 => {
-                self.open_chapter(spine - 1, true);
+                self.open_chapter(spine - 1, Target::End);
                 return Some(self.refresh(true));
             }
             Step::Forward | Step::Back => return None,
@@ -217,7 +307,7 @@ impl App {
 
     /// İçindekiler listesinin ilk satırının üst kenarı (başlık bloğunun altı).
     fn contents_list_top(&self) -> i32 {
-        TOP + 220
+        TOP + 240
     }
 
     fn rows_per_contents_page(&self) -> usize {
@@ -243,15 +333,23 @@ impl App {
 
     // --- Okuma ---
 
-    fn open_chapter(&mut self, spine: usize, at_end: bool) {
+    fn open_chapter(&mut self, spine: usize, target: Target) {
         let Some(book) = self.book.as_mut() else {
             return;
         };
         match book.chapter(spine) {
             Ok(blocks) => {
                 let pages = self.paginate(&blocks);
-                let page = if at_end { pages.len() - 1 } else { 0 };
-                self.view = View::Reading { spine, pages, page };
+                let page = match target {
+                    Target::Start => 0,
+                    Target::End => pages.len() - 1,
+                };
+                self.view = View::Reading {
+                    spine,
+                    blocks,
+                    pages,
+                    page,
+                };
             }
             Err(e) => {
                 log::error!("cannot read chapter {spine}: {e:?}");
@@ -260,34 +358,78 @@ impl App {
         }
     }
 
-    fn paginate(&self, blocks: &[crate::epub::Block]) -> Vec<Page> {
-        let max_w = (self.width as i32 - 2 * MARGIN) as f32;
-        let mut pages = vec![Vec::new()];
+    /// Blokları sayfalara dizer. Her zaman en az bir (belki boş) sayfa döner.
+    fn paginate(&self, blocks: &[Block]) -> Vec<Page> {
+        let s = &self.settings;
+        let family = Family::Book(s.family);
+        let lang = self.book.as_ref().and_then(|b| b.language.as_deref());
+        let max_w = (self.width as i32 - 2 * s.margin) as f32;
+        let body_line = s.font_px * s.line_spacing;
+
+        let mut pages = vec![Page {
+            lines: Vec::new(),
+            start: Position::default(),
+        }];
         let mut y = TOP as f32;
-        for block in blocks {
-            let px = match block.kind {
-                BlockKind::Heading(1) => 52.0,
-                BlockKind::Heading(2) => 46.0,
-                BlockKind::Heading(_) => 40.0,
-                BlockKind::Paragraph => BODY_PX,
+        for (index, block) in blocks.iter().enumerate() {
+            let (px, align, heading) = match block.kind {
+                BlockKind::Heading(1) => (s.font_px * 1.5, Align::Center, true),
+                BlockKind::Heading(2) => (s.font_px * 1.3, Align::Center, true),
+                BlockKind::Heading(_) => (s.font_px * 1.15, Align::Left, true),
+                BlockKind::Paragraph => (
+                    s.font_px,
+                    if s.justify {
+                        Align::Justify
+                    } else {
+                        Align::Left
+                    },
+                    false,
+                ),
             };
-            let line_h = px * LINE_SPACING;
-            if matches!(block.kind, BlockKind::Heading(_)) && y > TOP as f32 {
+            let line_h = px * s.line_spacing;
+            if heading && y > TOP as f32 {
                 y += line_h * 0.6;
+                if y + line_h + body_line * LINES_AFTER_HEADING > BOTTOM as f32 {
+                    y = BOTTOM as f32 + 1.0; // sonraki sayfaya zorla
+                }
             }
-            for text in self.font.wrap(&block.text, px, max_w) {
-                if y + line_h > BOTTOM as f32 && !pages.last().is_some_and(Vec::is_empty) {
-                    pages.push(Vec::new());
+            let face = self.text.fonts().face(
+                family,
+                Style {
+                    bold: heading,
+                    ..Style::default()
+                },
+            );
+            let (ascent, descent) = self.text.ascent_descent(face, px);
+            let para = ParaStyle {
+                family,
+                px,
+                bold: heading,
+                align,
+                hyphenate: s.hyphenate && !heading,
+                lang,
+            };
+            for line in layout(&self.text, &block.text, &block.spans, &para, max_w) {
+                let current = pages.last_mut().expect("en az bir sayfa var");
+                if y + line_h > BOTTOM as f32 && !current.lines.is_empty() {
+                    pages.push(Page {
+                        lines: Vec::new(),
+                        start: Position::default(),
+                    });
                     y = TOP as f32;
                 }
-                let baseline = (y + px) as i32;
-                pages
-                    .last_mut()
-                    .expect("en az bir sayfa var")
-                    .push(Line { text, px, baseline });
+                let current = pages.last_mut().expect("en az bir sayfa var");
+                if current.lines.is_empty() {
+                    current.start = Position {
+                        block: index,
+                        offset: line.start,
+                    };
+                }
+                let baseline = (y + (line_h - (ascent + descent)) / 2.0 + ascent) as i32;
+                current.lines.push(PlacedLine { line, baseline });
                 y += line_h;
             }
-            y += BODY_PX * 0.5;
+            y += body_line * 0.35;
         }
         pages
     }
@@ -296,26 +438,37 @@ impl App {
 
     pub fn draw(&self, canvas: &mut Canvas) {
         canvas.fill(255);
-        let f = &self.font;
+        let t = &self.text;
         match &self.view {
             View::Message(msg) => {
-                let max_w = (canvas.width() as i32 - 2 * MARGIN) as f32;
+                let max_w = (canvas.width() as i32 - 2 * UI_MARGIN) as f32;
                 let mut y = TOP + 300;
-                for line in f.wrap(&tr(msg), 40.0, max_w) {
-                    f.draw_content(canvas, &line, MARGIN, y, 40.0);
+                for line in t.wrap_plain(&tr(msg), Family::Ui, Style::default(), 40.0, max_w) {
+                    t.draw_plain(
+                        canvas,
+                        &line,
+                        Family::Ui,
+                        Style::default(),
+                        UI_MARGIN,
+                        y,
+                        40.0,
+                    );
                     y += 58;
                 }
                 if self.book.is_some() {
-                    f.draw_msg(canvas, &Msg::TapToReturn, MARGIN, y + 60, FOOTER_PX);
+                    t.draw_msg(canvas, &Msg::TapToReturn, UI_MARGIN, y + 60, FOOTER_PX);
                 }
             }
             View::Contents { page } => self.draw_contents(canvas, *page),
-            View::Reading { spine, pages, page } => {
-                for line in &pages[*page] {
-                    f.draw_content(canvas, &line.text, MARGIN, line.baseline, line.px);
+            View::Reading {
+                spine, pages, page, ..
+            } => {
+                let current = &pages[*page];
+                for placed in &current.lines {
+                    t.draw_line(canvas, &placed.line, self.settings.margin, placed.baseline);
                 }
-                if pages[*page].is_empty() {
-                    f.draw_msg(canvas, &Msg::EmptyChapter, MARGIN, TOP + 300, BODY_PX);
+                if current.lines.is_empty() {
+                    t.draw_msg(canvas, &Msg::EmptyChapter, UI_MARGIN, TOP + 300, 36.0);
                 }
                 let footer = Msg::ReadingFooter {
                     chapter: spine + 1,
@@ -323,7 +476,13 @@ impl App {
                     page: page + 1,
                     pages: pages.len(),
                 };
-                f.draw_msg(canvas, &footer, MARGIN, FOOTER_BASELINE, FOOTER_PX);
+                t.draw_msg(
+                    canvas,
+                    &footer,
+                    self.settings.margin,
+                    FOOTER_BASELINE,
+                    FOOTER_PX,
+                );
             }
         }
     }
@@ -332,49 +491,83 @@ impl App {
         let Some(book) = &self.book else {
             return;
         };
-        let f = &self.font;
-        let max_w = (canvas.width() as i32 - 2 * MARGIN) as f32;
+        let t = &self.text;
+        let ui = Family::Ui;
+        let bold = Style {
+            bold: true,
+            ..Style::default()
+        };
+        let max_w = (canvas.width() as i32 - 2 * UI_MARGIN) as f32;
 
         let title = book.title.clone().unwrap_or_else(|| tr(&Msg::UntitledBook));
-        let first_line = f
-            .wrap(&title, 52.0, max_w)
+        let first_line = t
+            .wrap_plain(&title, ui, bold, 56.0, max_w)
             .into_iter()
             .next()
             .unwrap_or_default();
-        f.draw_content(canvas, &first_line, MARGIN, TOP + 50, 52.0);
+        t.draw_plain(canvas, &first_line, ui, bold, UI_MARGIN, TOP + 60, 56.0);
         let authors = if book.authors.is_empty() {
             tr(&Msg::UnknownAuthor)
         } else {
             book.authors.join(", ")
         };
-        f.draw_content(canvas, &authors, MARGIN, TOP + 110, 34.0);
-        f.draw_msg(canvas, &Msg::Contents, MARGIN, TOP + 185, 40.0);
-        canvas.fill_rect(MARGIN, TOP + 200, canvas.width() - 2 * MARGIN as u32, 3, 0);
+        t.draw_plain(
+            canvas,
+            &authors,
+            ui,
+            Style::default(),
+            UI_MARGIN,
+            TOP + 120,
+            36.0,
+        );
+        t.draw_plain(
+            canvas,
+            &tr(&Msg::Contents),
+            ui,
+            bold,
+            UI_MARGIN,
+            TOP + 205,
+            40.0,
+        );
+        canvas.fill_rect(
+            UI_MARGIN,
+            TOP + 222,
+            canvas.width() - 2 * UI_MARGIN as u32,
+            3,
+            0,
+        );
 
         let per_page = self.rows_per_contents_page();
         let start = page * per_page;
         let end = (start + per_page).min(self.contents_len());
         for (row, index) in (start..end).enumerate() {
             let (label, depth) = self.contents_label(index);
-            let x = MARGIN + depth.min(4) as i32 * TOC_INDENT;
-            let avail = (canvas.width() as i32 - MARGIN - x) as f32;
-            let mut text = f
-                .wrap(&label, TOC_PX, avail)
-                .into_iter()
-                .next()
-                .unwrap_or_default();
-            if text.chars().count() < label.chars().count() {
+            let x = UI_MARGIN + depth.min(4) as i32 * TOC_INDENT;
+            let avail = (canvas.width() as i32 - UI_MARGIN - x) as f32;
+            let lines = t.wrap_plain(&label, ui, Style::default(), TOC_PX, avail - TOC_PX);
+            let mut text = lines.first().cloned().unwrap_or_default();
+            if lines.len() > 1 {
                 text.push('…');
             }
-            let baseline = self.contents_list_top() + row as i32 * TOC_ROW + 44;
-            f.draw_content(canvas, &text, x, baseline, TOC_PX);
+            let baseline = self.contents_list_top() + row as i32 * TOC_ROW + 46;
+            t.draw_plain(canvas, &text, ui, Style::default(), x, baseline, TOC_PX);
         }
         let footer = Msg::ContentsFooter {
             page: page + 1,
             pages: self.contents_pages(),
         };
-        f.draw_msg(canvas, &footer, MARGIN, FOOTER_BASELINE, FOOTER_PX);
+        t.draw_msg(canvas, &footer, UI_MARGIN, FOOTER_BASELINE, FOOTER_PX);
     }
+}
+
+/// `at` konumunu içeren sayfa: başlangıcı `at`'ten büyük olmayan son sayfa.
+fn page_of(pages: &[Page], at: Position) -> usize {
+    pages.partition_point(|p| p.start <= at).saturating_sub(1)
+}
+
+enum Target {
+    Start,
+    End,
 }
 
 enum Step {
@@ -387,11 +580,21 @@ enum Step {
 mod tests {
     use super::*;
     use crate::epub::testutil::*;
-    use crate::text::test_font;
+    use crate::text::test_text;
     use crate::{LIBRA2_WIDTH, epub};
 
     fn app_with(bytes: Vec<u8>) -> App {
-        App::new(test_font(), LIBRA2_WIDTH, open_bytes(bytes))
+        App::new(test_text(), LIBRA2_WIDTH, open_bytes(bytes))
+    }
+
+    fn long_chapter(paragraphs: usize) -> App {
+        let para = "<p>Uzun bir paragraf: ağaçlar, gölgeler, ışık ve çay; kardeşlerimizden biri İstanbul'dan geldi. </p>"
+            .repeat(paragraphs);
+        let mut app = app_with(epub_with_chapter(&format!(
+            "<html><body><h1>Başlık</h1>{para}</body></html>"
+        )));
+        app.open_chapter(0, Target::Start);
+        app
     }
 
     fn tap_row(app: &mut App, row: i32) -> Option<Refresh> {
@@ -400,6 +603,13 @@ mod tests {
             x: LIBRA2_WIDTH / 2,
             y: y as u32,
         })
+    }
+
+    fn pages(app: &App) -> &[Page] {
+        match &app.view {
+            View::Reading { pages, .. } => pages,
+            _ => panic!("okuma ekranı bekleniyordu"),
+        }
     }
 
     #[test]
@@ -440,18 +650,52 @@ mod tests {
 
     #[test]
     fn long_chapter_is_split_into_pages_that_fit() {
-        let para = "<p>Uzun bir paragraf: ağaçlar, gölgeler, ışık ve çay. </p>".repeat(400);
-        let mut app = app_with(epub_with_chapter(&format!(
-            "<html><body>{para}</body></html>"
-        )));
-        app.open_chapter(0, false);
-        let View::Reading { pages, .. } = &app.view else {
-            panic!("okuma ekranı bekleniyordu")
-        };
-        assert!(pages.len() > 5);
-        for page in pages {
-            assert!(page.iter().all(|l| l.baseline <= BOTTOM));
+        let app = long_chapter(300);
+        assert!(pages(&app).len() > 5);
+        for page in pages(&app) {
+            assert!(page.lines.iter().all(|l| l.baseline <= BOTTOM));
+            assert!(!page.lines.is_empty());
         }
+    }
+
+    #[test]
+    fn page_starts_are_strictly_increasing() {
+        let app = long_chapter(200);
+        for w in pages(&app).windows(2) {
+            assert!(w[0].start < w[1].start);
+        }
+    }
+
+    #[test]
+    fn changing_settings_keeps_the_reading_position() {
+        let mut app = long_chapter(300);
+        for _ in 0..7 {
+            app.handle(Event::Key(PageKey::Forward));
+        }
+        let (_, before) = app.position().unwrap();
+        let bigger = Settings {
+            font_px: 56.0,
+            family: 1,
+            margin: 120,
+            ..app.settings().clone()
+        };
+        assert_eq!(app.set_settings(bigger), Some(Refresh::Full));
+        let View::Reading { pages, page, .. } = &app.view else {
+            panic!()
+        };
+        assert!(pages[*page].start <= before);
+        assert!(
+            pages.get(*page + 1).is_none_or(|next| before < next.start),
+            "konum yeni sayfada değil"
+        );
+        assert!(pages.len() > 10, "büyük yazıyla daha çok sayfa beklenir");
+    }
+
+    #[test]
+    fn same_settings_do_not_refresh() {
+        let mut app = long_chapter(10);
+        let same = app.settings().clone();
+        assert_eq!(app.set_settings(same), None);
     }
 
     #[test]
@@ -468,7 +712,7 @@ mod tests {
     #[test]
     fn broken_book_shows_turkish_error() {
         let app = App::new(
-            test_font(),
+            test_text(),
             LIBRA2_WIDTH,
             Err(epub::EpubError::NotZip("x".into())),
         );
@@ -479,11 +723,7 @@ mod tests {
 
     #[test]
     fn every_sixth_page_turn_is_a_full_refresh() {
-        let para = "<p>Sayfa sayfa metin. </p>".repeat(2000);
-        let mut app = app_with(epub_with_chapter(&format!(
-            "<html><body>{para}</body></html>"
-        )));
-        app.open_chapter(0, false);
+        let mut app = long_chapter(400);
         let kinds: Vec<_> = (0..12)
             .map(|_| app.handle(Event::Key(PageKey::Forward)).unwrap())
             .collect();
