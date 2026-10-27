@@ -58,6 +58,13 @@ pub enum Msg {
     PdfSettingsNext,
     TextSettingsBack,
     BackToReading,
+    SaveSearchable,
+    SearchableSaved {
+        pages: usize,
+        name: String,
+    },
+    NothingToOcr,
+    SearchableFailed,
     // Yazı ayarları
     SettingsHint,
     SettingFont,
@@ -139,6 +146,12 @@ pub fn tr(msg: &Msg) -> String {
         Msg::PdfSettingsNext => "PDF ayarları →".into(),
         Msg::TextSettingsBack => "← Yazı ayarları".into(),
         Msg::BackToReading => "Okumaya dön".into(),
+        Msg::SaveSearchable => "Aranabilir PDF olarak kaydet".into(),
+        Msg::SearchableSaved { pages, name } => {
+            format!("Aranabilir PDF kaydedildi: “{name}”. {pages} sayfaya metin katmanı eklendi; orijinal dosya değişmedi.")
+        }
+        Msg::NothingToOcr => "Bu PDF'in bütün sayfalarında zaten metin var; aranabilir kopyaya gerek yok.".into(),
+        Msg::SearchableFailed => "Aranabilir PDF kaydedilemedi. Ayrıntılar kayıt dosyasında.".into(),
         Msg::SettingsHint => "Değişiklikler “Tamam”a dokununca uygulanır.".into(),
         Msg::SettingFont => "Yazı tipi".into(),
         Msg::SettingSize => "Yazı boyutu".into(),
@@ -241,6 +254,13 @@ mod tests {
             PdfSettingsNext,
             TextSettingsBack,
             BackToReading,
+            SaveSearchable,
+            SearchableSaved {
+                pages: 3,
+                name: "kitap - aranabilir.pdf".into(),
+            },
+            NothingToOcr,
+            SearchableFailed,
             SettingsHint,
             SettingFont,
             SettingSize,

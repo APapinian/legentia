@@ -93,6 +93,7 @@ pub fn rotate(img: &GrayImage, deg: f32) -> GrayImage {
             let dy = y as f32 + 0.5 - cy;
             let sx = cos * dx - sin * dy + cx - 0.5;
             let sy = sin * dx + cos * dy + cy - 0.5;
+            // (source_point ile aynı dönüşüm; piksel merkezi için ±0,5)
             let (x0, y0) = (sx.floor() as i64, sy.floor() as i64);
             let (fx, fy) = (sx - x0 as f32, sy - y0 as f32);
             let top = sample(x0, y0) * (1.0 - fx) + sample(x0 + 1, y0) * fx;
@@ -105,6 +106,15 @@ pub fn rotate(img: &GrayImage, deg: f32) -> GrayImage {
         height: img.height,
         pixels,
     }
+}
+
+/// `rotate(img, deg)` çıktısındaki (x, y) noktasının girdideki yeri. `rotate` ile
+/// aynı ters dönüşüm kullanılır; böylece OCR kutuları asıl (eğik) sayfaya geri taşınır.
+pub fn source_point(width: u32, height: u32, deg: f32, x: f32, y: f32) -> (f32, f32) {
+    let (sin, cos) = deg.to_radians().sin_cos();
+    let (cx, cy) = (width as f32 / 2.0, height as f32 / 2.0);
+    let (dx, dy) = (x - cx, y - cy);
+    (cos * dx - sin * dy + cx, sin * dx + cos * dy + cy)
 }
 
 /// Eğikliği bulup düzeltir; düzeltilmiş görüntü ve bulunan açı.
@@ -185,6 +195,24 @@ mod tests {
             (found + 3.0).abs() < 0.2,
             "-3° döndürüldü, {found}° bulundu"
         );
+    }
+
+    #[test]
+    fn source_point_undoes_rotation() {
+        // Döndürülmüş görüntüdeki koyu piksellerin kaynaktaki yeri de koyu olmalı.
+        let img = page();
+        let rotated = rotate(&img, 3.0);
+        let dark: Vec<(u32, u32)> = (0..rotated.height)
+            .flat_map(|y| (0..rotated.width).map(move |x| (x, y)))
+            .filter(|&(x, y)| rotated.pixels[(y * rotated.width + x) as usize] < 40)
+            .step_by(997)
+            .collect();
+        assert!(dark.len() > 20);
+        for (x, y) in dark {
+            let (sx, sy) = source_point(img.width, img.height, 3.0, x as f32 + 0.5, y as f32 + 0.5);
+            let p = img.pixels[(sy as u32 * img.width + sx as u32) as usize];
+            assert!(p < 128, "({x}, {y}) → ({sx}, {sy}) mürekkep değil");
+        }
     }
 
     #[test]

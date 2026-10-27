@@ -178,8 +178,8 @@ Süreler cihaz performansı değildir; Libra 2'de kat kat yavaş olacak (M10'da 
 - [x] Metin katmanı olan PDF'lerde metni çıkar ve okuyucunun layout motoruyla yeniden akıt (reflow). (`pdf/text.rs`: glif konumu, boyutu ve genişliğinden satır ve paragraf; satır sonu tiresi birleştirilir, büyük yazı başlık olur; görünmez OCR katmanı da okunur. "PDF metnini yeniden akıt" ayarı; metni olmayan sayfa görüntü olarak kalır. Hukuk metninde karakter hatası %0. Sınav kitapçığı gibi karmaşık düzenler yeniden akıtmaya uygun değil.)
 - [x] Taranmış PDF'ler için OCR: sayfa düzenini (sütunlar, başlıklar, paragraflar) ve metni tanı; sonuca göre yeniden akıt. (`ocr/`: Rust'ta eğiklik düzeltme + Tesseract TSV → paragraf/başlık; "Taranmış sayfaları OCR ile oku" ayarı; sonuç önbelleğe yazılır. Bölgeleri yeniden ölçekleme sütun moduyla birlikte yapılacak.)
 - [x] OCR'ı önce NixOS'ta deney amaçlı çalıştır (Türkçe dil paketiyle); doğruluk ve süreyi ölç. (`docs/ocr-deney.md`: `tur` ile temiz ve hafif bozuk görüntüde %0 hata; kötü taramada eğiklik düzeltmesi hatayı %31–69'dan %0'a indirdi)
-- [ ] OCR metnini PDF'e görünmez, aranabilir metin katmanı olarak göm; orijinal dosyayı koru, yeni dosyayı ayrı yaz.
-- [ ] Notları ve vurguları PDF'e standart PDF açıklamaları (annotation) olarak yaz; başka PDF okuyucularında da görünmeli.
+- [x] OCR metnini PDF'e görünmez, aranabilir metin katmanı olarak göm; orijinal dosyayı koru, yeni dosyayı ayrı yaz. (`pdf/write.rs`, lopdf; menüde "Aranabilir PDF olarak kaydet". 2° eğik görüntü PDF'inde pdftotext ile geri okuma: karakter hatası %4,75, Türkçe kelimeler %100. Kelimeler eğik yazılınca %16'ydı; satır başına yatay ortak taban çizgisine geçildi.)
+- [ ] Notları ve vurguları PDF'e standart PDF açıklamaları (annotation) olarak yaz; başka PDF okuyucularında da görünmeli. (Yazıcı hazır ve testli: Highlight + not + görünüm akışı. Arayüz M6'da.)
 - [ ] Cihazda OCR için ön değerlendirme: tek çekirdekli ARMv7 ve kısıtlı RAM'de sayfa başı süre ve bellek tahmini. Uygulama M10'da.
 
 ### Kabul ölçütleri

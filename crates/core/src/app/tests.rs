@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use super::screens::{BOOKMARKS, CONTENTS, LIBRARY, MENU, MenuItem};
+use super::screens::{BOOKMARKS, CONTENTS, LIBRARY, MenuItem};
 use super::settings::{FIELD_PAGES, Field};
 use super::*;
 use crate::LIBRA2_HEIGHT;
@@ -56,7 +56,7 @@ fn middle(app: &mut App) -> Option<Refresh> {
 fn menu(app: &mut App, item: MenuItem) -> Option<Refresh> {
     middle(app);
     assert!(matches!(app.view, View::Menu));
-    let index = MENU.iter().position(|m| *m == item).unwrap();
+    let index = app.menu_items().iter().position(|m| *m == item).unwrap();
     tap(app, app.menu_rect(index).center())
 }
 
@@ -319,7 +319,7 @@ fn every_screen_draws_without_panicking() {
     for item in [MenuItem::Contents, MenuItem::Bookmarks, MenuItem::Settings] {
         middle(&mut app);
         app.draw(&mut c);
-        let index = MENU.iter().position(|m| *m == item).unwrap();
+        let index = app.menu_items().iter().position(|m| *m == item).unwrap();
         let at = app.menu_rect(index).center();
         tap(&mut app, at);
         app.draw(&mut c);
@@ -557,4 +557,51 @@ fn settings_rows_never_overlap_the_bottom_buttons() {
             fields.len()
         );
     }
+}
+
+#[test]
+fn saves_a_searchable_copy_without_touching_the_original() {
+    if std::env::var_os("LEGENTIA_TESSERACT").is_none() {
+        return; // Tesseract yok; OCR testi atlanır.
+    }
+    let (mut app, _, root) = setup(&[("tarama.pdf", scanned_pdf())]);
+    let original = std::fs::read(root.join("tarama.pdf")).unwrap();
+    tap_row(&mut app, &LIBRARY, 0);
+    menu(&mut app, MenuItem::SaveSearchable);
+    assert!(
+        matches!(
+            &app.view,
+            View::Message {
+                msg: Msg::SearchableSaved { pages: 1, .. },
+                ..
+            }
+        ),
+        "beklenmeyen ekran"
+    );
+    assert_eq!(
+        std::fs::read(root.join("tarama.pdf")).unwrap(),
+        original,
+        "orijinal değişmemeli"
+    );
+
+    let copy = crate::pdf::PdfDoc::open(&root.join("tarama - aranabilir.pdf")).unwrap();
+    let text: String = copy
+        .page_blocks(0)
+        .unwrap()
+        .iter()
+        .map(|b| b.text.clone())
+        .collect();
+    assert!(text.contains("Merhaba Dunya"), "katman metni: {text:?}");
+
+    // Mesaja dokununca okumaya dönülür.
+    tap(&mut app, (10, 10));
+    assert!(matches!(app.view, View::Reading));
+}
+
+#[test]
+fn epub_menu_has_no_searchable_pdf_item() {
+    let (mut app, _, _) = setup(&[("c.epub", epub3_sample())]);
+    tap_row(&mut app, &LIBRARY, 0);
+    tap_row(&mut app, &CONTENTS, 0);
+    assert!(!app.menu_items().contains(&MenuItem::SaveSearchable));
 }

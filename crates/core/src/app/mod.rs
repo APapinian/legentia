@@ -19,7 +19,7 @@ use crate::epub::Book;
 use crate::event::{Event, Refresh};
 use crate::i18n::Msg;
 use crate::library::{self, Entry, Format};
-use crate::pdf::{Area, GrayImage, PdfDoc};
+use crate::pdf::{Area, GrayImage, PdfDoc, PdfEdit};
 use crate::storage::Store;
 use crate::text::Text;
 pub use session::{BookState, Bookmark, Position};
@@ -50,6 +50,7 @@ enum View {
 enum Back {
     Library,
     Contents,
+    Reading,
 }
 
 pub struct App {
@@ -163,6 +164,7 @@ impl App {
             .map(|n| n.to_string_lossy().into_owned())
             .unwrap_or_default();
         let mut session = Session::new(doc, name, id.clone(), state);
+        session.path = path.to_path_buf();
         if is_pdf {
             session.ocr_cache = Some(Store::new(&self.store.dir().join("ocr").join(&id)));
         }
@@ -187,6 +189,7 @@ impl App {
                     self.view = match back {
                         Back::Library => View::Library { page: 0 },
                         Back::Contents => View::Contents { page: 0 },
+                        Back::Reading => View::Reading,
                     };
                     self.refresh(true)
                 })
@@ -256,6 +259,62 @@ impl App {
         self.store.save(&book_file(&session.id), &session.state);
         self.progress
             .insert(session.id.clone(), session.state.percent);
+    }
+
+    /// PDF'in metin katmanı olmayan sayfalarını OCR'dan geçirip görünmez metin
+    /// katmanıyla "<ad> - aranabilir.pdf" olarak orijinalin yanına kaydeder.
+    /// Orijinal değişmez. OCR sonuçları önbellekten gelir, yoksa şimdi yapılır.
+    fn save_searchable(&mut self) -> Msg {
+        let Some(s) = &self.session else {
+            return Msg::SearchableFailed;
+        };
+        let Some(pdf) = s.pdf() else {
+            return Msg::SearchableFailed;
+        };
+        let started = std::time::Instant::now();
+        let mut edit = match PdfEdit::open(&s.path) {
+            Ok(e) => e,
+            Err(e) => {
+                log::error!("cannot open {} for writing: {e:?}", s.path.display());
+                return Msg::SearchableFailed;
+            }
+        };
+        let mut pages = 0;
+        for page in 0..pdf.page_count() {
+            if !pdf.page_blocks(page).unwrap_or_default().is_empty() {
+                continue; // zaten metni var
+            }
+            let Some(layer) = session::ocr_layer(pdf, s.ocr_cache.as_ref(), page) else {
+                continue;
+            };
+            if layer.words.is_empty() {
+                continue;
+            }
+            if let Err(e) = edit.add_text_layer(&layer) {
+                log::error!("cannot add text layer to page {page}: {e:?}");
+                return Msg::SearchableFailed;
+            }
+            pages += 1;
+        }
+        if pages == 0 {
+            return Msg::NothingToOcr;
+        }
+        let name = format!("{} - aranabilir.pdf", s.name);
+        let output = s.path.with_file_name(&name);
+        match edit.save(&output, &s.path) {
+            Ok(()) => {
+                log::info!(
+                    "saved {} ({pages} pages) in {:?}",
+                    output.display(),
+                    started.elapsed()
+                );
+                Msg::SearchableSaved { pages, name }
+            }
+            Err(e) => {
+                log::error!("cannot save {}: {e:?}", output.display());
+                Msg::SearchableFailed
+            }
+        }
     }
 
     fn apply_settings(&mut self, settings: Settings) {

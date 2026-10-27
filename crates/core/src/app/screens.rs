@@ -6,7 +6,7 @@ use super::ui::{
     BOLD, BOTTOM, HEADER_BOTTOM, List, MARGIN, PLAIN, ROW_PX, Rect, TOP, back_button, draw_button,
     draw_footer, draw_header, one_line,
 };
-use super::{App, View};
+use super::{App, Back, View};
 use crate::canvas::Canvas;
 use crate::event::{Event, PageKey, Refresh};
 use crate::i18n::{Msg, tr};
@@ -37,20 +37,27 @@ pub(super) enum MenuItem {
     Bookmark,
     Bookmarks,
     Settings,
+    SaveSearchable,
     Library,
     Close,
 }
 
-pub(super) const MENU: [MenuItem; 6] = [
-    MenuItem::Contents,
-    MenuItem::Bookmark,
-    MenuItem::Bookmarks,
-    MenuItem::Settings,
-    MenuItem::Library,
-    MenuItem::Close,
-];
-
 impl App {
+    /// Menünün seçenekleri; "Aranabilir PDF olarak kaydet" yalnızca PDF'te.
+    pub(super) fn menu_items(&self) -> Vec<MenuItem> {
+        let mut items = vec![
+            MenuItem::Contents,
+            MenuItem::Bookmark,
+            MenuItem::Bookmarks,
+            MenuItem::Settings,
+        ];
+        if self.session.as_ref().is_some_and(|s| s.pdf().is_some()) {
+            items.push(MenuItem::SaveSearchable);
+        }
+        items.extend([MenuItem::Library, MenuItem::Close]);
+        items
+    }
+
     // --- Ortak ---
 
     /// Liste ekranlarında sayfa tuşları: listeyi çevirir; uçta `None`.
@@ -357,6 +364,7 @@ impl App {
             MenuItem::Bookmark => Msg::AddBookmark,
             MenuItem::Bookmarks => Msg::Bookmarks,
             MenuItem::Settings => Msg::TextSettings,
+            MenuItem::SaveSearchable => Msg::SaveSearchable,
             MenuItem::Library => Msg::Library,
             MenuItem::Close => Msg::BackToReading,
         }
@@ -368,9 +376,10 @@ impl App {
             self.view = View::Reading;
             return Some(self.refresh(false));
         };
-        let Some(item) = (0..MENU.len())
+        let items = self.menu_items();
+        let Some(item) = (0..items.len())
             .find(|&i| self.menu_rect(i).contains(x, y))
-            .map(|i| MENU[i])
+            .map(|i| items[i])
         else {
             self.view = View::Reading;
             return Some(self.refresh(false));
@@ -395,6 +404,13 @@ impl App {
                     page: 0,
                 }
             }
+            MenuItem::SaveSearchable => {
+                let msg = self.save_searchable();
+                self.view = View::Message {
+                    msg,
+                    back: Back::Reading,
+                };
+            }
             MenuItem::Library => {
                 self.session = None;
                 self.view = View::Library { page: 0 };
@@ -410,7 +426,7 @@ impl App {
             x: MARGIN,
             y: TOP,
             w: self.width as i32 - 2 * MARGIN,
-            h: MENU.len() as i32 * MENU_ROW,
+            h: self.menu_items().len() as i32 * MENU_ROW,
         };
         canvas.fill_rect(
             whole.x - 10,
@@ -420,7 +436,7 @@ impl App {
             255,
         );
         canvas.stroke_rect(whole.x, whole.y, whole.w as u32, whole.h as u32, 3);
-        for (i, item) in MENU.iter().enumerate() {
+        for (i, item) in self.menu_items().iter().enumerate() {
             let r = self.menu_rect(i);
             if i > 0 {
                 canvas.fill_rect(r.x, r.y, r.w as u32, 2, 0);

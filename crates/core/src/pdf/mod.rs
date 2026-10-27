@@ -16,6 +16,9 @@ use hayro::{RenderCache, RenderSettings};
 use crate::i18n::Msg;
 
 pub(crate) mod text;
+mod write;
+
+pub use write::{Highlight, OcrLayer, PdfEdit};
 
 /// Belleğe alınacak en büyük PDF (cihazda RAM sınırlı).
 const MAX_FILE_BYTES: u64 = 256 * 1024 * 1024;
@@ -103,6 +106,15 @@ impl PdfDoc {
     /// Sayfanın görüntülenen boyutu (punto, döndürme ve kırpma kutusu uygulanmış).
     pub fn page_size(&self, index: usize) -> Option<(f32, f32)> {
         self.pdf.pages().get(index).map(|p| p.render_dimensions())
+    }
+
+    /// Görüntülenen sayfa koordinatını (punto, sol üst köşe, aşağı doğru y) PDF'in
+    /// kendi kullanıcı koordinatına çevirir; `/Rotate` ve kırpma kutusu hesaba katılır.
+    pub fn to_user_space(&self, index: usize, x: f32, y: f32) -> Option<(f32, f32)> {
+        let page = self.pdf.pages().get(index)?;
+        let p = page.initial_transform(true).to_kurbo().inverse()
+            * hayro::kurbo::Point::new(x as f64, y as f64);
+        Some((p.x as f32, p.y as f32))
     }
 
     /// Sayfayı `scale` ölçeğinde (1,0 = 72 dpi) beyaz zemine gri tonlu çizer.

@@ -11,7 +11,7 @@ use super::ui::{BOTTOM, TOP};
 use crate::epub::{Block, BlockKind, Book, TocEntry};
 use crate::i18n::{Msg, tr};
 use crate::ocr;
-use crate::pdf::PdfDoc;
+use crate::pdf::{OcrLayer, PdfDoc};
 use crate::storage::Store;
 use crate::text::{Align, Family, Line, ParaStyle, Style, Text, layout};
 
@@ -74,6 +74,8 @@ pub(super) struct Session {
     pub doc: Doc,
     /// Kitabın başlığı yoksa gösterilecek ad (dosya adı).
     pub name: String,
+    /// Kitap dosyasının yolu.
+    pub path: std::path::PathBuf,
     /// OCR sonuçlarının kitap başına önbelleği (`ocr/<kimlik>/<sayfa>.json`).
     pub ocr_cache: Option<Store>,
     pub id: String,
@@ -89,6 +91,7 @@ impl Session {
         Self {
             doc,
             name,
+            path: std::path::PathBuf::new(),
             ocr_cache: None,
             id,
             state,
@@ -162,7 +165,9 @@ impl Session {
                     Vec::new()
                 });
                 if blocks.is_empty() && settings.ocr {
-                    ocr_page(pdf, self.ocr_cache.as_ref(), spine)
+                    ocr_layer(pdf, self.ocr_cache.as_ref(), spine)
+                        .map(|l| l.blocks())
+                        .unwrap_or_default()
                 } else {
                     blocks
                 }
@@ -275,38 +280,32 @@ impl Session {
     }
 }
 
-/// Metin katmanı olmayan PDF sayfasını OCR ile okur: çiz → eğikliği düzelt →
-/// Tesseract (Türkçe). Sonuç önbelleğe yazılır; hata olursa boş (sayfa görüntüsü gösterilir).
-fn ocr_page(pdf: &PdfDoc, cache: Option<&Store>, page: usize) -> Vec<Block> {
+/// Metin katmanı olmayan PDF sayfasının OCR katmanı; önbellekte yoksa OCR yapılıp
+/// yazılır. Hata olursa `None` (sayfa görüntüsü gösterilir).
+pub(super) fn ocr_layer(pdf: &PdfDoc, cache: Option<&Store>, page: usize) -> Option<OcrLayer> {
     let key = format!("{page}.json");
-    if let Some(blocks) = cache.and_then(|c| c.load::<Vec<Block>>(&key)) {
-        return blocks;
+    if let Some(layer) = cache.and_then(|c| c.load::<OcrLayer>(&key)) {
+        return Some(layer);
     }
     let started = std::time::Instant::now();
-    let image = match pdf.render(page, OCR_DPI as f32 / 72.0) {
-        Ok(img) => img,
-        Err(e) => {
-            log::warn!("cannot render page {page} for OCR: {e:?}");
-            return Vec::new();
+    match ocr::ocr_pdf_page(pdf, page, "tur", OCR_DPI) {
+        Ok(layer) => {
+            log::info!(
+                "OCR page {page}: skew {:.2}°, {} words in {:?}",
+                layer.angle,
+                layer.words.len(),
+                started.elapsed()
+            );
+            if let Some(c) = cache {
+                c.save(&key, &layer);
+            }
+            Some(layer)
         }
-    };
-    let (straight, angle) = ocr::deskew(&image);
-    let blocks = match ocr::recognize(&straight, "tur", OCR_DPI) {
-        Ok(result) => result.blocks(),
         Err(e) => {
             log::warn!("OCR failed on page {page}: {e:?}");
-            return Vec::new();
+            None
         }
-    };
-    log::info!(
-        "OCR page {page}: skew {angle:.2}°, {} blocks in {:?}",
-        blocks.len(),
-        started.elapsed()
-    );
-    if let Some(c) = cache {
-        c.save(&key, &blocks);
     }
-    blocks
 }
 
 /// Blokları sayfalara dizer. Her zaman en az bir (belki boş) sayfa döner.

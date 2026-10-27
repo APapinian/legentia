@@ -11,6 +11,7 @@ workspace = true
 [dependencies]
 hayro = "0.8.0"
 log = "0.4.34"
+lopdf = { version = "0.46.0", default-features = false }
 quick-xml = { version = "0.42.0", features = ["escape-html"] }
 rustybuzz = "0.20.1"
 serde = { version = "1.0.229", features = ["derive"] }

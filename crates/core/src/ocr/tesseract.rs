@@ -19,7 +19,7 @@ pub enum OcrError {
 }
 
 /// Tanınan tek kelime; kutu, OCR'a verilen görüntünün pikselleriyle.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct OcrWord {
     pub text: String,
     /// 0–100; Tesseract'ın güveni.
@@ -125,33 +125,39 @@ pub fn parse_tsv(tsv: &str) -> Vec<OcrWord> {
 }
 
 impl OcrPage {
-    /// Tanınan metin, paragraf ve başlık blokları olarak (Tesseract'ın paragraf
-    /// sınırlarıyla). Satır sonu tireleri birleştirilir; ortalamadan belirgin
-    /// büyük harf boyu başlık sayılır.
+    /// Tanınan metin, paragraf ve başlık blokları olarak; bkz. [`blocks_of`].
     pub fn blocks(&self) -> Vec<Block> {
-        let mut heights: Vec<u32> = self.words.iter().map(|w| w.height).collect();
+        blocks_of(&self.words)
+    }
+}
+
+/// Kelimelerden paragraf ve başlık blokları (Tesseract'ın paragraf sınırlarıyla).
+/// Satır sonu tireleri birleştirilir; ortalamadan belirgin büyük harf boyu başlık sayılır.
+pub fn blocks_of(words: &[OcrWord]) -> Vec<Block> {
+    {
+        let mut heights: Vec<u32> = words.iter().map(|w| w.height).collect();
         heights.sort_unstable();
         let body = heights.get(heights.len() / 2).copied().unwrap_or(1).max(1) as f32;
 
         let mut out = Vec::new();
         let mut i = 0;
-        while i < self.words.len() {
-            let key = (self.words[i].block, self.words[i].paragraph);
+        while i < words.len() {
+            let key = (words[i].block, words[i].paragraph);
             let mut j = i;
             let mut text = String::new();
             let mut para_heights = Vec::new();
-            while j < self.words.len() && (self.words[j].block, self.words[j].paragraph) == key {
-                let line = self.words[j].line;
+            while j < words.len() && (words[j].block, words[j].paragraph) == key {
+                let line = words[j].line;
                 let mut line_text = String::new();
-                while j < self.words.len()
-                    && (self.words[j].block, self.words[j].paragraph) == key
-                    && self.words[j].line == line
+                while j < words.len()
+                    && (words[j].block, words[j].paragraph) == key
+                    && words[j].line == line
                 {
                     if !line_text.is_empty() {
                         line_text.push(' ');
                     }
-                    line_text.push_str(&self.words[j].text);
-                    para_heights.push(self.words[j].height);
+                    line_text.push_str(&words[j].text);
+                    para_heights.push(words[j].height);
                     j += 1;
                 }
                 join_line(&mut text, &line_text);
