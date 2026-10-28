@@ -336,6 +336,78 @@ Not: PDF'e not yazma, M6'daki ortak konumlandırma modeline bağlıdır; M5'te P
 
 ---
 
+## M11 — Ek özellikler
+
+Kullanıcı isteği (2026-10-28): 50 maddelik öneri listesi milestone olarak kaydedildi; ilk 10 madde önce yapılacak. Büyüklük tahmini: K küçük, O orta, B büyük.
+
+**Kararlar ve notlar**
+- Z-Library ve Anna's Archive kaynak olarak eklenmeyecek (kullanıcı kararı; telifli eserleri izinsiz dağıtıyorlar). Yasal ek kaynak önerileri: Vikikaynak (Türkçe, EPUB), Internet Archive / Open Library (kamu malı), Feedbooks kamu malı kataloğu, ManyBooks; Kültür Bakanlığı e-kitapları (şartları doğrulanacak).
+- Uygulama dağıtımı için kullanıcının önerisi: Cobalt'ın uygulama mağazası (github.com/BandarLabs/Cobalt). Mağazaya yalnızca Cobalt SDK'sı ve çalışma ortamıyla yazılmış, Cobalt deposuna PR ile giren uygulamalar girebiliyor; Cobalt AGPL-3.0. Bu, M1'deki "Cobalt kodu kullanılmayacak" kararını ve projenin MIT lisansını etkiler. **Karar bekliyor.**
+
+### Okuma deneyimi
+- [ ] 1. Kitap içinde metin arama, sonuçlar arasında gezinme (O)
+- [ ] 2. Dipnotlar sayfadan çıkmadan açılır pencerede (O)
+- [ ] 3. Kitap içi bağlantılar ve "geri dön" (O)
+- [ ] 4. EPUB görselleri ve tabloları, dokununca büyütme (B)
+- [ ] 5. Kitaba özel yazı ayarı (K)
+- [ ] 6. Yazı kalınlığı ayarı (K)
+- [ ] 7. Yatay mod, PDF'te iki sayfa yan yana (O)
+- [ ] 8. Bölümün ve kitabın kalan okuma süresi tahmini (K)
+- [ ] 9. Kaydırarak sayfa çevirme, iki parmakla punto değiştirme (O)
+- [ ] 10. Dokunma bölgelerini özelleştirme (K)
+- [ ] 11. Sayfa tuşlarının yönünü ayardan değiştirme (K)
+- [ ] 12. Otomatik sayfa çevirme zamanlayıcısı (K)
+- [ ] 13. Sağdan sola yazı (Osmanlıca, Arapça) (B)
+- [ ] 14. Japonca dikey yazı ve furigana (B)
+- [ ] 15. İngilizce ve diğer diller için heceleme (O)
+
+### Cihaz (Libra 2)
+- [ ] 16. Ön ışık ve sıcak ışık ayarı (O)
+- [ ] 17. Uyku/uyanma; uyku ekranında kitabın kapağı (O)
+- [ ] 18. Üst çubukta pil ve saat (K)
+- [ ] 19. Otomatik uyku zamanlayıcısı (K)
+- [ ] 20. Uygulama içinden Wi-Fi açma, kapama ve ağ seçme (B)
+- [ ] 21. Nickel'a yeniden başlatmadan, hızlı dönüş (O)
+- [ ] 22. Ekran görüntüsü alma (K)
+
+### Kütüphane
+- [ ] 23. Kütüphanede arama ve sıralama (K)
+- [ ] 24. Kapaklı ızgara görünümü (O)
+- [ ] 25. Koleksiyonlar ve raflar (O)
+- [ ] 26. Okuma durumu: okunacak / okunuyor / bitti (K)
+- [ ] 27. Seri bilgisi ve seri sırası (O)
+- [ ] 28. Cihazdan kitap silme ve taşıma (K)
+- [ ] 29. Kitap bilgilerini düzenleme (O)
+- [ ] 30. FB2, TXT, HTML (O)
+- [ ] 31. DRM'siz MOBI/AZW3 (B)
+- [ ] 32. Çizgi roman (CBZ/CBR) (O)
+- [ ] 33. DjVu (B)
+
+### Not ve öğrenme
+- [ ] 34. Vurgu türleri: altı çizili, çerçeveli, etiketli (K)
+- [ ] 35. Notlarda ve vurgularda arama (K)
+- [ ] 36. Kelime listesinden Anki kartları (CSV) (K)
+- [ ] 37. Cihazda aralıklı tekrarlı kelime çalışması (O)
+- [ ] 38. Seçili cümleyi çevrimiçi çevirme (O)
+- [ ] 39. Seçili kelimeyi Türkçe Vikipedi'de arama (K)
+- [ ] 40. Okuma istatistikleri (O)
+
+### Bağlantı ve eşitleme
+- [ ] 41. KOReader eşitleme sunucusuyla okuma konumu eşitleme (O)
+- [ ] 42. Calibre "kablosuz aygıt" bağlantısı (B)
+- [ ] 43. Cihazda küçük web sayfası; telefondan/bilgisayardan kitap yükleme (O)
+- [ ] 44. WebDAV / Nextcloud kütüphanesi (O)
+- [ ] 45. Dropbox (uygulamaya özel klasör; şartlar doğrulanacak) (O–B)
+- [ ] 46. Web makalelerini EPUB olarak okuma (Wallabag) (O)
+- [ ] 47. RSS haber okuyucu (O)
+
+### Sistem
+- [ ] 48. Uygulama içinden güncelleme (O)
+- [ ] 49. İngilizce arayüz (K)
+- [ ] 50. Tek komutla kurma ve kaldırma betiği (K)
+
+---
+
 ## v2'ye bırakılanlar
 
 Kullanıcı kararı (2026-10-28): uygulama bittikten sonra v2 güncellemesinde ele alınacak.
