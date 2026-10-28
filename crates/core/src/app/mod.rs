@@ -1,12 +1,16 @@
 //! Uygulama: ekranlar arası geçiş, olay işleme, kayıt ve çizim.
 //!
 //! Ekranlar: kütüphane → (kitap) içindekiler / okuma → menü → yer imleri,
-//! yazı ayarları. Okurken ekranın ortasına dokunmak menüyü açar.
+//! yazı ayarları. Okurken ekranın ortasına dokunmak menüyü açar. Kütüphaneden
+//! OPDS kataloglarına gidilir.
 //! PDF'ler aynı ekranlarla okunur; sayfa görüntüsü çizilip önbellekte tutulur.
 
 mod annotations;
 mod backup;
+mod catalog;
 mod export;
+mod form;
+mod jobs;
 mod keyboard;
 mod lookup;
 mod note;
@@ -89,6 +93,19 @@ enum View {
         draft: String,
         keyboard: keyboard::Keyboard,
     },
+    /// OPDS katalogları (kütüphaneden).
+    Catalogs {
+        page: usize,
+    },
+    /// Açık katalog sayfası (`browser.feeds` sonuncusu).
+    Feed,
+    /// Katalog sayfasındaki kitabın ayrıntısı.
+    Entry {
+        index: usize,
+    },
+    /// Ağ isteği bekleniyor.
+    Loading,
+    Form(Box<form::Form>),
 }
 
 /// Mesaj ekranından dokununca dönülecek yer.
@@ -97,6 +114,8 @@ enum Back {
     Library,
     Contents,
     Reading,
+    Catalogs,
+    Feed,
 }
 
 pub struct App {
@@ -125,6 +144,8 @@ pub struct App {
     lookup: Option<lookup::Lookup>,
     /// Kişisel kelime listesi.
     words: Vec<words::SavedWord>,
+    /// OPDS katalogları ve gezinme.
+    browser: catalog::Browser,
 }
 
 /// Ekrana yerleştirilmiş PDF sayfa görüntüsü.
@@ -141,6 +162,9 @@ impl App {
     pub fn new(text: Text, width: u32, store: Store, library_root: &Path) -> Self {
         let settings = store.load(SETTINGS_FILE).unwrap_or_default();
         let words = store.load(words::WORDS_FILE).unwrap_or_default();
+        let catalogs = store
+            .load(catalog::CATALOGS_FILE)
+            .unwrap_or_else(catalog::default_catalogs);
         let library = library::scan(library_root, &store);
         let progress = library
             .iter()
@@ -168,6 +192,7 @@ impl App {
             dicts: None,
             lookup: None,
             words,
+            browser: catalog::Browser::new(catalogs),
         }
     }
 
@@ -250,6 +275,9 @@ impl App {
                 .filter_map(|e| self.handle(e))
                 .max_by_key(|r| *r == Refresh::Full);
         }
+        if event == Event::Tick {
+            return self.poll_job();
+        }
         match &self.view {
             View::Library { page } => self.handle_library(*page, event),
             View::Message { back, .. } => {
@@ -259,6 +287,8 @@ impl App {
                         Back::Library => View::Library { page: 0 },
                         Back::Contents => View::Contents { page: 0 },
                         Back::Reading => View::Reading,
+                        Back::Catalogs => View::Catalogs { page: 0 },
+                        Back::Feed => View::Feed,
                     };
                     self.refresh(true)
                 })
@@ -284,6 +314,14 @@ impl App {
             } => {
                 let (index, draft, keyboard) = (*index, draft.clone(), keyboard.clone());
                 self.handle_note(index, draft, keyboard, event)
+            }
+            View::Catalogs { page } => self.handle_catalogs(*page, event),
+            View::Feed => self.handle_feed(event),
+            View::Entry { .. } => self.handle_entry(event),
+            View::Loading => self.handle_loading(event),
+            View::Form(form) => {
+                let form = (**form).clone();
+                self.handle_form(form, event)
             }
         }
     }
@@ -438,6 +476,11 @@ impl App {
                 draft,
                 keyboard,
             } => self.draw_note(canvas, *index, draft, keyboard),
+            View::Catalogs { page } => self.draw_catalogs(canvas, *page),
+            View::Feed => self.draw_feed(canvas),
+            View::Entry { index } => self.draw_entry(canvas, *index),
+            View::Loading => self.draw_loading(canvas),
+            View::Form(form) => self.draw_form(canvas, form),
         }
         if self.settings.night {
             canvas.invert();

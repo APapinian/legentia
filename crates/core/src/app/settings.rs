@@ -48,6 +48,8 @@ pub struct Settings {
     pub pdf_reflow: bool,
     /// Yeniden akıtırken metin katmanı olmayan (taranmış) sayfaları OCR ile oku.
     pub ocr: bool,
+    /// İnternet özellikleri (kataloglar, indirme). Kapalıyken hiç bağlantı kurulmaz.
+    pub network: bool,
 }
 
 impl Default for Settings {
@@ -65,6 +67,7 @@ impl Default for Settings {
             pdf_zoom: 100,
             pdf_reflow: false,
             ocr: false,
+            network: true,
         }
     }
 }
@@ -84,6 +87,7 @@ pub enum Field {
     PdfCrop,
     PdfReflow,
     Ocr,
+    Network,
 }
 
 /// Ayarlar ekranının sayfaları: önce yazı, sonra PDF ayarları. Hepsi tek
@@ -104,6 +108,7 @@ pub const FIELD_PAGES: [&[Field]; 2] = [
         Field::PdfCrop,
         Field::PdfReflow,
         Field::Ocr,
+        Field::Network,
     ],
 ];
 
@@ -122,6 +127,7 @@ impl Field {
             Field::PdfCrop => Msg::SettingPdfCrop,
             Field::PdfReflow => Msg::SettingPdfReflow,
             Field::Ocr => Msg::SettingOcr,
+            Field::Network => Msg::SettingNetwork,
         }
     }
 }
@@ -172,6 +178,7 @@ impl Settings {
             Field::PdfCrop => s.pdf_crop = !s.pdf_crop,
             Field::PdfReflow => s.pdf_reflow = !s.pdf_reflow,
             Field::Ocr => s.ocr = !s.ocr,
+            Field::Network => s.network = !s.network,
         }
         s
     }
@@ -205,6 +212,7 @@ impl Settings {
             Field::PdfCrop => tr(if self.pdf_crop { &Msg::On } else { &Msg::Off }),
             Field::PdfReflow => tr(if self.pdf_reflow { &Msg::On } else { &Msg::Off }),
             Field::Ocr => tr(if self.ocr { &Msg::On } else { &Msg::Off }),
+            Field::Network => tr(if self.network { &Msg::On } else { &Msg::Off }),
         }
     }
 }

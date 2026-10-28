@@ -82,6 +82,7 @@ impl From<ureq::Error> for NetError {
     }
 }
 
+#[derive(Clone)]
 pub struct Net {
     agent: ureq::Agent,
 }

@@ -22,6 +22,9 @@ use minifb::{Key, KeyRepeat, MouseButton, MouseMode, Window, WindowOptions};
 
 const FULL_REFRESH_FLASH: Duration = Duration::from_millis(120);
 
+/// Arka plan işi sürerken `Event::Tick` aralığı.
+const TICK: std::time::Duration = std::time::Duration::from_millis(500);
+
 fn main() -> ExitCode {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
     i18n::install_panic_hook();
@@ -83,6 +86,8 @@ fn run() -> ExitCode {
     let clock = std::time::Instant::now();
     // Basılıyken son bildirilen konum; değişince hareket olayı gönderilir.
     let mut pressed: Option<(u32, u32)> = None;
+    // Arka plan işi sürerken uygulamaya düzenli `Tick` gönderilir.
+    let mut last_tick = clock.elapsed();
     while window.is_open() && !window.is_key_down(Key::Escape) {
         window.update();
 
@@ -117,10 +122,17 @@ fn run() -> ExitCode {
             }
         }
 
+        if app.wants_ticks() && clock.elapsed() - last_tick >= TICK {
+            last_tick = clock.elapsed();
+            events.push(Event::Tick);
+        }
+
         for event in events {
             let started = std::time::Instant::now();
             let handled = app.handle(event);
-            log::info!("event: {event:?}, handled in {:?}", started.elapsed());
+            if event != Event::Tick {
+                log::info!("event: {event:?}, handled in {:?}", started.elapsed());
+            }
             if let Some(refresh) = handled {
                 present(&mut window, &app, &mut canvas, &mut frame, scale, refresh);
             }

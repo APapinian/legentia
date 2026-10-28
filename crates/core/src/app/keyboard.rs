@@ -1,9 +1,12 @@
 //! Türkçe Q ekran klavyesi: tuş yerleşimi, dokunulan tuş ve metne etkisi.
 //! İmleç her zaman metnin sonundadır.
 
-use super::ui::Rect;
+use super::ui::{ROW_PX, Rect, draw_button};
 use crate::LIBRA2_HEIGHT;
+use crate::canvas::Canvas;
 use crate::collate::turkish_upper;
+use crate::i18n::{Msg, tr};
+use crate::text::Text;
 
 /// Tuş yüksekliği ve klavyenin ekran kenarlarına uzaklığı (piksel).
 const KEY_H: i32 = 110;
@@ -25,7 +28,7 @@ pub(super) enum Key {
 }
 
 const LETTERS: [&str; 3] = ["qwertyuıopğü", "asdfghjklşi", "zxcvbnmöç"];
-const SYMBOLS: [&str; 3] = ["1234567890-/", ":;()\"'!?&@", "%+=*#…–"];
+const SYMBOLS: [&str; 3] = ["1234567890-/", ":;()\"'!?&@", "%+=*#_~…–"];
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(super) struct Keyboard {
@@ -101,6 +104,24 @@ impl Keyboard {
             Key::Layer => {
                 self.symbols = !self.symbols;
                 self.shift = false;
+            }
+        }
+    }
+
+    pub fn draw(&self, t: &Text, canvas: &mut Canvas) {
+        for (key, r) in self.keys(canvas.width()) {
+            let label = match key {
+                Key::Char(c) => self.label(c),
+                Key::Shift => tr(&Msg::KeyShift),
+                Key::Backspace => tr(&Msg::KeyDelete),
+                Key::Space => tr(&Msg::KeySpace),
+                Key::Layer if self.symbols => tr(&Msg::KeyLetters),
+                Key::Layer => tr(&Msg::KeySymbols),
+            };
+            draw_button(t, canvas, r, &label, ROW_PX);
+            if key == Key::Shift && self.shift {
+                // Büyük harf açık: tuş koyu çerçeveli.
+                canvas.stroke_rect(r.x + 6, r.y + 6, (r.w - 12) as u32, (r.h - 12) as u32, 4);
             }
         }
     }

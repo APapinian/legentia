@@ -1228,3 +1228,304 @@ fn epub_menu_has_no_searchable_pdf_item() {
     tap_row(&mut app, &CONTENTS, 0);
     assert!(!app.menu_items().contains(&MenuItem::SaveSearchable));
 }
+
+// --- Kataloglar ---
+
+const ROOT_FEED: &str = r#"<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>Deneme Katalog</title>
+  <link rel="search" type="application/atom+xml" href="/ara?q={searchTerms}"/>
+  <link rel="next" type="application/atom+xml" href="/sayfa2"/>
+  <entry><title>Yeni kitaplar</title><content>Son eklenenler</content>
+    <link type="application/atom+xml;profile=opds-catalog" href="/yeni"/></entry>
+  <entry><title>Çalıkuşu</title><author><name>Reşat Nuri</name></author>
+    <summary>Feride'nin hikâyesi.</summary>
+    <link rel="http://opds-spec.org/acquisition" type="application/epub+zip" href="/kitap.epub"/></entry>
+  <entry><title>Satılık</title>
+    <link rel="http://opds-spec.org/acquisition/buy" type="application/epub+zip" href="/al"/></entry>
+</feed>"#;
+
+fn one_entry_feed(title: &str) -> Vec<u8> {
+    format!(
+        r#"<feed xmlns="http://www.w3.org/2005/Atom"><title>{title}</title><entry><title>{title}</title>
+        <link rel="http://opds-spec.org/acquisition" type="application/epub+zip" href="/k.epub"/></entry></feed>"#
+    )
+    .into_bytes()
+}
+
+/// Taklit OPDS sunucusu; /gizli "a:b" ister, /yavas geç yanıt verir.
+fn opds_server() -> String {
+    crate::net::testserver::serve(|path, headers| match path {
+        "/opds" => (200, ROOT_FEED.as_bytes().to_vec()),
+        "/yeni" => (200, one_entry_feed("Yeni")),
+        "/sayfa2" => (200, one_entry_feed("İkinci sayfa")),
+        p if p.starts_with("/ara?q=") => (200, one_entry_feed(&format!("Sonuç {}", &p[7..]))),
+        "/gizli" if headers.contains("Basic YTpi") => (200, one_entry_feed("Gizli")),
+        "/gizli" => (401, Vec::new()),
+        "/yavas" => {
+            std::thread::sleep(std::time::Duration::from_secs(2));
+            (200, one_entry_feed("Geç"))
+        }
+        _ => (200, b"<html><body>katalog degil</body></html>".to_vec()),
+    })
+}
+
+fn local_catalog(url: String) -> catalog::Catalog {
+    catalog::Catalog {
+        name: "Yerel".into(),
+        url,
+        auth: None,
+        members_only: false,
+    }
+}
+
+/// Arka plan isteği bitene kadar `Tick` gönderir.
+fn settle(app: &mut App) {
+    for _ in 0..2000 {
+        if !app.wants_ticks() {
+            return;
+        }
+        app.handle(Event::Tick);
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    panic!("istek bitmedi");
+}
+
+fn open_catalogs(app: &mut App) {
+    tap(
+        app,
+        super::ui::header_button(W, super::screens::CATALOGS_BUTTON_W).center(),
+    );
+}
+
+fn feed_titles(app: &App) -> Vec<String> {
+    let f = app.browser.feeds.last().expect("açık katalog sayfası");
+    f.feed.entries.iter().map(|e| e.title.clone()).collect()
+}
+
+fn form(app: &App) -> &form::Form {
+    let View::Form(f) = &app.view else {
+        panic!("form açık değil");
+    };
+    f
+}
+
+/// Formun odaktaki alanına ekran klavyesiyle yazar (gerekirse işaret katmanına geçer).
+fn type_text(app: &mut App, text: &str) {
+    use keyboard::Key;
+    for c in text.chars() {
+        let key = if c == ' ' { Key::Space } else { Key::Char(c) };
+        for _ in 0..2 {
+            let kb = form(app).keyboard.clone();
+            let keys = kb.keys(W);
+            if let Some((_, r)) = keys.iter().find(|(k, _)| *k == key) {
+                tap(app, r.center());
+                break;
+            }
+            let (_, layer) = keys.iter().find(|(k, _)| *k == Key::Layer).unwrap();
+            tap(app, layer.center());
+        }
+    }
+}
+
+fn form_button(app: &mut App, b: form::Button) {
+    let buttons = form(app).buttons();
+    let i = buttons.iter().position(|x| *x == b).unwrap();
+    tap(app, form::button_rect(W, buttons.len(), i).center());
+}
+
+#[test]
+fn catalog_is_browsed_paged_searched_and_left() {
+    let url = opds_server();
+    let (mut app, _, _) = setup(&[]);
+    app.browser.catalogs = vec![local_catalog(format!("{url}/opds"))];
+    let mut c = Canvas::new(W, LIBRA2_HEIGHT);
+    open_catalogs(&mut app);
+    assert!(matches!(app.view, View::Catalogs { .. }));
+    app.draw(&mut c);
+
+    tap_row(&mut app, &catalog::CATALOGS, 0);
+    assert!(matches!(app.view, View::Loading) && app.wants_ticks());
+    app.draw(&mut c);
+    settle(&mut app);
+    assert!(matches!(app.view, View::Feed));
+    assert_eq!(feed_titles(&app), ["Yeni kitaplar", "Çalıkuşu", "Satılık"]);
+    app.draw(&mut c);
+
+    // Gezinme girdisi yeni bir kat açar; "Geri" önceki kata döner.
+    tap_row(&mut app, &catalog::FEED, 0);
+    settle(&mut app);
+    assert_eq!(feed_titles(&app), ["Yeni"]);
+    tap(&mut app, super::ui::back_button(W).center());
+    assert_eq!(feed_titles(&app).len(), 3);
+
+    // Kitap ayrıntısı.
+    tap_row(&mut app, &catalog::FEED, 1);
+    assert!(matches!(app.view, View::Entry { index: 1 }));
+    app.draw(&mut c);
+    tap(&mut app, super::ui::back_button(W).center());
+    assert!(matches!(app.view, View::Feed));
+
+    // Yalnızca satılık olan girdi açıklanır.
+    tap_row(&mut app, &catalog::FEED, 2);
+    assert!(matches!(
+        app.view,
+        View::Message {
+            msg: Msg::EntryUnavailable,
+            ..
+        }
+    ));
+    tap(&mut app, (10, 10));
+    assert!(matches!(app.view, View::Feed));
+
+    // Son satır "Sonraki sayfa".
+    tap_row(&mut app, &catalog::FEED, 3);
+    settle(&mut app);
+    assert_eq!(feed_titles(&app), ["İkinci sayfa"]);
+    tap(&mut app, super::ui::back_button(W).center());
+
+    // Arama: boş sorgu reddedilir, Türkçe harfler kodlanır.
+    tap(&mut app, super::ui::header_button(W, 170).center());
+    app.draw(&mut c);
+    form_button(&mut app, form::Button::Submit);
+    assert_eq!(form(&app).error, Some(Msg::QueryRequired));
+    type_text(&mut app, "çay");
+    form_button(&mut app, form::Button::Submit);
+    settle(&mut app);
+    assert_eq!(feed_titles(&app), ["Sonuç %C3%A7ay"]);
+
+    for _ in 0..2 {
+        tap(&mut app, super::ui::back_button(W).center());
+    }
+    assert!(matches!(app.view, View::Catalogs { .. }));
+    tap(&mut app, super::ui::back_button(W).center());
+    assert!(matches!(app.view, View::Library { .. }));
+}
+
+#[test]
+fn catalogs_are_added_validated_edited_and_deleted() {
+    let (mut app, data, root) = setup(&[]);
+    assert_eq!(
+        app.browser.catalogs.len(),
+        2,
+        "Gutenberg ve Standard Ebooks"
+    );
+    open_catalogs(&mut app);
+    tap(&mut app, super::ui::header_button(W, 170).center());
+    assert_eq!(form(&app).fields[1].value, "https://");
+    form_button(&mut app, form::Button::Submit);
+    assert_eq!(form(&app).error, Some(Msg::NameRequired));
+    type_text(&mut app, "ev");
+    form_button(&mut app, form::Button::Submit);
+    assert_eq!(form(&app).error, Some(Msg::InvalidUrl));
+    tap(&mut app, form::field_rects(W, 1).0.center());
+    type_text(&mut app, "kitap.ev:8080/opds");
+    tap(&mut app, form::field_rects(W, 2).0.center());
+    type_text(&mut app, "ali");
+    tap(&mut app, form::field_rects(W, 3).0.center());
+    type_text(&mut app, "gizli");
+    let mut c = Canvas::new(W, LIBRA2_HEIGHT);
+    app.draw(&mut c);
+    form_button(&mut app, form::Button::Submit);
+    assert!(matches!(app.view, View::Catalogs { .. }));
+
+    let mut app = restart(&data, &root);
+    let added = app.browser.catalogs.last().unwrap().clone();
+    assert_eq!(added.name, "ev");
+    assert_eq!(added.url, "https://kitap.ev:8080/opds");
+    assert_eq!(
+        added.auth,
+        Some(crate::net::Auth {
+            user: "ali".into(),
+            password: "gizli".into()
+        })
+    );
+
+    // Uzun basma düzenleme formunu açar; değişiklik ve silme kalıcı.
+    open_catalogs(&mut app);
+    let (x, y) = catalog::CATALOGS.row_rect(W, 0).center();
+    app.handle(Event::Hold { x, y });
+    assert!(matches!(form(&app).kind, form::FormKind::EditCatalog(0)));
+    assert!(form(&app).fields[3].secret);
+    type_text(&mut app, " 2");
+    form_button(&mut app, form::Button::Submit);
+    assert_eq!(app.browser.catalogs[0].name, "Project Gutenberg 2");
+    let (x, y) = catalog::CATALOGS.row_rect(W, 1).center();
+    app.handle(Event::Hold { x, y });
+    form_button(&mut app, form::Button::Delete);
+    let app = restart(&data, &root);
+    let names: Vec<_> = app
+        .browser
+        .catalogs
+        .iter()
+        .map(|c| c.name.as_str())
+        .collect();
+    assert_eq!(names, ["Project Gutenberg 2", "ev"]);
+}
+
+#[test]
+fn failed_or_cancelled_requests_return_safely() {
+    let url = opds_server();
+    let (mut app, _, _) = setup(&[]);
+    let mut c = Canvas::new(W, LIBRA2_HEIGHT);
+    let mut load = |app: &mut App, catalog: catalog::Catalog| {
+        app.browser.catalogs = vec![catalog];
+        app.view = View::Library { page: 0 };
+        open_catalogs(app);
+        tap_row(app, &catalog::CATALOGS, 0);
+        settle(app);
+        app.draw(&mut c);
+    };
+    let expect_message = |app: &mut App, expected: Msg| {
+        let View::Message { msg, .. } = &app.view else {
+            panic!("hata mesajı bekleniyordu");
+        };
+        assert_eq!(*msg, expected);
+        tap(app, (10, 10));
+        assert!(matches!(app.view, View::Catalogs { .. }));
+    };
+
+    load(&mut app, local_catalog(format!("{url}/gizli")));
+    expect_message(&mut app, Msg::NetUnauthorized);
+    let mut with_auth = local_catalog(format!("{url}/gizli"));
+    with_auth.auth = Some(crate::net::Auth {
+        user: "a".into(),
+        password: "b".into(),
+    });
+    load(&mut app, with_auth);
+    assert_eq!(feed_titles(&app), ["Gizli"]);
+
+    load(&mut app, local_catalog(format!("{url}/html")));
+    expect_message(&mut app, Msg::NotOpds);
+    load(&mut app, local_catalog("http://127.0.0.1:1/opds".into()));
+    expect_message(&mut app, Msg::NetOffline);
+
+    // Beklerken vazgeçilir.
+    app.browser.catalogs = vec![local_catalog(format!("{url}/yavas"))];
+    tap_row(&mut app, &catalog::CATALOGS, 0);
+    assert!(matches!(app.view, View::Loading));
+    tap(&mut app, (10, 10));
+    assert!(matches!(app.view, View::Loading), "yalnızca Vazgeç bırakır");
+    let cancel = app.loading_cancel().center();
+    tap(&mut app, cancel);
+    assert!(matches!(app.view, View::Catalogs { .. }));
+    // Geç gelen yanıt ekranı değiştirmez.
+    std::thread::sleep(std::time::Duration::from_millis(100));
+    assert!(!app.wants_ticks());
+    assert_eq!(app.handle(Event::Tick), None);
+}
+
+#[test]
+fn catalogs_are_closed_when_the_network_is_off() {
+    let (mut app, _, _) = setup(&[]);
+    app.settings.network = false;
+    open_catalogs(&mut app);
+    assert!(matches!(
+        app.view,
+        View::Message {
+            msg: Msg::NetworkOff,
+            ..
+        }
+    ));
+    tap(&mut app, (10, 10));
+    assert!(matches!(app.view, View::Library { .. }));
+}

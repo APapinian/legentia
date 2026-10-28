@@ -4,7 +4,7 @@ use super::session::Target;
 use super::settings::{FIELD_PAGES, Settings};
 use super::ui::{
     BOLD, BOTTOM, HEADER_BOTTOM, List, MARGIN, PLAIN, ROW_PX, Rect, TOP, back_button, draw_button,
-    draw_footer, draw_header, one_line,
+    draw_footer, draw_header, draw_header_until, header_button, one_line,
 };
 use super::{App, Back, View};
 use crate::canvas::Canvas;
@@ -37,6 +37,8 @@ const TOC_INDENT: i32 = 40;
 const MENU_ROW: i32 = 100;
 const SETTINGS_ROW: i32 = 128;
 const STEP_BUTTON: i32 = 100;
+/// Kütüphane başlığındaki "Kataloglar" düğmesinin genişliği.
+pub(super) const CATALOGS_BUTTON_W: i32 = 230;
 
 /// Okurken açılan menünün seçenekleri.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -102,6 +104,9 @@ impl App {
                 self.view = View::Backup;
                 return Some(self.refresh(true));
             }
+            if header_button(self.width, CATALOGS_BUTTON_W).contains(x, y) {
+                return self.open_catalogs();
+            }
             let index = LIBRARY.row_at(page, self.library.len(), y)?;
             let path = self.library[index].path.clone();
             self.open_book(&path);
@@ -114,14 +119,15 @@ impl App {
 
     pub(super) fn draw_library(&self, canvas: &mut Canvas, page: usize) {
         let t = &self.text;
-        draw_header(
+        let catalogs = header_button(canvas.width(), CATALOGS_BUTTON_W);
+        draw_header_until(
             t,
             canvas,
             &tr(&Msg::Library),
             &tr(&Msg::BookCount(self.library.len())),
-            false,
+            catalogs.x - 30,
         );
-        // Başlıktaki "Geri" düğmesinin yerinde yedekleme ekranı düğmesi.
+        // Başlıktaki "Geri" düğmesinin yerinde yedekleme ekranı düğmesi, solunda kataloglar.
         draw_button(
             t,
             canvas,
@@ -129,6 +135,7 @@ impl App {
             &tr(&Msg::BackupButton),
             ROW_PX,
         );
+        draw_button(t, canvas, catalogs, &tr(&Msg::Catalogs), ROW_PX);
         if self.library.is_empty() {
             self.draw_message_lines(canvas, &Msg::LibraryEmpty, HEADER_BOTTOM + 80);
         }

@@ -24,6 +24,9 @@ pub enum Event {
         y: u32,
     },
     Key(PageKey),
+    /// Arka plan işi sürerken platformun düzenli gönderdiği vuruş
+    /// ([`crate::App::wants_ticks`] doğruyken); iş bitince ekran güncellenir.
+    Tick,
     /// Ham dokunma; `ms` platformun tekdüze saatidir (milisaniye).
     Touch {
         phase: TouchPhase,

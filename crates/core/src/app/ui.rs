@@ -101,6 +101,16 @@ pub(super) fn back_button(width: u32) -> Rect {
     }
 }
 
+/// Başlıkta "Geri" düğmesinin solundaki `w` genişliğinde düğme.
+pub(super) fn header_button(width: u32, w: i32) -> Rect {
+    let back = back_button(width);
+    Rect {
+        x: back.x - 30 - w,
+        w,
+        ..back
+    }
+}
+
 /// Ekran başlığı, alt başlık ve çizgi. `back` ise sağda "Geri" düğmesi.
 pub(super) fn draw_header(t: &Text, canvas: &mut Canvas, title: &str, subtitle: &str, back: bool) {
     let width = canvas.width();
@@ -109,6 +119,21 @@ pub(super) fn draw_header(t: &Text, canvas: &mut Canvas, title: &str, subtitle: 
     } else {
         width as i32 - MARGIN
     };
+    draw_header_until(t, canvas, title, subtitle, right);
+    if back {
+        draw_button(t, canvas, back_button(width), &tr(&Msg::Back), ROW_PX);
+    }
+}
+
+/// Başlık ve alt başlık `right`'a kadar (sağında düğmeler olan ekranlar için).
+pub(super) fn draw_header_until(
+    t: &Text,
+    canvas: &mut Canvas,
+    title: &str,
+    subtitle: &str,
+    right: i32,
+) {
+    let width = canvas.width();
     let title = one_line(t, title, BOLD, TITLE_PX, (right - MARGIN) as f32);
     t.draw_plain(canvas, &title, Family::Ui, BOLD, MARGIN, TOP + 55, TITLE_PX);
     let subtitle = one_line(t, subtitle, PLAIN, ROW_PX, (right - MARGIN) as f32);
@@ -122,9 +147,6 @@ pub(super) fn draw_header(t: &Text, canvas: &mut Canvas, title: &str, subtitle: 
         ROW_PX,
     );
     canvas.fill_rect(MARGIN, TOP + 145, width - 2 * MARGIN as u32, BORDER, 0);
-    if back {
-        draw_button(t, canvas, back_button(width), &tr(&Msg::Back), ROW_PX);
-    }
 }
 
 pub(super) fn draw_footer(t: &Text, canvas: &mut Canvas, msg: &Msg, x: i32) {

@@ -1,6 +1,6 @@
 //! Not ekranı: vurgunun alıntısı, yazılan not ve ekran klavyesi.
 
-use super::keyboard::{KEYBOARD_TOP, Key, Keyboard};
+use super::keyboard::{KEYBOARD_TOP, Keyboard};
 use super::ui::{HEADER_BOTTOM, MARGIN, PLAIN, ROW_PX, Rect, draw_button, draw_header};
 use super::{App, View};
 use crate::canvas::Canvas;
@@ -124,21 +124,7 @@ impl App {
         let (cancel, save) = self.note_buttons();
         draw_button(t, canvas, cancel, &tr(&Msg::Cancel), ROW_PX);
         draw_button(t, canvas, save, &tr(&Msg::Save), ROW_PX);
-        for (key, r) in kb.keys(self.width) {
-            let label = match key {
-                Key::Char(c) => kb.label(c),
-                Key::Shift => tr(&Msg::KeyShift),
-                Key::Backspace => tr(&Msg::KeyDelete),
-                Key::Space => tr(&Msg::KeySpace),
-                Key::Layer if kb.symbols => tr(&Msg::KeyLetters),
-                Key::Layer => tr(&Msg::KeySymbols),
-            };
-            draw_button(t, canvas, r, &label, ROW_PX);
-            if key == Key::Shift && kb.shift {
-                // Büyük harf açık: tuş koyu çerçeveli.
-                canvas.stroke_rect(r.x + 6, r.y + 6, (r.w - 12) as u32, (r.h - 12) as u32, 4);
-            }
-        }
+        kb.draw(t, canvas);
     }
 
     /// Dokunulan vurgunun notu, işlem çubuğunun yanında çerçeveli kutuda (en çok
