@@ -114,3 +114,149 @@ pub fn kobo(dir: &Path, name: &str, files: &[(&str, &str)], gz: bool) -> PathBuf
     z.finish().unwrap();
     path
 }
+
+/// MDict `.mdx` yazar (readmdict'in okuduğu yapı): `v2` sürüm 2.0 (8 baytlık
+/// sayılar, zlib'li blok bilgisi), değilse 1.2; `scrambled` "Encrypted=2";
+/// `utf16` UTF-16 LE kodlama. İki anahtar ve iki kayıt bloğuna böler.
+pub fn mdx(
+    dir: &Path,
+    name: &str,
+    words: &[(&str, &str)],
+    v2: bool,
+    scrambled: bool,
+    utf16: bool,
+) -> PathBuf {
+    use std::io::Write;
+    let width = if v2 { 8 } else { 4 };
+    let num = |n: u64| -> Vec<u8> {
+        if v2 {
+            n.to_be_bytes().to_vec()
+        } else {
+            (n as u32).to_be_bytes().to_vec()
+        }
+    };
+    let enc = |s: &str| -> Vec<u8> {
+        if utf16 {
+            s.encode_utf16().flat_map(u16::to_le_bytes).collect()
+        } else {
+            s.as_bytes().to_vec()
+        }
+    };
+    let nul: Vec<u8> = if utf16 { vec![0, 0] } else { vec![0] };
+    let zlib = |data: &[u8]| -> Vec<u8> {
+        let mut e = flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::default());
+        e.write_all(data).unwrap();
+        let mut out = vec![2, 0, 0, 0, 0, 0, 0, 0];
+        out.extend(e.finish().unwrap());
+        out
+    };
+    let mut sorted = words.to_vec();
+    sorted.sort_by_key(|(w, _)| w.to_string());
+    // Kayıtlar ve konumları.
+    let mut records = Vec::new();
+    let mut offsets = Vec::new();
+    for (_, body) in &sorted {
+        offsets.push(records.len() as u64);
+        records.extend(enc(body));
+        records.extend(&nul);
+    }
+    let halves = [&sorted[..sorted.len() / 2], &sorted[sorted.len() / 2..]];
+    // Anahtar blokları ve bilgileri.
+    let mut key_blocks = Vec::new();
+    let mut info = Vec::new();
+    let mut i = 0;
+    for half in halves {
+        let mut block = Vec::new();
+        for (w, _) in half.iter() {
+            block.extend(num(offsets[i]));
+            block.extend(enc(w));
+            block.extend(&nul);
+            i += 1;
+        }
+        let packed = zlib(&block);
+        info.extend(num(half.len() as u64));
+        for w in [half[0].0, half[half.len() - 1].0] {
+            let units = if utf16 {
+                w.encode_utf16().count()
+            } else {
+                w.len()
+            };
+            if v2 {
+                info.extend((units as u16).to_be_bytes());
+                info.extend(enc(w));
+                info.extend(&nul);
+            } else {
+                info.push(units as u8);
+                info.extend(enc(w));
+            }
+        }
+        info.extend(num(packed.len() as u64));
+        info.extend(num(block.len() as u64));
+        key_blocks.extend(packed);
+    }
+    let info_plain_len = info.len();
+    let info = if v2 {
+        let mut packed = zlib(&info);
+        if scrambled {
+            scramble(&mut packed);
+        }
+        packed
+    } else {
+        info
+    };
+    let header = format!(
+        "<Dictionary GeneratedByEngineVersion=\"{}\" RequiredEngineVersion=\"2.0\" Encrypted=\"{}\" Encoding=\"{}\" Format=\"Html\" Title=\"Deneme MDX\"/>\r\n\0",
+        if v2 { "2.0" } else { "1.2" },
+        if scrambled { 2 } else { 0 },
+        if utf16 { "UTF-16" } else { "UTF-8" }
+    );
+    let header: Vec<u8> = header.encode_utf16().flat_map(u16::to_le_bytes).collect();
+    let mut out = (header.len() as u32).to_be_bytes().to_vec();
+    out.extend(&header);
+    out.extend([0; 4]);
+    out.extend(num(2));
+    out.extend(num(sorted.len() as u64));
+    if v2 {
+        out.extend(num(info_plain_len as u64));
+    }
+    out.extend(num(info.len() as u64));
+    out.extend(num(key_blocks.len() as u64));
+    if v2 {
+        out.extend([0; 4]);
+    }
+    out.extend(&info);
+    out.extend(&key_blocks);
+    // Kayıt blokları: kayıt akışını ikiye böl.
+    let cut = offsets[offsets.len() / 2] as usize;
+    let parts = [&records[..cut], &records[cut..]];
+    let packed: Vec<Vec<u8>> = parts.iter().map(|p| zlib(p)).collect();
+    out.extend(num(2));
+    out.extend(num(sorted.len() as u64));
+    out.extend(num(2 * 2 * width as u64));
+    out.extend(num(packed.iter().map(|p| p.len() as u64).sum()));
+    for (p, plain) in packed.iter().zip(parts) {
+        out.extend(num(p.len() as u64));
+        out.extend(num(plain.len() as u64));
+    }
+    for p in &packed {
+        out.extend(p);
+    }
+    let path = dir.join(format!("{name}.mdx"));
+    std::fs::write(&path, out).unwrap();
+    path
+}
+
+/// `mdict::descramble`'ın tersi.
+fn scramble(block: &mut [u8]) {
+    use ripemd::{Digest, Ripemd128};
+    let mut h = Ripemd128::new();
+    h.update(&block[4..8]);
+    h.update(0x3695u32.to_le_bytes());
+    let key = h.finalize();
+    let mut prev = 0x36u8;
+    for (i, b) in block[8..].iter_mut().enumerate() {
+        let x = *b ^ prev ^ (i as u8) ^ key[i % key.len()];
+        *b = x.rotate_left(4);
+        prev = *b;
+    }
+}

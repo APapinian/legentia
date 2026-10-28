@@ -6,6 +6,7 @@ Doğrudan kullanılan crate'ler. Lisanslar `cargo metadata` ile alınmıştır (
 |---|---|---|---|---|---|
 | zip | 9.1.2 | MIT | core | EPUB paketini açmak. Yalnızca `deflate-flate2-zlib-rs` (saf Rust) etkin. | Testler qemu'da geçiyor |
 | flate2 | 1.1.10 | MIT OR Apache-2.0 | core | Sözlüklerde dictzip (`.dict.dz`) ve gzip (`.idx.gz`) açmak. Yalnızca `zlib-rs` (saf Rust) arka ucu; zip ile aynı. | Derleniyor |
+| ripemd | 0.1.3 | MIT OR Apache-2.0 | core | MDict anahtar dizini karıştırmasını ("Encrypted=2") çözmek için RIPEMD-128 (RustCrypto, saf Rust). | Derleniyor |
 | quick-xml | 0.42.0 | MIT | core | OPF, NCX, nav ve XHTML okumak. `escape-html` ile HTML varlıkları (`&nbsp;` vb.). | Testler qemu'da geçiyor |
 | unicode-normalization | 0.1.26 | (MIT OR Apache-2.0) AND Unicode-3.0 | core | Kitap metnini NFC'ye çevirmek (ayrışık "İ", "Ş"). | Testler qemu'da geçiyor |
 | rustybuzz | 0.20.1 | MIT | core | Harf birleştirme (shaping), kerning, bitişik harfler, dile özgü kurallar (`tr`). | Testler qemu'da geçiyor |

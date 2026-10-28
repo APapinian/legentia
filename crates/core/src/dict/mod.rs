@@ -11,6 +11,7 @@ pub(crate) mod dictzip;
 pub mod dsl;
 mod index;
 pub mod kobo;
+pub mod mdict;
 pub mod render;
 pub mod stardict;
 pub mod stem;
@@ -103,6 +104,8 @@ impl Dictionaries {
                 dsl::Dsl::open(&path).map(|d| Box::new(d) as _)
             } else if is_kobo(&path) {
                 kobo::Kobo::open(&path).map(|d| Box::new(d) as _)
+            } else if path.extension().is_some_and(|x| x == "mdx") {
+                mdict::MDict::open(&path).map(|d| Box::new(d) as _)
             } else {
                 stardict::StarDict::open(&path).map(|d| Box::new(d) as _)
             };
@@ -161,7 +164,7 @@ fn is_kobo(path: &Path) -> bool {
         .is_some_and(|n| n.starts_with("dicthtml") && n.ends_with(".zip"))
 }
 
-/// Sözlük dosyalarını (StarDict .ifo, DSL, Kobo dicthtml) toplar; gizli klasörler dahil, derinlik sınırlı.
+/// Sözlük dosyalarını (StarDict .ifo, DSL, Kobo dicthtml, MDict .mdx) toplar; gizli klasörler dahil, derinlik sınırlı.
 fn collect(dir: &Path, depth: usize, out: &mut Vec<PathBuf>) {
     if depth > 4 {
         return;
@@ -173,7 +176,11 @@ fn collect(dir: &Path, depth: usize, out: &mut Vec<PathBuf>) {
         let path = e.path();
         if path.is_dir() {
             collect(&path, depth + 1, out);
-        } else if path.extension().is_some_and(|x| x == "ifo") || is_dsl(&path) || is_kobo(&path) {
+        } else if path.extension().is_some_and(|x| x == "ifo")
+            || is_dsl(&path)
+            || is_kobo(&path)
+            || path.extension().is_some_and(|x| x == "mdx")
+        {
             out.push(path);
         }
     }
