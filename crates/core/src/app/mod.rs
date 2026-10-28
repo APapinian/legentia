@@ -5,6 +5,7 @@
 //! PDF'ler aynı ekranlarla okunur; sayfa görüntüsü çizilip önbellekte tutulur.
 
 mod annotations;
+mod export;
 mod keyboard;
 mod note;
 mod pdf_view;
@@ -54,6 +55,9 @@ enum View {
     Reading,
     Menu,
     Bookmarks {
+        page: usize,
+    },
+    Annotations {
         page: usize,
     },
     Settings {
@@ -237,6 +241,7 @@ impl App {
             View::Reading => self.handle_reading(event),
             View::Menu => self.handle_menu(event),
             View::Bookmarks { page } => self.handle_bookmarks(*page, event),
+            View::Annotations { page } => self.handle_annotations(*page, event),
             View::Settings { draft, page } => {
                 let (draft, page) = (draft.clone(), *page);
                 self.handle_settings(draft, page, event)
@@ -390,6 +395,7 @@ impl App {
                 self.draw_menu(canvas);
             }
             View::Bookmarks { page } => self.draw_bookmarks(canvas, *page),
+            View::Annotations { page } => self.draw_annotations(canvas, *page),
             View::Settings { draft, page } => self.draw_settings(canvas, draft, *page),
             View::Selected | View::Annotation { .. } => {
                 self.draw_reading(canvas);

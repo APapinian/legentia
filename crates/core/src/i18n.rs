@@ -76,6 +76,15 @@ pub enum Msg {
     KeySpace,
     KeyLetters,
     KeySymbols,
+    Annotations,
+    NoAnnotations,
+    ExportNotes,
+    NotesExported {
+        count: usize,
+        files: String,
+    },
+    ExportFailed,
+    NoteLine(String),
     // Yazı ayarları
     SettingsHint,
     SettingFont,
@@ -179,6 +188,14 @@ pub fn tr(msg: &Msg) -> String {
         Msg::KeySpace => "boşluk".into(),
         Msg::KeyLetters => "abc".into(),
         Msg::KeySymbols => "123".into(),
+        Msg::Annotations => "Vurgular ve notlar".into(),
+        Msg::NoAnnotations => "Bu kitapta henüz vurgu yok. Metne uzun basıp sürükleyerek seçebilirsiniz.".into(),
+        Msg::ExportNotes => "Notları dışa aktar".into(),
+        Msg::NotesExported { count, files } => {
+            format!("{count} vurgu dışa aktarıldı: {files}. Dosyalar kitabın yanında; orijinal kitap değişmedi.")
+        }
+        Msg::ExportFailed => "Notlar dışa aktarılamadı. Ayrıntılar kayıt dosyasında.".into(),
+        Msg::NoteLine(note) => format!("Not: {note}"),
         Msg::SettingsHint => "Değişiklikler “Tamam”a dokununca uygulanır.".into(),
         Msg::SettingFont => "Yazı tipi".into(),
         Msg::SettingSize => "Yazı boyutu".into(),
@@ -304,6 +321,15 @@ mod tests {
             KeySpace,
             KeyLetters,
             KeySymbols,
+            Annotations,
+            NoAnnotations,
+            ExportNotes,
+            NotesExported {
+                count: 2,
+                files: "a.md".into(),
+            },
+            ExportFailed,
+            NoteLine("x".into()),
             SettingsHint,
             SettingFont,
             SettingSize,

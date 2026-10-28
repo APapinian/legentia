@@ -179,7 +179,7 @@ Süreler cihaz performansı değildir; Libra 2'de kat kat yavaş olacak (M10'da 
 - [x] Taranmış PDF'ler için OCR: sayfa düzenini (sütunlar, başlıklar, paragraflar) ve metni tanı; sonuca göre yeniden akıt. (`ocr/`: Rust'ta eğiklik düzeltme + Tesseract TSV → paragraf/başlık; "Taranmış sayfaları OCR ile oku" ayarı; sonuç önbelleğe yazılır. Bölgeleri yeniden ölçekleme sütun moduyla birlikte yapılacak.)
 - [x] OCR'ı önce NixOS'ta deney amaçlı çalıştır (Türkçe dil paketiyle); doğruluk ve süreyi ölç. (`docs/ocr-deney.md`: `tur` ile temiz ve hafif bozuk görüntüde %0 hata; kötü taramada eğiklik düzeltmesi hatayı %31–69'dan %0'a indirdi)
 - [x] OCR metnini PDF'e görünmez, aranabilir metin katmanı olarak göm; orijinal dosyayı koru, yeni dosyayı ayrı yaz. (`pdf/write.rs`, lopdf; menüde "Aranabilir PDF olarak kaydet". 2° eğik görüntü PDF'inde pdftotext ile geri okuma: karakter hatası %4,75, Türkçe kelimeler %100. Kelimeler eğik yazılınca %16'ydı; satır başına yatay ortak taban çizgisine geçildi.)
-- [ ] Notları ve vurguları PDF'e standart PDF açıklamaları (annotation) olarak yaz; başka PDF okuyucularında da görünmeli. (Yazıcı hazır ve testli: Highlight + not + görünüm akışı. Arayüz M6'da.)
+- [x] Notları ve vurguları PDF'e standart PDF açıklamaları (annotation) olarak yaz; başka PDF okuyucularında da görünmeli. (Yazıcı: Highlight + not + görünüm akışı. Arayüz M6'da: "Notları dışa aktar" → "<ad> - notlu.pdf".)
 - [x] Cihazda OCR için ön değerlendirme: tek çekirdekli ARMv7 ve kısıtlı RAM'de sayfa başı süre ve bellek tahmini. Uygulama M10'da. (`docs/ocr-deney.md`: masaüstünde tek iş parçacığıyla sayfa başı 1,6–1,8 sn, 80–100 MB; cihazda tahminen 25–70 sn. Karar: 150 dpi, ayrı süreçte arka planda, iptal edilebilir, önden okumalı; toplu OCR yalnızca şarjda.)
 
 ### Kabul ölçütleri
@@ -189,7 +189,7 @@ Süreler cihaz performansı değildir; Libra 2'de kat kat yavaş olacak (M10'da 
 - Büyük PDF'lerde bellek ve sayfa render süresi ölçülmüş. (aşağıdaki ara ölçümler: 7 PDF, 1528 sayfa)
 - PDF desteğinin sınırları belgelenmiş.
 - OCR katmanı gömülmüş PDF başka bir PDF okuyucusunda aranabiliyor ve seçilebiliyor.
-- PDF'e yazılan notlar ve vurgular başka bir PDF okuyucusunda görünüyor.
+- PDF'e yazılan notlar ve vurgular başka bir PDF okuyucusunda görünüyor. (Poppler/pdftoppm ile görüldü; not içeriği `Contents` alanında, testli)
 - Yazma işlemi yarıda kesilse bile orijinal PDF bozulmuyor.
 
 ### Ara ölçümler (2026-10-27, NixOS x86_64, release, Libra 2 genişliği 1264 px)
@@ -218,8 +218,8 @@ Not: PDF'e not yazma, M6'daki ortak konumlandırma modeline bağlıdır; M5'te P
 ### İşler
 - [x] EPUB ve PDF için ortak içerik konumlandırma modeli tasarla. (`app/annotations.rs`: vurgu = bölüm/PDF sayfası + blok metninde bayt aralığı + alıntı + not; yazı ayarından bağımsız, PDF'te görüntü ve yeniden akıtma aynı blokları kullanır. Dosya değişip aralık kayarsa alıntı en yakın yerde yeniden bulunur, bulunamazsa vurgu silinmez, çizilmez. PDF metninde her karakterin sayfa kutusu taşınır (`pdf::PageText`): görüntüde seçim, çizim ve PDF açıklaması için.)
 - [x] Metin seçimi, vurgulama ve seçili metne not ekleme/düzenleme. (Kararlar, 2026-10-28: seçim uzun bas + sürükle; not metni Türkçe ekran klavyesiyle. Yapıldı: ham dokunmadan dokunma/uzun basma/sürükleme tanıma (`event.rs`, zamanlayıcısız: uzun basma süre dolduktan sonraki ilk hareket ya da kaldırmada tanınır); simülatörde fare. EPUB'da ve yeniden akıtılmış PDF'te seçim (`app/select.rs`): uzun basma kelimeyi seçer ("İstanbul'dan" tek kelime), sürükleme kelime kelime uzatır; işlem çubuğu (Vurgula / Vazgeç), vurguya dokununca (Vurguyu sil / Vazgeç); vurgu açık gri, seçim koyu gri zemin. PDF sayfa görüntüsünde de aynı seçim ve vurgu: ekran noktası sayfa koordinatına çevrilip karakter kutularında aranır; sayfa metni yalnızca uzun basınca ya da sayfada vurgu varsa çıkarılır (KPSS sayfası ~1 ms, masaüstü). Vurgu, sayfa çizildikten sonra dikdörtgen koyulaştırılarak çizilir; görüntüdeki yazı siyah kalır. Görüntüde yapılan vurgu yeniden akıtmada da görünür. Notlar: Türkçe Q ekran klavyesi (`app/keyboard.rs`: ç ğ ı ö ş ü, Türkçe büyük harf i→İ ı→I, rakam/işaret katmanı; imleç metnin sonunda), not ekranı (`app/note.rs`); seçimde "Not ekle" vurgulayıp not ekranını açar, vurguya dokununca not kutuda gösterilir ve "Notu düzenle"; notlu vurgunun sonunda küçük işaret; boş kaydedilen not kaldırılır, vurgu kalır. Kalan: taranmış (OCR'lı) sayfa görüntüsünde seçim; notta imleci metin ortasına taşıma.)
-- [ ] Notları kitap, bölüm ve konum bilgisiyle ilişkilendir.
-- [ ] Notları dışa aktarma ve yedekleme/geri yükleme. (Karar: Markdown, PDF'lerde standart PDF açıklamaları (ayrı kopya), JSON yedek.)
+- [x] Notları kitap, bölüm ve konum bilgisiyle ilişkilendir. (Menüde "Vurgular ve notlar": kitap sırasıyla alıntı, bölüm adı (içindekilerden; PDF'te sayfa) ve not; dokununca o yere gidilir.)
+- [ ] Notları dışa aktarma ve yedekleme/geri yükleme. (Karar: Markdown, PDF'lerde standart PDF açıklamaları (ayrı kopya), JSON yedek. Yapıldı: menüde "Notları dışa aktar" kitabın yanına "<ad> - notlar.md" (bölüm başlıkları, alıntılar, notlar), PDF'te ayrıca "<ad> - notlu.pdf" (satır başına Highlight açıklaması, not ilkinde; orijinal değişmez; KPSS 2020'de Poppler ile görüldü). Taranmış (OCR'lı) sayfalardaki vurgular PDF'e yazılamaz, Markdown'a yazılır. Kalan: JSON yedek ve geri yükleme.)
 
 ### Kabul ölçütleri
 - Uygulama kapanıp açılınca notlar ve vurgular korunuyor.

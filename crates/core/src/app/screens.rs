@@ -25,6 +25,10 @@ pub(super) const BOOKMARKS: List = List {
     top: HEADER_BOTTOM,
     row_h: 120,
 };
+pub(super) const ANNOTATIONS: List = List {
+    top: HEADER_BOTTOM,
+    row_h: 120,
+};
 const TOC_INDENT: i32 = 40;
 const MENU_ROW: i32 = 100;
 const SETTINGS_ROW: i32 = 128;
@@ -36,6 +40,8 @@ pub(super) enum MenuItem {
     Contents,
     Bookmark,
     Bookmarks,
+    Annotations,
+    ExportNotes,
     Settings,
     SaveSearchable,
     Library,
@@ -49,6 +55,8 @@ impl App {
             MenuItem::Contents,
             MenuItem::Bookmark,
             MenuItem::Bookmarks,
+            MenuItem::Annotations,
+            MenuItem::ExportNotes,
             MenuItem::Settings,
         ];
         if self.session.as_ref().is_some_and(|s| s.pdf().is_some()) {
@@ -388,6 +396,8 @@ impl App {
             }
             MenuItem::Bookmark => Msg::AddBookmark,
             MenuItem::Bookmarks => Msg::Bookmarks,
+            MenuItem::Annotations => Msg::Annotations,
+            MenuItem::ExportNotes => Msg::ExportNotes,
             MenuItem::Settings => Msg::TextSettings,
             MenuItem::SaveSearchable => Msg::SaveSearchable,
             MenuItem::Library => Msg::Library,
@@ -423,6 +433,8 @@ impl App {
                 self.view = View::Reading;
             }
             MenuItem::Bookmarks => self.view = View::Bookmarks { page: 0 },
+            MenuItem::Annotations => self.view = View::Annotations { page: 0 },
+            MenuItem::ExportNotes => self.show_export_result(),
             MenuItem::Settings => {
                 self.view = View::Settings {
                     draft: self.settings.clone(),
@@ -535,6 +547,61 @@ impl App {
         let footer = Msg::ListFooter {
             page: page + 1,
             pages: BOOKMARKS.pages(s.state.bookmarks.len()),
+        };
+        draw_footer(t, canvas, &footer, MARGIN);
+    }
+
+    // --- Vurgular ve notlar ---
+
+    fn annotation_count(&self) -> usize {
+        self.session
+            .as_ref()
+            .map_or(0, |s| s.state.annotations.len())
+    }
+
+    pub(super) fn handle_annotations(&mut self, page: usize, event: Event) -> Option<Refresh> {
+        if let Event::Tap { x, y } = event {
+            if back_button(self.width).contains(x, y) {
+                return self.back_to_reading();
+            }
+            let row = ANNOTATIONS.row_at(page, self.annotation_count(), y)?;
+            let s = self.session.as_ref()?;
+            let a = &s.state.annotations[s.annotations_in_order()[row]];
+            let (spine, at) = (a.spine, a.start);
+            self.open_chapter(spine, Target::At(at));
+            return Some(self.refresh(true));
+        }
+        let page = Self::page_list(page, ANNOTATIONS.pages(self.annotation_count()), event)?;
+        self.view = View::Annotations { page };
+        Some(self.refresh(false))
+    }
+
+    pub(super) fn draw_annotations(&self, canvas: &mut Canvas, page: usize) {
+        let Some(s) = &self.session else {
+            return;
+        };
+        let t = &self.text;
+        draw_header(t, canvas, &s.title(), &tr(&Msg::Annotations), true);
+        if s.state.annotations.is_empty() {
+            self.draw_message_lines(canvas, &Msg::NoAnnotations, HEADER_BOTTOM + 80);
+        }
+        let order = s.annotations_in_order();
+        let max_w = (canvas.width() as i32 - 2 * MARGIN) as f32;
+        for (index, row) in ANNOTATIONS.visible(page, order.len()) {
+            let a = &s.state.annotations[order[index]];
+            let r = ANNOTATIONS.row_rect(canvas.width(), row);
+            let quote = one_line(t, &a.quote.replace('\n', " "), PLAIN, ROW_PX, max_w);
+            t.draw_plain(canvas, &quote, Family::Ui, PLAIN, MARGIN, r.y + 50, ROW_PX);
+            let mut second = s.chapter_title(a.spine);
+            if let Some(note) = &a.note {
+                second = format!("{second} · {}", tr(&Msg::NoteLine(note.clone())));
+            }
+            let second = one_line(t, &second, PLAIN, 30.0, max_w);
+            t.draw_plain(canvas, &second, Family::Ui, PLAIN, MARGIN, r.y + 95, 30.0);
+        }
+        let footer = Msg::ListFooter {
+            page: page + 1,
+            pages: ANNOTATIONS.pages(order.len()),
         };
         draw_footer(t, canvas, &footer, MARGIN);
     }

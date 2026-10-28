@@ -163,7 +163,7 @@ fn char_at(text: &PageText, x: f32, y: f32) -> Option<(usize, usize)> {
 }
 
 /// `[start, end)` aralığındaki karakter kutuları, aynı satırdakiler birleştirilerek (punto).
-fn box_areas(text: &PageText, start: Position, end: Position) -> Vec<Area> {
+pub(super) fn box_areas(text: &PageText, start: Position, end: Position) -> Vec<Area> {
     let mut out: Vec<Area> = Vec::new();
     for (block, boxes) in text.boxes.iter().enumerate() {
         for b in boxes {

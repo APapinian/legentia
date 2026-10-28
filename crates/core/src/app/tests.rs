@@ -751,6 +751,91 @@ fn notes_are_typed_saved_shown_and_cleared() {
 }
 
 #[test]
+fn annotation_list_jumps_and_notes_export_to_markdown() {
+    let (mut app, _, root) = setup(&[("uzun.epub", long_book())]);
+    tap_row(&mut app, &LIBRARY, 0);
+    tap_row(&mut app, &CONTENTS, 0);
+    for _ in 0..3 {
+        key(&mut app, true);
+    }
+    let s = app.session.as_mut().unwrap();
+    let at = s.pages[s.page].start;
+    let end = Position {
+        offset: at.offset + 10,
+        ..at
+    };
+    let i = s.add_annotation(at, end).unwrap();
+    s.set_note(i, Some("Önemli yer.".into()));
+    let quote = s.state.annotations[i].quote.clone();
+    key(&mut app, false);
+    key(&mut app, false);
+
+    menu(&mut app, MenuItem::Annotations);
+    assert!(matches!(app.view, View::Annotations { page: 0 }));
+    let mut c = Canvas::new(W, LIBRA2_HEIGHT);
+    app.draw(&mut c);
+    tap_row(&mut app, &super::screens::ANNOTATIONS, 0);
+    assert!(matches!(app.view, View::Reading));
+    assert_eq!(session(&app).page, 3, "vurgunun sayfasına gitmeli");
+
+    menu(&mut app, MenuItem::ExportNotes);
+    assert!(matches!(
+        &app.view,
+        View::Message {
+            msg: Msg::NotesExported { count: 1, .. },
+            ..
+        }
+    ));
+    let md = std::fs::read_to_string(root.join("uzun - notlar.md")).unwrap();
+    assert!(md.contains(&format!("> {quote}")), "{md}");
+    assert!(md.contains("Not: Önemli yer."), "{md}");
+}
+
+#[test]
+fn pdf_notes_export_as_standard_annotations() {
+    let (mut app, _, root) = setup(&[("metin.pdf", text_pdf())]);
+    tap_row(&mut app, &LIBRARY, 0);
+    let s = app.session.as_mut().unwrap();
+    s.load_page_text();
+    let start = Position {
+        block: 0,
+        offset: 0,
+    };
+    let end = Position {
+        block: 1,
+        offset: 6,
+    }; // başlık + paragrafın ilk kelimesi, iki satır
+    let i = s.add_annotation(start, end).unwrap();
+    s.set_note(i, Some("Başlıkla birlikte.".into()));
+    let original = std::fs::read(root.join("metin.pdf")).unwrap();
+
+    menu(&mut app, MenuItem::ExportNotes);
+    assert!(root.join("metin - notlar.md").exists());
+    let out = lopdf::Document::load(root.join("metin - notlu.pdf")).unwrap();
+    let page = out.get_pages()[&1];
+    let annots = out
+        .get_dictionary(page)
+        .unwrap()
+        .get(b"Annots")
+        .unwrap()
+        .as_array()
+        .unwrap()
+        .clone();
+    assert_eq!(annots.len(), 2, "her satır için bir vurgu açıklaması");
+    let notes: Vec<_> = annots
+        .iter()
+        .map(|r| out.get_dictionary(r.as_reference().unwrap()).unwrap())
+        .filter(|d| d.get(b"Contents").is_ok())
+        .collect();
+    assert_eq!(notes.len(), 1, "not bir kez yazılır");
+    assert_eq!(
+        std::fs::read(root.join("metin.pdf")).unwrap(),
+        original,
+        "orijinal değişmemeli"
+    );
+}
+
+#[test]
 fn broken_pdf_shows_turkish_error() {
     let (mut app, _, _) = setup(&[("bozuk.pdf", b"%PDF-1.4 bozuk".to_vec())]);
     tap_row(&mut app, &LIBRARY, 0);
