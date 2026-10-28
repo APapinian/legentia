@@ -18,6 +18,7 @@ Doğrudan kullanılan crate'ler. Lisanslar `cargo metadata` ile alınmıştır (
 | unicode-linebreak | 0.1.5 | Apache-2.0 | core | Unicode satır kırma noktaları (UAX #14). | Testler qemu'da geçiyor |
 | hayro | 0.8.0 | Apache-2.0 OR MIT | core | PDF ayrıştırma ve çizme (saf Rust; JPEG 2000, JBIG2, CCITT çözücüleri dahil). Bozuk girdide paniğe karşı sarılı. | Testler qemu'da geçiyor |
 | serde, serde_json | 1.0 | MIT OR Apache-2.0 | core | Ayar ve okuma kayıtları (JSON). | Testler qemu'da geçiyor |
+| image | 0.25.10 | MIT OR Apache-2.0 | core | EPUB görsellerini (JPEG, PNG) çözüp ölçeklemek. Yalnızca `png` ve `jpeg` özellikleri; hayro aynı sürümü kullandığı için yeni crate eklenmedi (JPEG çözücü zune-jpeg, PNG çözücü png). | Derleniyor |
 | md-5 | 0.11.0 | MIT OR Apache-2.0 | core | Calibre'nin istediği Digest yetkilendirmesi için MD5 (RustCrypto, saf Rust). lopdf de aynı sürümü kullandığı için yeni kod eklenmedi. | Testler qemu'da geçiyor |
 | nix | 0.31.3 | MIT | core, kobo | core: indirmeden önce diskteki boş alanı ölçmek (`statvfs`, `fs` özelliği; bizim kodda `unsafe` yok). kobo: framebuffer ve E Ink yenilemesi ioctl'leri (`ioctl` özelliği); `unsafe` yalnızca `crates/kobo/src/fb.rs`'deki dört çağrıda. | Testler qemu'da geçiyor |
 | log | 0.4.34 | MIT OR Apache-2.0 | core, sim | Teknik log. | Derleniyor |

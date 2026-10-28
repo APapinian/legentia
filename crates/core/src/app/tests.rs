@@ -2264,3 +2264,94 @@ fn swipes_turn_pages_and_pinches_change_the_font_size() {
     assert_eq!(app.settings().font_px, 36.0, "küçük oynama değiştirmez");
     assert!(matches!(app.view, View::Reading), "iki parmak menü açmaz");
 }
+
+// --- Görseller ve tablolar ---
+
+fn illustrated_book() -> Vec<u8> {
+    let cover = r#"<html><body><svg xmlns:xlink="http://www.w3.org/1999/xlink"><image xlink:href="kapak.png"/></svg></body></html>"#;
+    let body = r#"<html><body><p>Önce.</p><p><img src="img/resim.png" alt="Bir resim"/></p><p>Sonra.</p>
+        <img src="img/hareketli.gif"/>
+        <table><tr><th>Ad</th><th>Yaş</th></tr><tr><td>Ali</td><td>30</td></tr></table></body></html>"#;
+    let opf = opf_doc(
+        r#"<item id="k" href="kapak.xhtml" media-type="application/xhtml+xml"/><item id="c" href="c.xhtml" media-type="application/xhtml+xml"/>"#,
+        r#"<itemref idref="k"/><itemref idref="c"/>"#,
+    );
+    let (cover_png, picture) = (
+        crate::epub::testutil::png(600, 900, 40),
+        crate::epub::testutil::png(200, 100, 60),
+    );
+    crate::epub::testutil::zip_of_bytes(&[
+        ("mimetype", b"application/epub+zip"),
+        (
+            "META-INF/container.xml",
+            container("OEBPS/content.opf").as_bytes(),
+        ),
+        ("OEBPS/content.opf", opf.as_bytes()),
+        ("OEBPS/kapak.xhtml", cover.as_bytes()),
+        ("OEBPS/c.xhtml", body.as_bytes()),
+        ("OEBPS/kapak.png", &cover_png),
+        ("OEBPS/img/resim.png", &picture),
+        ("OEBPS/img/hareketli.gif", b"GIF89a bozuk"),
+    ])
+}
+
+#[test]
+fn images_are_parsed_sized_and_tables_flow_as_rows() {
+    let mut book = crate::epub::testutil::open_bytes(illustrated_book()).unwrap();
+    let cover = book.chapter(0).unwrap();
+    let img = cover[0].image.as_ref().expect("SVG içindeki kapak");
+    assert_eq!(
+        (img.path.as_str(), img.width, img.height),
+        ("OEBPS/kapak.png", 600, 900)
+    );
+
+    let blocks = book.chapter(1).unwrap();
+    let texts: Vec<&str> = blocks.iter().map(|b| b.text.as_str()).collect();
+    let picture = blocks.iter().find(|b| b.image.is_some()).unwrap();
+    assert_eq!(picture.text, "Bir resim", "alt metin");
+    assert_eq!(picture.image.as_ref().unwrap().width, 200);
+    assert!(texts.contains(&"[Görsel gösterilemiyor]"), "GIF: {texts:?}");
+    assert!(
+        texts.contains(&"Ad | Yaş") && texts.contains(&"Ali | 30"),
+        "{texts:?}"
+    );
+    let header = blocks.iter().find(|b| b.text == "Ad | Yaş").unwrap();
+    assert!(
+        header
+            .spans
+            .iter()
+            .all(|s| s.style.bold || header.text[s.start..s.end].trim() == "|")
+    );
+}
+
+#[test]
+fn images_are_drawn_and_open_full_screen_on_hold() {
+    let (mut app, _, _) = setup(&[("resimli.epub", illustrated_book())]);
+    tap_row(&mut app, &LIBRARY, 0);
+    tap_row(&mut app, &CONTENTS, 0);
+    // Kapak: sayfayı kaplayan görsel; ortasında koyu piksel.
+    let mut c = Canvas::new(W, LIBRA2_HEIGHT);
+    app.draw(&mut c);
+    let mid = (LIBRA2_HEIGHT / 2 * W + W / 2) as usize;
+    assert!(c.pixels()[mid] < 80, "kapak çizildi: {}", c.pixels()[mid]);
+
+    // Uzun basma tam ekran açar, dokunma kapatır; kısa dokunma sayfayı çevirir.
+    app.handle(Event::Hold {
+        x: W / 2,
+        y: LIBRA2_HEIGHT / 2,
+    });
+    assert!(matches!(app.view, View::Image { block: 0 }));
+    app.draw(&mut c);
+    tap(&mut app, (10, 10));
+    assert!(matches!(app.view, View::Reading));
+    tap(&mut app, (W - 50, LIBRA2_HEIGHT / 2));
+    assert_eq!(session(&app).spine, 1, "kapaktan sonraki bölüm");
+    app.draw(&mut c);
+    assert!(
+        session(&app).pages[0]
+            .lines
+            .iter()
+            .any(|l| l.line.glyphs.is_empty() && l.height == 200),
+        "200×100'lük görsel iki kat büyütülüp yerleşti"
+    );
+}

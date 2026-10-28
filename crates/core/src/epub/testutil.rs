@@ -9,12 +9,18 @@ pub fn open_bytes(bytes: Vec<u8>) -> Result<Book, EpubError> {
 }
 
 pub fn zip_of(entries: &[(&str, &str)]) -> Vec<u8> {
+    let bytes: Vec<(&str, &[u8])> = entries.iter().map(|(n, b)| (*n, b.as_bytes())).collect();
+    zip_of_bytes(&bytes)
+}
+
+/// İkili girdiler (görseller) de içerebilen ZIP.
+pub fn zip_of_bytes(entries: &[(&str, &[u8])]) -> Vec<u8> {
     let mut w = zip::ZipWriter::new(Cursor::new(Vec::new()));
     let opts = zip::write::SimpleFileOptions::default()
         .compression_method(zip::CompressionMethod::Deflated);
     for (name, body) in entries {
         w.start_file(*name, opts).unwrap();
-        w.write_all(body.as_bytes()).unwrap();
+        w.write_all(body).unwrap();
     }
     w.finish().unwrap().into_inner()
 }
@@ -37,6 +43,14 @@ pub fn opf_doc(manifest: &str, spine: &str) -> String {
   <spine>{spine}</spine>
 </package>"#
     )
+}
+
+/// `w`×`h` boyutunda, her pikseli `gray` olan PNG.
+pub fn png(w: u32, h: u32, gray: u8) -> Vec<u8> {
+    let img = image::GrayImage::from_pixel(w, h, image::Luma([gray]));
+    let mut out = Cursor::new(Vec::new());
+    img.write_to(&mut out, image::ImageFormat::Png).unwrap();
+    out.into_inner()
 }
 
 pub fn epub_with_chapter(body: &str) -> Vec<u8> {

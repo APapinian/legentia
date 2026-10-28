@@ -109,6 +109,8 @@ pub(super) struct Session {
     /// PDF sayfa görüntüsünde sayfanın metni ve karakter kutuları; yalnızca
     /// gerektiğinde (seçim, sayfada vurgu) çıkarılır.
     pub pdf_text: Option<PageText>,
+    /// Çözülmüş EPUB görselleri (yol, genişlik, yükseklik) → gri pikseller.
+    pub images: super::images::ImageCache,
 }
 
 impl Session {
@@ -127,6 +129,7 @@ impl Session {
             page: 0,
             placed: Vec::new(),
             pdf_text: None,
+            images: Default::default(),
         }
     }
 
@@ -474,6 +477,44 @@ pub(super) fn paginate(
     }];
     let mut y = TOP as f32;
     for (index, block) in blocks.iter().enumerate() {
+        // Görsel: genişliğe ve sayfa yüksekliğine sığar, tek "satır" olarak yerleşir.
+        if let Some(img) = block.image.as_ref().filter(|i| i.width > 0) {
+            let (_, h) = crate::epub::fit(
+                img.width,
+                img.height,
+                max_w as u32,
+                (BOTTOM - TOP) as u32,
+                super::images::UPSCALE,
+            );
+            if y + h as f32 > BOTTOM as f32 && !pages.last().is_some_and(|p| p.lines.is_empty()) {
+                pages.push(Page {
+                    lines: Vec::new(),
+                    start: Position::default(),
+                    screen: None,
+                });
+                y = TOP as f32;
+            }
+            let current = pages.last_mut().expect("en az bir sayfa var");
+            if current.lines.is_empty() {
+                current.start = Position {
+                    block: index,
+                    offset: 0,
+                };
+            }
+            current.lines.push(PlacedLine {
+                line: Line {
+                    glyphs: Vec::new(),
+                    start: 0,
+                    end: 0,
+                },
+                baseline: y as i32 + h as i32,
+                block: index,
+                top: y as i32,
+                height: h as i32,
+            });
+            y += h as f32 + body_line * 0.5;
+            continue;
+        }
         let (px, align, heading) = match block.kind {
             BlockKind::Heading(1) => (s.font_px * 1.5, Align::Center, true),
             BlockKind::Heading(2) => (s.font_px * 1.3, Align::Center, true),

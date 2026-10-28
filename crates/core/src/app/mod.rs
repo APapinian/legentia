@@ -11,6 +11,7 @@ mod catalog;
 mod downloads;
 mod export;
 mod form;
+mod images;
 mod jobs;
 mod keyboard;
 mod links;
@@ -116,6 +117,10 @@ enum View {
     /// Kitap içi arama sonuçları (`search`).
     SearchResults {
         page: usize,
+    },
+    /// Bölümdeki görsel (`blocks` sırası) tam ekran.
+    Image {
+        block: usize,
     },
     /// İndirme kuyruğu; `back` katalog listesi ya da katalog sayfası.
     Downloads {
@@ -405,6 +410,7 @@ impl App {
             View::Searching => self.handle_searching(event),
             View::Footnote => self.handle_footnote(event),
             View::SearchResults { page } => self.handle_search_results(*page, event),
+            View::Image { .. } => self.handle_image_view(event),
             View::Form(form) => {
                 let form = (**form).clone();
                 self.handle_form(form, event)
@@ -607,6 +613,7 @@ impl App {
                 self.draw_footnote(canvas);
             }
             View::SearchResults { page } => self.draw_search_results(canvas, *page),
+            View::Image { block } => self.draw_image_view(canvas, *block),
             View::Downloads { page, .. } => self.draw_downloads(canvas, *page),
             View::Form(form) => self.draw_form(canvas, form),
         }

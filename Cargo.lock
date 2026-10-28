@@ -808,6 +808,8 @@ dependencies = [
  "moxcms",
  "num-traits",
  "png",
+ "zune-core",
+ "zune-jpeg",
 ]
 
 [[package]]
@@ -914,6 +916,7 @@ version = "0.1.0"
 dependencies = [
  "flate2",
  "hayro",
+ "image",
  "log",
  "lopdf",
  "md-5",

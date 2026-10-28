@@ -21,8 +21,8 @@ Bu belge, okuyucunun EPUB'ın neyini gösterdiğini ve neyini (henüz) gösterme
 | Özellik | Şu anki davranış | Plan |
 |---|---|---|
 | CSS (yazı tipi, girinti, hizalama, sınıfla italik) | Yok sayılır; okuyucunun kendi düzeni kullanılır | Seçilmiş birkaç özellik (text-indent, text-align, font-style) sonra |
-| Görseller (`<img>`, `<svg>`) | Gösterilmez; yalnızca görsel içeren bölümde "gösterilecek metin yok" yazar | M4 sonrası |
-| Tablolar | Her hücre ayrı paragraf olarak akar | Sonra |
+| Görseller | JPEG ve PNG gösterilir (`<img>` ve kapak sayfalarındaki `<svg><image>`); genişliğe ve sayfa yüksekliğine sığar, en çok 2 kat büyür; uzun basınca tam ekran. GIF, SVG çizimi ve diğer biçimler gösterilmez: yerinde alt metin ya da "[Görsel gösterilemiyor]". Satır içi görsel paragrafı böler. | GIF/SVG sonra |
+| Tablolar | Her satır bir paragraf, hücreler " \| " ile ayrılır; başlık hücreleri kalın. Izgara çizilmez, sütunlar hizalanmaz. | Izgara sonra |
 | Dipnotlar | `epub:type="noteref"` / `role="doc-noteref"` ya da en çok 5 karakterlik bağlantı metni ("1", "[12]", "*") dipnot sayılır; not altta açılır pencerede kitabın yazı tipiyle gösterilir (hedef blok + ardından gelen kimliksiz bloklar, en çok 6 blok / 2000 karakter). "Notun yerine git" nota gider. Kısa metinli ama dipnot olmayan bağlantı da pencerede açılır; pencerede "Notun yerine git" var. | |
 | Üst/alt simge (`<sup>`, `<sub>`) | Normal metin gibi | Sonra |
 | `<pre>` (önceden biçimlenmiş) | Boşluklar birleştirilir | Sonra |

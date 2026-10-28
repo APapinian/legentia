@@ -326,6 +326,14 @@ impl App {
 
     pub(super) fn handle_reading(&mut self, event: Event) -> Option<Refresh> {
         match event {
+            // Görselde uzun basma tam ekran açar (dokunma sayfa çevirmeye kalır:
+            // sayfayı kaplayan kapakta başka türlü çevrilemezdi).
+            Event::Hold { x, y } if self.image_at(x, y).is_some() => {
+                self.view = View::Image {
+                    block: self.image_at(x, y)?,
+                };
+                return Some(self.refresh(true));
+            }
             Event::Hold { x, y } => return self.start_selection(x, y),
             Event::HoldMove { x, y } => return self.extend_selection(x, y),
             Event::HoldEnd { .. } => return self.finish_selection(),
@@ -439,7 +447,9 @@ impl App {
             return;
         }
         for placed in &page.lines {
-            t.draw_line(canvas, &placed.line, self.settings.margin, placed.baseline);
+            if !self.draw_book_image(canvas, s, placed) {
+                t.draw_line(canvas, &placed.line, self.settings.margin, placed.baseline);
+            }
         }
         self.paint_marks(canvas);
         if page.lines.is_empty() {

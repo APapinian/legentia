@@ -15,7 +15,7 @@ use std::path::Path;
 
 use crate::i18n::Msg;
 pub(crate) use xhtml::push_ref;
-pub use xhtml::{Block, BlockKind, Link};
+pub use xhtml::{Block, BlockKind, ImageRef, Link};
 
 /// Tek bir XML/XHTML girdisi için üst sınır (açılmış boyut).
 const MAX_ENTRY_BYTES: u64 = 16 * 1024 * 1024;
@@ -76,7 +76,8 @@ pub struct Book {
     /// Kalan okuma süresi tahmininde metin uzunluğunun yaklaşığı.
     pub sizes: Vec<u64>,
     pub toc: Vec<TocEntry>,
-    archive: zip::ZipArchive<Box<dyn ReadSeek>>,
+    /// Görseller çizim sırasında (`&self`) okunur; arşiv okuma `&mut` ister.
+    archive: std::cell::RefCell<zip::ZipArchive<Box<dyn ReadSeek>>>,
 }
 
 trait ReadSeek: Read + std::io::Seek {}
@@ -125,7 +126,7 @@ impl Book {
             identifier: package.identifier,
             spine: package.spine,
             toc,
-            archive,
+            archive: std::cell::RefCell::new(archive),
         })
     }
 
@@ -137,9 +138,95 @@ impl Book {
             .get(spine_index)
             .ok_or_else(|| EpubError::MissingEntry(format!("spine #{spine_index}")))?
             .clone();
-        let text = read_entry(&mut self.archive, &path)?;
-        xhtml::blocks(&text, &path)
+        let text = read_entry(self.archive.get_mut(), &path)?;
+        let mut blocks = xhtml::blocks(&text, &path)?;
+        // Görsellerin boyutu dosya başlığından (görsel çözülmeden) okunur;
+        // okunamayan biçimde (GIF, SVG…) alt metin ya da yer tutucu kalır.
+        for b in &mut blocks {
+            let Some(img) = b.image.as_mut() else {
+                continue;
+            };
+            match self
+                .image_bytes(&img.path)
+                .and_then(|bytes| image_size(&bytes))
+            {
+                Some((w, h)) => (img.width, img.height) = (w, h),
+                None => {
+                    log::warn!("image not shown: {}", img.path);
+                    b.image = None;
+                    if b.text.is_empty() {
+                        b.text = crate::i18n::tr(&crate::i18n::Msg::ImageNotShown);
+                        b.spans = vec![crate::text::Span {
+                            start: 0,
+                            end: b.text.len(),
+                            style: crate::text::Style {
+                                italic: true,
+                                ..Default::default()
+                            },
+                        }];
+                    }
+                }
+            }
+        }
+        Ok(blocks)
     }
+
+    /// Paketteki görselin baytları (boyut sınırıyla); yoksa `None`.
+    pub fn image_bytes(&self, path: &str) -> Option<Vec<u8>> {
+        let mut archive = self.archive.borrow_mut();
+        let entry = archive.by_name(path).ok()?;
+        let mut bytes = Vec::new();
+        entry
+            .take(MAX_ENTRY_BYTES + 1)
+            .read_to_end(&mut bytes)
+            .ok()?;
+        (bytes.len() as u64 <= MAX_ENTRY_BYTES).then_some(bytes)
+    }
+}
+
+/// JPEG/PNG görselin boyutu, yalnızca başlığından.
+fn image_size(bytes: &[u8]) -> Option<(u32, u32)> {
+    image::ImageReader::new(std::io::Cursor::new(bytes))
+        .with_guessed_format()
+        .ok()?
+        .into_dimensions()
+        .ok()
+        .filter(|(w, h)| *w > 0 && *h > 0)
+}
+
+/// JPEG/PNG görseli çözüp `max_w`×`max_h`'ye sığacak biçimde (en çok `upscale`
+/// kat büyütülerek) gri tonlara çevirir.
+pub fn decode_gray(
+    bytes: &[u8],
+    max_w: u32,
+    max_h: u32,
+    upscale: f32,
+) -> Option<(u32, u32, Vec<u8>)> {
+    let img = image::ImageReader::new(std::io::Cursor::new(bytes))
+        .with_guessed_format()
+        .ok()?
+        .decode()
+        .ok()?
+        .to_luma8();
+    let (w, h) = img.dimensions();
+    let (tw, th) = fit(w, h, max_w, max_h, upscale);
+    let scaled = if (tw, th) == (w, h) {
+        img
+    } else {
+        image::imageops::resize(&img, tw, th, image::imageops::FilterType::Triangle)
+    };
+    Some((tw, th, scaled.into_raw()))
+}
+
+/// `w`×`h`'yi en-boy oranını koruyarak `max_w`×`max_h`'ye sığdırır.
+pub fn fit(w: u32, h: u32, max_w: u32, max_h: u32, upscale: f32) -> (u32, u32) {
+    let scale = (max_w as f32 / w as f32)
+        .min(max_h as f32 / h as f32)
+        .min(upscale);
+    (
+        ((w as f32 * scale).round() as u32).max(1),
+        ((h as f32 * scale).round() as u32).max(1),
+    )
 }
 
 /// Bir girdiyi boyut sınırıyla UTF-8 metin olarak okur.

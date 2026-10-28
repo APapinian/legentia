@@ -26,6 +26,7 @@ pub enum Msg {
     // Kitap
     Contents,
     LinkBack,
+    ImageNotShown,
     GoToNote,
     UnknownAuthor,
     ChapterNumber(usize),
@@ -293,6 +294,7 @@ pub fn tr(msg: &Msg) -> String {
         Msg::Back => "Geri".into(),
         Msg::Contents => "İçindekiler".into(),
         Msg::LinkBack => "← Geri".into(),
+        Msg::ImageNotShown => "[Görsel gösterilemiyor]".into(),
         Msg::GoToNote => "Notun yerine git".into(),
         Msg::UnknownAuthor => "Yazarı bilinmiyor".into(),
         Msg::ChapterNumber(n) => format!("Bölüm {n}"),
@@ -530,6 +532,7 @@ mod tests {
             ListFooter { page: 1, pages: 2 },
             Back,
             GoToNote,
+            ImageNotShown,
             LinkBack,
             Contents,
             UnknownAuthor,

@@ -26,6 +26,18 @@ pub struct Block {
     /// Blokta başlayan öğelerin kimlikleri (`id`, eski `<a name>`); bağlantı hedefi.
     #[serde(default)]
     pub anchors: Vec<String>,
+    /// Görsel bloğu: paketteki yolu ve boyutu. Metin varsa görselin alt metnidir.
+    #[serde(default)]
+    pub image: Option<ImageRef>,
+}
+
+/// Görselin paketteki yolu ve piksel boyutu (boyut bölüm okunurken doldurulur;
+/// okunamayan biçimde 0).
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct ImageRef {
+    pub path: String,
+    pub width: u32,
+    pub height: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -63,7 +75,10 @@ const BLOCK_TAGS: &[&str] = &[
 ];
 /// İçeriği hiç gösterilmeyen öğeler.
 const SKIP_TAGS: &[&str] = &["head", "script", "style", "svg", "math"];
-const BOLD_TAGS: &[&str] = &["b", "strong"];
+const BOLD_TAGS: &[&str] = &["b", "strong", "th"];
+/// Tablo hücreleri arasındaki ayırıcı (hücreler satırda yan yana akar). Kutu
+/// çizgisi (│) kitap fontlarında yok; düz çizgi her fontta var.
+const CELL_SEPARATOR: &str = " | ";
 const ITALIC_TAGS: &[&str] = &["i", "em", "cite", "var", "dfn"];
 
 fn heading_level(name: &str) -> Option<u8> {
@@ -102,6 +117,37 @@ impl Open {
     }
 }
 
+/// Görsel öğenin kaynağı: `<img src>` ya da (kapak sayfalarında sık) SVG
+/// içindeki `<image xlink:href>`. SVG'nin geri kalanı gösterilmez.
+fn image_source(e: &quick_xml::events::BytesStart, name: &str) -> Option<String> {
+    match name {
+        "img" => attr(e, "src"),
+        "image" => attr(e, "href"),
+        _ => None,
+    }
+}
+
+/// Görsel bloğu; yolu bölüm dosyasına göre çözülür (paket dışına çıkan yol
+/// görseli boş bırakır). Boyut sonra, bölüm okunurken doldurulur.
+fn image_block(
+    chapter: &str,
+    src: &str,
+    e: &quick_xml::events::BytesStart,
+    ids: &mut Vec<String>,
+) -> Block {
+    let alt = attr(e, "alt").unwrap_or_default();
+    Block {
+        text: alt.split_whitespace().collect::<Vec<_>>().join(" "),
+        anchors: std::mem::take(ids),
+        image: super::resolve_href(chapter, src).ok().map(|path| ImageRef {
+            path,
+            width: 0,
+            height: 0,
+        }),
+        ..Block::default()
+    }
+}
+
 /// Biçimi ve varsa bağlantısı aynı olan ardışık metin.
 type Piece = (String, Style, Option<(String, bool)>);
 
@@ -126,6 +172,8 @@ pub(super) fn blocks(text: &str, path: &str) -> Result<Vec<Block>, EpubError> {
     let mut pieces: Vec<Piece> = Vec::new();
     // Henüz bir bloğa bağlanmamış kimlikler; ilk metinli bloğa eklenir.
     let mut ids: Vec<String> = Vec::new();
+    // Tablo satırında şimdiye dek açılan hücre sayısı.
+    let mut cells = 0u32;
     let mut heading: Option<u8> = None;
     let mut skip = 0u32;
     let mut open = Open::default();
@@ -139,6 +187,19 @@ pub(super) fn blocks(text: &str, path: &str) -> Result<Vec<Block>, EpubError> {
             Event::Start(e) => {
                 let name = e.local_name().as_ref().to_ascii_lowercase();
                 let name = name.as_str();
+                if let Some(src) = image_source(&e, name) {
+                    flush(&mut out, &mut pieces, &mut ids, heading);
+                    out.push(image_block(path, &src, &e, &mut ids));
+                }
+                if name == "tr" {
+                    cells = 0;
+                }
+                if matches!(name, "td" | "th") && skip == 0 {
+                    if cells > 0 {
+                        push(&mut pieces, CELL_SEPARATOR, &open);
+                    }
+                    cells += 1;
+                }
                 if SKIP_TAGS.contains(&name) {
                     skip += 1;
                 } else if let Some(level) = heading_level(name) {
@@ -162,6 +223,10 @@ pub(super) fn blocks(text: &str, path: &str) -> Result<Vec<Block>, EpubError> {
             }
             Event::Empty(e) => {
                 let name = e.local_name().as_ref().to_ascii_lowercase();
+                if let Some(src) = image_source(&e, &name) {
+                    flush(&mut out, &mut pieces, &mut ids, heading);
+                    out.push(image_block(path, &src, &e, &mut ids));
+                }
                 if BLOCK_TAGS.contains(&name.as_str()) {
                     flush(&mut out, &mut pieces, &mut ids, heading);
                 }
@@ -267,6 +332,7 @@ fn flush(
         spans,
         links,
         anchors: std::mem::take(ids),
+        image: None,
     });
 }
 
