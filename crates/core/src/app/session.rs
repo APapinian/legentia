@@ -436,7 +436,7 @@ pub(super) fn ocr_layer(pdf: &PdfDoc, cache: Option<&Store>, page: usize) -> Opt
 }
 
 /// Blokları sayfalara dizer. Her zaman en az bir (belki boş) sayfa döner.
-fn paginate(
+pub(super) fn paginate(
     text: &Text,
     s: &Settings,
     lang: Option<&str>,

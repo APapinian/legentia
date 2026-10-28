@@ -9,6 +9,7 @@ use std::path::{Path, PathBuf};
 
 pub(crate) mod dictzip;
 mod index;
+pub mod render;
 pub mod stardict;
 pub mod stem;
 

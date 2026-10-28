@@ -910,6 +910,77 @@ fn restoring_without_a_backup_says_so() {
     ));
 }
 
+/// Okunan sayfada `word` kelimesinin ilk harfinin ekran noktası.
+fn word_point(app: &App, word: &str) -> (u32, u32) {
+    let s = session(app);
+    for (li, l) in s.pages[s.page].lines.iter().enumerate() {
+        let text = &s.blocks[l.block].text;
+        if let Some(n) = l
+            .line
+            .glyphs
+            .iter()
+            .position(|(g, _)| text[g.cluster..].starts_with(word))
+        {
+            return glyph_point(app, li, n);
+        }
+    }
+    panic!("{word} sayfada yok");
+}
+
+fn select_and(app: &mut App, word: &str, action: usize) {
+    let (x, y) = word_point(app, word);
+    app.handle(Event::Hold { x, y });
+    app.handle(Event::HoldEnd { x, y });
+    let at = app.action_rect(action).center();
+    tap(app, at);
+}
+
+#[test]
+fn a_selected_word_is_looked_up_by_its_root() {
+    let (mut app, _, root) = setup(&[("uzun.epub", long_book())]);
+    let dir = root.join("Sözlükler");
+    std::fs::create_dir_all(&dir).unwrap();
+    crate::dict::testutil::stardict(
+        &dir,
+        "deneme",
+        &[("ağaç", "<b>isim</b> Gövdeli bitki.")],
+        &[],
+        true,
+    );
+    tap_row(&mut app, &LIBRARY, 0);
+    tap_row(&mut app, &CONTENTS, 0);
+    select_and(&mut app, "ağaçlar", 2); // Sözlük
+    assert!(matches!(app.view, View::Lookup { page: 0 }));
+    assert!(!app.lookup.as_ref().unwrap().pages[0].lines.is_empty());
+    let mut c = Canvas::new(W, LIBRA2_HEIGHT);
+    app.draw(&mut c);
+    assert!(ink(&c) > 1000, "tanım çizilmeli");
+    tap(&mut app, (W / 2, LIBRA2_HEIGHT / 2));
+    assert!(matches!(app.view, View::Reading));
+    assert!(app.lookup.is_none());
+
+    select_and(&mut app, "paragraf", 2);
+    assert!(matches!(
+        &app.view,
+        View::Message { msg: Msg::NotInDictionary(w), .. } if w == "paragraf"
+    ));
+}
+
+#[test]
+fn looking_up_without_dictionaries_explains_where_to_put_them() {
+    let (mut app, _, _) = setup(&[("uzun.epub", long_book())]);
+    tap_row(&mut app, &LIBRARY, 0);
+    tap_row(&mut app, &CONTENTS, 0);
+    select_and(&mut app, "ağaçlar", 2);
+    assert!(matches!(
+        app.view,
+        View::Message {
+            msg: Msg::NoDictionaries,
+            ..
+        }
+    ));
+}
+
 #[test]
 fn broken_pdf_shows_turkish_error() {
     let (mut app, _, _) = setup(&[("bozuk.pdf", b"%PDF-1.4 bozuk".to_vec())]);

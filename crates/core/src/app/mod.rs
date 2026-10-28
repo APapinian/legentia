@@ -8,6 +8,7 @@ mod annotations;
 mod backup;
 mod export;
 mod keyboard;
+mod lookup;
 mod note;
 mod pdf_view;
 mod screens;
@@ -63,6 +64,10 @@ enum View {
     },
     /// Yedekleme ve geri yükleme (kütüphaneden).
     Backup,
+    /// Sözlük sonucu (`lookup`), sayfası.
+    Lookup {
+        page: usize,
+    },
     Settings {
         draft: Settings,
         page: usize,
@@ -109,6 +114,10 @@ pub struct App {
     gestures: Gestures,
     /// Okurken uzun basmayla başlayan seçim.
     selection: Option<select::Selection>,
+    /// Sözlükler; ilk aramada açılır.
+    dicts: Option<crate::dict::Dictionaries>,
+    /// Gösterilen sözlük sonucu.
+    lookup: Option<lookup::Lookup>,
 }
 
 /// Ekrana yerleştirilmiş PDF sayfa görüntüsü.
@@ -148,6 +157,8 @@ impl App {
             pdf_frame: RefCell::new(None),
             gestures: Gestures::default(),
             selection: None,
+            dicts: None,
+            lookup: None,
         }
     }
 
@@ -249,6 +260,7 @@ impl App {
             View::Bookmarks { page } => self.handle_bookmarks(*page, event),
             View::Annotations { page } => self.handle_annotations(*page, event),
             View::Backup => self.handle_backup(event),
+            View::Lookup { page } => self.handle_lookup(*page, event),
             View::Settings { draft, page } => {
                 let (draft, page) = (draft.clone(), *page);
                 self.handle_settings(draft, page, event)
@@ -404,6 +416,7 @@ impl App {
             View::Bookmarks { page } => self.draw_bookmarks(canvas, *page),
             View::Annotations { page } => self.draw_annotations(canvas, *page),
             View::Backup => self.draw_backup(canvas),
+            View::Lookup { page } => self.draw_lookup(canvas, *page),
             View::Settings { draft, page } => self.draw_settings(canvas, draft, *page),
             View::Selected | View::Annotation { .. } => {
                 self.draw_reading(canvas);

@@ -197,6 +197,8 @@ pub(super) enum Action {
     Highlight,
     /// Not ekranını açar; seçimdeyse önce vurgular.
     Note,
+    /// Seçilen kelimeyi sözlükte arar.
+    Dictionary,
     Remove,
     Cancel,
 }
@@ -289,6 +291,14 @@ impl App {
         Some(self.refresh(false))
     }
 
+    /// Seçili metin.
+    fn selection_text(&self) -> Option<String> {
+        let sel = self.selection?;
+        let flat = super::annotations::Flat::new(self.session.as_ref()?.text_blocks());
+        let (a, b) = (flat.index(sel.start)?, flat.index(sel.end)?);
+        flat.text.get(a..b).map(str::to_string)
+    }
+
     /// Dokunulan vurgunun `state.annotations` sırası.
     pub(super) fn annotation_at(&self, x: u32, y: u32) -> Option<usize> {
         let s = self.session.as_ref()?;
@@ -304,7 +314,12 @@ impl App {
 
     fn actions(&self) -> &'static [Action] {
         match self.view {
-            View::Selected => &[Action::Highlight, Action::Note, Action::Cancel],
+            View::Selected => &[
+                Action::Highlight,
+                Action::Note,
+                Action::Dictionary,
+                Action::Cancel,
+            ],
             View::Annotation { .. } => &[Action::Note, Action::Remove, Action::Cancel],
             _ => &[],
         }
@@ -360,6 +375,11 @@ impl App {
             return self.start_selection(x, y);
         }
         let action = self.tapped_action(event);
+        if action == Some(Action::Dictionary) {
+            let word = self.selection_text();
+            self.selection = None;
+            return self.look_up(&word.unwrap_or_default());
+        }
         let added = match (action, self.selection, self.session.as_mut()) {
             (Some(Action::Highlight | Action::Note), Some(sel), Some(s)) => {
                 s.add_annotation(sel.start, sel.end)
@@ -417,6 +437,7 @@ impl App {
                 Action::Highlight => Msg::Highlight,
                 Action::Note if note.is_some() => Msg::EditNote,
                 Action::Note => Msg::AddNote,
+                Action::Dictionary => Msg::Dictionary,
                 Action::Remove => Msg::RemoveHighlight,
                 Action::Cancel => Msg::Cancel,
             };
