@@ -309,12 +309,52 @@ impl Framebuffer {
         })
     }
 
-    /// Açılıştaki ekran ayarını (piksel derinliği) geri yükler.
+    /// Sürücünün dönüşünü değiştirir (yatay okuma: 0 ya da 2, dikey: 1 ya da
+    /// 3). Boyut ve satır uzunluğu yeniden okunur; olmazsa eski dönüşe dönülür.
+    pub fn set_rotation(&mut self, rotate: u32) -> bool {
+        if rotate == self.rotate {
+            return true;
+        }
+        self.wait_pending();
+        let before = match read_info(&self.file) {
+            Ok((v, _)) => v,
+            Err(e) => {
+                log::error!("cannot read screen settings: {e}");
+                return false;
+            }
+        };
+        let mut wanted = before;
+        wanted.rotate = rotate;
+        match put_info(&self.file, &wanted).and_then(|_| read_info(&self.file)) {
+            Ok((v, f)) if v.rotate == rotate => {
+                log::info!("rotated {} → {rotate}: {}x{}", self.rotate, v.xres, v.yres);
+                self.original.get_or_insert(before);
+                self.layout = Layout::of(&v, &f);
+                self.rotate = rotate;
+                self.next = vec![0; (self.layout.stride * self.layout.height) as usize];
+                self.shown = None;
+                true
+            }
+            other => {
+                log::warn!("rotation {rotate} failed: {other:?}");
+                if let Err(e) = put_info(&self.file, &before) {
+                    log::error!("cannot restore screen settings: {e}");
+                }
+                false
+            }
+        }
+    }
+
+    /// Açılıştaki ekran ayarını (piksel derinliği, dönüş) geri yükler.
     pub fn restore(&mut self) {
         self.wait_pending();
         if let Some(var) = self.original.take() {
             match put_info(&self.file, &var) {
-                Ok(()) => log::info!("screen restored to {} bpp", var.bits_per_pixel),
+                Ok(()) => log::info!(
+                    "screen restored to {} bpp, rotation {}",
+                    var.bits_per_pixel,
+                    var.rotate
+                ),
                 Err(e) => log::error!("cannot restore screen settings: {e}"),
             }
         }

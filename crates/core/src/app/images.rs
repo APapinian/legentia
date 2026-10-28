@@ -13,7 +13,6 @@ use super::{App, View};
 use crate::canvas::Canvas;
 use crate::epub::{ImageRef, decode_gray, fit};
 use crate::event::{Event, Refresh};
-use crate::{LIBRA2_HEIGHT, LIBRA2_WIDTH};
 
 /// Küçük görseller en çok bu kat büyütülür (sayfada); tam ekranda daha fazla.
 pub(super) const UPSCALE: f32 = 2.0;
@@ -112,8 +111,8 @@ impl App {
         let (w, h) = fit(
             img.width,
             img.height,
-            LIBRA2_WIDTH - 2 * FULL_SCREEN_PAD,
-            LIBRA2_HEIGHT - 2 * FULL_SCREEN_PAD,
+            self.width - 2 * FULL_SCREEN_PAD,
+            self.height - 2 * FULL_SCREEN_PAD,
             FULL_SCREEN_UPSCALE,
         );
         if let Some(pixels) = s.image_pixels(img, w, h) {

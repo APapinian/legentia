@@ -687,7 +687,7 @@ fn pdf_image_highlights_are_shared_with_reflow() {
     let at = |x: f32, y: f32| {
         let r = super::pdf_view::to_screen(
             &screen,
-            W,
+            (W, LIBRA2_HEIGHT),
             crate::pdf::Area {
                 x,
                 y,
@@ -2354,4 +2354,88 @@ fn images_are_drawn_and_open_full_screen_on_hold() {
             .any(|l| l.line.glyphs.is_empty() && l.height == 200),
         "200×100'lük görsel iki kat büyütülüp yerleşti"
     );
+}
+
+// --- Yatay okuma ---
+
+#[test]
+fn reading_turns_landscape_but_other_screens_stay_portrait() {
+    use super::settings::Orientation;
+    let (mut app, _, _) = reading_long_book();
+    for _ in 0..5 {
+        key(&mut app, true);
+    }
+    let before = session(&app).position();
+    let portrait_pages = session(&app).pages.len();
+    assert_eq!(app.screen_size(), (W, LIBRA2_HEIGHT));
+
+    let mut wide = app.settings.clone();
+    wide.orientation = Orientation::Landscape;
+    app.apply_settings(wide);
+    assert!(app.fit_orientation(), "ekran döndü");
+    let (w, h) = app.screen_size();
+    assert_eq!((w, h), (LIBRA2_HEIGHT, W), "okuma yatay");
+    let s = session(&app);
+    assert_eq!(s.laid_out, (w, h));
+    // Yatayda satırlar dikey metin genişliğinden uzun (sayfa sayısı yaklaşık aynı
+    // kalır: satırlar uzar ama sayfaya daha az satır sığar).
+    let widest = s
+        .pages
+        .iter()
+        .flat_map(|p| &p.lines)
+        .filter_map(|l| l.line.glyphs.last().map(|(g, gx)| gx + g.advance))
+        .fold(0.0f32, f32::max);
+    let portrait_text = (W as i32 - 2 * app.settings.margin) as f32;
+    assert!(
+        widest > portrait_text,
+        "{widest} ({portrait_pages} dikey sayfa)"
+    );
+    let bottom = super::ui::bottom_of(h);
+    assert!(
+        s.pages
+            .iter()
+            .flat_map(|p| &p.lines)
+            .all(|l| l.top + l.height <= bottom + 2)
+    );
+    assert!(s.pages[s.page].start <= before, "konum korunur");
+    assert!(s.pages.get(s.page + 1).is_none_or(|n| before < n.start));
+    let mut c = Canvas::new(w, h);
+    app.draw(&mut c);
+
+    // Menü yatayda açılır; ayarlar dikeyde, kapatınca yine yatay.
+    middle(&mut app);
+    assert!(matches!(app.view, View::Menu));
+    assert_eq!(app.screen_size(), (w, h));
+    app.draw(&mut c);
+    let index = app
+        .menu_items()
+        .iter()
+        .position(|m| *m == MenuItem::Settings)
+        .unwrap();
+    let at = app.menu_rect(index).center();
+    tap(&mut app, at);
+    assert!(matches!(app.view, View::Settings { .. }));
+    assert_eq!(app.screen_size(), (W, LIBRA2_HEIGHT), "ayarlar dikey");
+    let cancel = app.settings_cancel().center();
+    tap(&mut app, cancel);
+    assert_eq!(app.screen_size(), (w, h), "okumaya dönünce yatay");
+
+    // Otomatik: ivmeölçere göre.
+    let mut auto = app.settings.clone();
+    auto.orientation = Orientation::Auto;
+    app.apply_settings(auto);
+    app.fit_orientation();
+    assert_eq!(app.screen_size(), (W, LIBRA2_HEIGHT), "cihaz dik");
+    assert_eq!(
+        app.handle(Event::Tilt { landscape: true }),
+        Some(Refresh::Full)
+    );
+    assert_eq!(app.screen_size(), (w, h));
+    assert_eq!(
+        app.handle(Event::Tilt { landscape: true }),
+        None,
+        "değişiklik yok"
+    );
+    menu(&mut app, MenuItem::Library);
+    assert_eq!(app.screen_size(), (W, LIBRA2_HEIGHT), "kütüphane dikey");
 }

@@ -7,7 +7,6 @@ use super::session::Session;
 use super::settings::{PdfView, Settings};
 use super::ui::{MARGIN, ROW_PX, Rect, TOP};
 use super::{App, PdfFrame};
-use crate::LIBRA2_HEIGHT;
 use crate::canvas::Canvas;
 use crate::i18n::Msg;
 use crate::pdf::{Area, PageLayout, PdfDoc};
@@ -15,7 +14,9 @@ use crate::pdf::{Area, PageLayout, PdfDoc};
 /// Sayfa görüntüsünün ekran kenarlarına uzaklığı (piksel).
 const PAD: i32 = 8;
 /// Sayfa görüntüsünün alt sınırı; altında alt bilgi satırı kalır.
-const PAGE_BOTTOM: i32 = LIBRA2_HEIGHT as i32 - 80;
+fn page_bottom(height: u32) -> i32 {
+    height as i32 - 80
+}
 /// Kırpılmış görünüm, tüm sayfanın sığdığı ölçeğin en fazla bu katına büyür;
 /// neredeyse boş sayfalarda (başlık, bölüm sonu) içerik aşırı büyümesin.
 const MAX_CROP_ZOOM: f32 = 2.0;
@@ -32,17 +33,17 @@ pub(super) struct Screen {
 }
 
 /// Ekranın görüntüsünün sol üst köşesi; görüntü sayfa alanının ortasına yerleşir.
-pub(super) fn screen_origin(screen: &Screen, width: u32) -> (i32, i32) {
+pub(super) fn screen_origin(screen: &Screen, size: (u32, u32)) -> (i32, i32) {
     let w = (screen.area.w * screen.scale).round() as i32;
     let h = (screen.area.h * screen.scale).round() as i32;
-    let avail_w = width as i32 - 2 * PAD;
-    let avail_h = PAGE_BOTTOM - 2 * PAD;
+    let avail_w = size.0 as i32 - 2 * PAD;
+    let avail_h = page_bottom(size.1) - 2 * PAD;
     (PAD + (avail_w - w) / 2, PAD + (avail_h - h) / 2)
 }
 
 /// Ekran noktasının sayfadaki yeri (punto).
-pub(super) fn to_page(screen: &Screen, width: u32, x: u32, y: u32) -> (f32, f32) {
-    let (ox, oy) = screen_origin(screen, width);
+pub(super) fn to_page(screen: &Screen, size: (u32, u32), x: u32, y: u32) -> (f32, f32) {
+    let (ox, oy) = screen_origin(screen, size);
     (
         screen.area.x + (x as i32 - ox) as f32 / screen.scale,
         screen.area.y + (y as i32 - oy) as f32 / screen.scale,
@@ -50,8 +51,8 @@ pub(super) fn to_page(screen: &Screen, width: u32, x: u32, y: u32) -> (f32, f32)
 }
 
 /// Sayfa alanının (punto) ekrandaki dikdörtgeni.
-pub(super) fn to_screen(screen: &Screen, width: u32, a: Area) -> Rect {
-    let (ox, oy) = screen_origin(screen, width);
+pub(super) fn to_screen(screen: &Screen, size: (u32, u32), a: Area) -> Rect {
+    let (ox, oy) = screen_origin(screen, size);
     let x = ox + ((a.x - screen.area.x) * screen.scale).floor() as i32;
     let y = oy + ((a.y - screen.area.y) * screen.scale).floor() as i32;
     Rect {
@@ -68,7 +69,7 @@ pub(super) fn page_screens(
     doc: &PdfDoc,
     layouts: &mut HashMap<usize, PageLayout>,
     settings: &Settings,
-    width: u32,
+    size: (u32, u32),
     page: usize,
 ) -> Vec<Screen> {
     let Some((pw, ph)) = doc.page_size(page) else {
@@ -96,8 +97,8 @@ pub(super) fn page_screens(
         Some(l) if settings.pdf_crop || columns => (vec![l.content], true),
         _ => (vec![full], true),
     };
-    let avail_w = (width as i32 - 2 * PAD) as f32;
-    let avail_h = (PAGE_BOTTOM - 2 * PAD) as f32;
+    let avail_w = (size.0 as i32 - 2 * PAD) as f32;
+    let avail_h = (page_bottom(size.1) - 2 * PAD) as f32;
     let fit_page = (avail_w / pw).min(avail_h / ph);
     let zoom = settings.pdf_zoom as f32 / 100.0;
     regions
@@ -159,7 +160,7 @@ impl App {
         {
             *frame = match doc.render_area(s.spine, screen.area, screen.scale) {
                 Ok(image) => {
-                    let (x, y) = screen_origin(&screen, canvas.width());
+                    let (x, y) = screen_origin(&screen, (canvas.width(), canvas.height()));
                     Some(PdfFrame {
                         page: s.spine,
                         screen,

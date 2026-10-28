@@ -7,7 +7,6 @@ use super::pdf_view;
 use super::session::{Page, PlacedLine, Position};
 use super::ui::{MARGIN, Rect, TOP, draw_button};
 use super::{App, View};
-use crate::LIBRA2_HEIGHT;
 use crate::canvas::Canvas;
 use crate::epub::Block;
 use crate::event::{Event, Refresh};
@@ -212,7 +211,7 @@ impl App {
             return word_at(page, &s.blocks, self.settings.margin, x, y);
         }
         let (text, screen) = (s.pdf_text.as_ref()?, page.screen?);
-        let (px, py) = pdf_view::to_page(&screen, self.width, x, y);
+        let (px, py) = pdf_view::to_page(&screen, (self.width, self.height), x, y);
         let (block, offset) = char_at(text, px, py)?;
         let (a, b) = word_bounds(&text.blocks[block].text, offset);
         Some((Position { block, offset: a }, Position { block, offset: b }))
@@ -236,7 +235,7 @@ impl App {
         match (s.pdf_text.as_ref(), page.screen) {
             (Some(text), Some(screen)) => box_areas(text, start, end)
                 .into_iter()
-                .map(|a| pdf_view::to_screen(&screen, self.width, a))
+                .map(|a| pdf_view::to_screen(&screen, (self.width, self.height), a))
                 .collect(),
             _ => Vec::new(),
         }
@@ -337,11 +336,11 @@ impl App {
         let w = (self.width as i32 - 2 * MARGIN - (n - 1) * ACTION_GAP) / n;
         let y = if self
             .marked_top()
-            .is_some_and(|t| t > LIBRA2_HEIGHT as i32 / 2)
+            .is_some_and(|t| t > self.height as i32 / 2)
         {
             TOP - ACTION_H / 2
         } else {
-            LIBRA2_HEIGHT as i32 - 2 * ACTION_H
+            self.height as i32 - 2 * ACTION_H
         };
         Rect {
             x: MARGIN + i as i32 * (w + ACTION_GAP),

@@ -9,7 +9,6 @@
 use super::session::{Doc, Position, Target};
 use super::ui::{MARGIN, ROW_PX, Rect, draw_button};
 use super::{App, View};
-use crate::LIBRA2_HEIGHT;
 use crate::canvas::Canvas;
 use crate::epub::{Link, resolve_href};
 use crate::event::{Event, Refresh};
@@ -131,7 +130,7 @@ impl App {
             .lines()
             .flat_map(|p| self.text.wrap_plain(p, family, Style::default(), px, max_w))
             .collect();
-        let max_h = (LIBRA2_HEIGHT as f32 * NOTE_MAX_SHARE) as i32;
+        let max_h = (self.height as f32 * NOTE_MAX_SHARE) as i32;
         let fits = ((max_h - 3 * NOTE_PAD - NOTE_BUTTON_H) / line_h).max(1) as usize;
         if lines.len() > fits {
             lines.truncate(fits);
@@ -142,7 +141,7 @@ impl App {
         let h = lines.len() as i32 * line_h + 3 * NOTE_PAD + NOTE_BUTTON_H;
         let panel = Rect {
             x: 0,
-            y: LIBRA2_HEIGHT as i32 - h,
+            y: self.height as i32 - h,
             w: self.width as i32,
             h,
         };

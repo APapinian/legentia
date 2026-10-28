@@ -17,6 +17,7 @@ mod keyboard;
 mod links;
 mod lookup;
 mod note;
+mod orientation;
 mod pace;
 mod pdf_view;
 mod screens;
@@ -142,7 +143,14 @@ enum Back {
 
 pub struct App {
     text: Text,
+    /// Geçerli ekran boyutu: dikeyde platformun verdiği genişlik × Libra 2
+    /// yüksekliği; okuma yatay döndüyse ikisi yer değiştirir.
     width: u32,
+    height: u32,
+    /// Platformun verdiği (dikey) ekran genişliği.
+    portrait_width: u32,
+    /// İvmeölçere göre cihaz yatay tutuluyor.
+    tilted: bool,
     store: Store,
     /// Bütün kitapların varsayılan ayarları (`settings.json`). `settings` bunun
     /// açık kitabın kendi yazı ayarlarıyla birleşmiş hâlidir.
@@ -224,6 +232,9 @@ impl App {
         Self {
             text,
             width,
+            height: crate::LIBRA2_HEIGHT,
+            portrait_width: width,
+            tilted: false,
             store,
             defaults: settings.clone(),
             root: library_root.to_path_buf(),
@@ -359,8 +370,16 @@ impl App {
                 .flatten()
                 .max_by_key(|r| *r == Refresh::Full);
         }
+        if let Event::Tilt { landscape } = event {
+            self.tilted = landscape;
+            return self.fit_orientation().then(|| self.refresh(true));
+        }
         let refresh = self.dispatch(event);
         self.pause_dwell();
+        if self.fit_orientation() {
+            // Ekran döndü: her şey yeniden çizilir.
+            return Some(self.refresh(true));
+        }
         refresh
     }
 
@@ -433,7 +452,13 @@ impl App {
         let Some(session) = self.session.as_mut() else {
             return;
         };
-        match session.load_chapter(&self.text, &self.settings, self.width, spine, target) {
+        match session.load_chapter(
+            &self.text,
+            &self.settings,
+            (self.width, self.height),
+            spine,
+            target,
+        ) {
             Ok(()) => {
                 self.view = View::Reading;
                 self.page_shown = Some(std::time::Instant::now());
@@ -572,7 +597,7 @@ impl App {
     fn relayout_with(&mut self, settings: Settings) {
         self.use_settings(settings);
         if let Some(session) = self.session.as_mut() {
-            session.relayout(&self.text, &self.settings, self.width);
+            session.relayout(&self.text, &self.settings, (self.width, self.height));
         }
         self.save_progress();
     }

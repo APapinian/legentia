@@ -160,8 +160,15 @@ pub(super) fn draw_header_until(
     canvas.fill_rect(MARGIN, TOP + 145, width - 2 * MARGIN as u32, BORDER, 0);
 }
 
+/// Ekranın `height` yüksekliğine göre alt bilgi satırının üstü (`BOTTOM`'ın
+/// karşılığı); yatay okumada ekran daha kısadır.
+pub(super) fn bottom_of(height: u32) -> i32 {
+    height as i32 - (LIBRA2_HEIGHT as i32 - BOTTOM)
+}
+
 pub(super) fn draw_footer(t: &Text, canvas: &mut Canvas, msg: &Msg, x: i32) {
-    t.draw_msg(canvas, msg, x, FOOTER_BASELINE, FOOTER_PX);
+    let baseline = canvas.height() as i32 - (LIBRA2_HEIGHT as i32 - FOOTER_BASELINE);
+    t.draw_msg(canvas, msg, x, baseline, FOOTER_PX);
 }
 
 /// Çerçeveli, ortası yazılı düğme.

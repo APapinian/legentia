@@ -141,7 +141,7 @@ impl App {
         }
         let h = lines.len() as i32 * NOTE_LINE + 40;
         let bar = self.action_rect(0);
-        let y = if bar.y < crate::LIBRA2_HEIGHT as i32 / 2 {
+        let y = if bar.y < self.height as i32 / 2 {
             bar.y + bar.h + 20
         } else {
             bar.y - 20 - h

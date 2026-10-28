@@ -3,8 +3,8 @@
 use super::session::Target;
 use super::settings::{FIELD_PAGES, Field, PAGE_TITLES, Settings, TapZones};
 use super::ui::{
-    BOLD, BOTTOM, HEADER_BOTTOM, List, MARGIN, PLAIN, ROW_PX, Rect, TOP, back_button, draw_button,
-    draw_footer, draw_header, draw_header_until, header_button, one_line,
+    BOLD, BOTTOM, HEADER_BOTTOM, List, MARGIN, PLAIN, ROW_PX, Rect, TOP, back_button, bottom_of,
+    draw_button, draw_footer, draw_header, draw_header_until, header_button, one_line,
 };
 use super::{App, Back, View};
 use crate::canvas::Canvas;
@@ -400,7 +400,7 @@ impl App {
 
     /// Okurken dokunulan yer: ileri (`Some(true)`), geri (`Some(false)`) ya da menü (`None`).
     pub(super) fn tap_zone(&self, x: u32, y: u32) -> Option<bool> {
-        let (w, h) = (self.width, crate::LIBRA2_HEIGHT);
+        let (w, h) = (self.width, self.height);
         match self.settings.tap_zones {
             TapZones::Standard if x < w / 3 => Some(false),
             TapZones::Standard if x > 2 * w / 3 => Some(true),
@@ -536,7 +536,7 @@ impl App {
             }
             _ => {
                 let (i, n) = row_of(&ACTION_ITEMS);
-                slot(BOTTOM - BAR_GAP - BAR_ROW, i, n)
+                slot(bottom_of(self.height) - BAR_GAP - BAR_ROW, i, n)
             }
         }
     }
@@ -552,7 +552,7 @@ impl App {
         };
         let bottom = Rect {
             x: 0,
-            y: BOTTOM - 2 * BAR_GAP - BAR_ROW,
+            y: bottom_of(self.height) - 2 * BAR_GAP - BAR_ROW,
             w,
             h: 2 * BAR_GAP + BAR_ROW,
         };

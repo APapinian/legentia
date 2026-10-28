@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use super::annotations::{self, Annotation, Flat};
 use super::pdf_view::{Screen, page_screens};
 use super::settings::Settings;
-use super::ui::{BOTTOM, TOP};
+use super::ui::TOP;
 use crate::epub::{Block, BlockKind, Book, TocEntry};
 use crate::i18n::{Msg, tr};
 use crate::ocr;
@@ -111,6 +111,8 @@ pub(super) struct Session {
     pub pdf_text: Option<PageText>,
     /// Çözülmüş EPUB görselleri (yol, genişlik, yükseklik) → gri pikseller.
     pub images: super::images::ImageCache,
+    /// Bölümün dizildiği ekran boyutu (yön değişince yeniden dizilir).
+    pub laid_out: (u32, u32),
 }
 
 impl Session {
@@ -130,6 +132,7 @@ impl Session {
             placed: Vec::new(),
             pdf_text: None,
             images: Default::default(),
+            laid_out: (0, 0),
         }
     }
 
@@ -191,7 +194,7 @@ impl Session {
         &mut self,
         text: &Text,
         settings: &Settings,
-        width: u32,
+        size: (u32, u32),
         spine: usize,
         target: Target,
     ) -> Result<(), Msg> {
@@ -221,7 +224,7 @@ impl Session {
                 pdf,
                 &mut self.pdf_layouts,
                 settings,
-                width,
+                size,
                 spine,
             )),
             _ => None,
@@ -246,7 +249,7 @@ impl Session {
                     screen: Some(*screen),
                 })
                 .collect(),
-            None => paginate(text, settings, self.language(), width, &blocks),
+            None => paginate(text, settings, self.language(), size, &blocks),
         };
         self.page = match target {
             Target::Start => 0,
@@ -262,6 +265,7 @@ impl Session {
         self.spine = spine;
         self.blocks = blocks;
         self.pages = pages;
+        self.laid_out = size;
         self.pdf_text = None;
         if self.state.annotations.iter().any(|a| a.spine == spine) {
             self.load_page_text();
@@ -271,15 +275,16 @@ impl Session {
     }
 
     /// Ayar değişince aynı konumu içeren sayfaya döner.
-    pub fn relayout(&mut self, text: &Text, settings: &Settings, width: u32) {
+    pub fn relayout(&mut self, text: &Text, settings: &Settings, size: (u32, u32)) {
         let at = self.position();
         if self.pdf().is_some() {
             // Yeniden akıtma açılıp kapanmış olabilir: sayfanın metnini yeniden oku.
             let spine = self.spine;
-            let _ = self.load_chapter(text, settings, width, spine, Target::At(at));
+            let _ = self.load_chapter(text, settings, size, spine, Target::At(at));
             return;
         }
-        self.pages = paginate(text, settings, self.language(), width, &self.blocks);
+        self.pages = paginate(text, settings, self.language(), size, &self.blocks);
+        self.laid_out = size;
         self.page = page_of(&self.pages, at);
     }
 
@@ -463,9 +468,12 @@ pub(super) fn paginate(
     text: &Text,
     s: &Settings,
     lang: Option<&str>,
-    width: u32,
+    size: (u32, u32),
     blocks: &[Block],
 ) -> Vec<Page> {
+    let (width, height) = size;
+    // Alt bilgi satırının üstü (yatay ekranda daha yukarıda).
+    let bottom = super::ui::bottom_of(height);
     let family = Family::Book(s.family);
     let max_w = (width as i32 - 2 * s.margin) as f32;
     let body_line = s.font_px * s.line_spacing;
@@ -483,10 +491,10 @@ pub(super) fn paginate(
                 img.width,
                 img.height,
                 max_w as u32,
-                (BOTTOM - TOP) as u32,
+                (bottom - TOP) as u32,
                 super::images::UPSCALE,
             );
-            if y + h as f32 > BOTTOM as f32 && !pages.last().is_some_and(|p| p.lines.is_empty()) {
+            if y + h as f32 > bottom as f32 && !pages.last().is_some_and(|p| p.lines.is_empty()) {
                 pages.push(Page {
                     lines: Vec::new(),
                     start: Position::default(),
@@ -532,8 +540,8 @@ pub(super) fn paginate(
         let line_h = px * s.line_spacing;
         if heading && y > TOP as f32 {
             y += line_h * 0.6;
-            if y + line_h + body_line * LINES_AFTER_HEADING > BOTTOM as f32 {
-                y = BOTTOM as f32 + 1.0; // sonraki sayfaya zorla
+            if y + line_h + body_line * LINES_AFTER_HEADING > bottom as f32 {
+                y = bottom as f32 + 1.0; // sonraki sayfaya zorla
             }
         }
         let face = text.fonts().face(
@@ -553,7 +561,7 @@ pub(super) fn paginate(
             lang,
         };
         for line in layout(text, &block.text, &block.spans, &para, max_w) {
-            if y + line_h > BOTTOM as f32 && !pages.last().is_some_and(|p| p.lines.is_empty()) {
+            if y + line_h > bottom as f32 && !pages.last().is_some_and(|p| p.lines.is_empty()) {
                 pages.push(Page {
                     lines: Vec::new(),
                     start: Position::default(),

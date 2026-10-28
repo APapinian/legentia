@@ -21,6 +21,7 @@ Yeni bir eksik bulununca bu dosyaya eklenir; giderilen madde silinir ve ne yapı
   - 8 bit'e geçişin ekranı ters renk göstermesi ihtimali.
   Doğrulananlar (1. deneme): dokunmatik aygıt adla bulunuyor ("Elan Touchscreen"); 16 MB'lık ikili 11 MB'a küçültüldü (strip).
 - **İki parmak hareketi cihazda denenmedi:** Elan dokunmatiğin ikinci parmağı çok noktalı yuva 1'de bildirdiği varsayıldı. Kaydırma ve iki parmak eşikleri (150 px, %15) elle ayarlanabilir; cihazda bakılacak. (M11)
+- **Yatay okuma cihazda denenmedi:** yatayda dokunma eşlemesi (dönüş 0 ve 2) geometriden çıkarıldı. Yatayın hangi yana olacağı (ivmeölçerin işaretine göre 0 mı, 2 mi) ve yatayda sayfa tuşlarının anlamı da tahmin. İvmeölçerin eksenleri açılışta kalibre ediliyor; ham değerler günlüğe yazılıyor. Dönüş başarısız olursa görüntü kırpılır. (M11)
 - **Güç tuşu uyku yerine çıkış yapıyor:** şimdilik güvenlik yolu; uyku/uyanma M10'da ayrıca ele alınacak.
 - **Kontrast ve gamma:** gece modu ve PDF kenar yumuşatması cihaz ekranında değerlendirilecek. (M4, M5)
 - **Uzun basma:** zamanlayıcı yok; uzun basma ancak parmak kalkınca ya da kıpırdayınca tanınıyor. Cihazda doğal hissettiriyor mu bakılacak. (M6)

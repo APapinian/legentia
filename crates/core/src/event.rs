@@ -43,6 +43,10 @@ pub enum Event {
         y: u32,
         ms: u64,
     },
+    /// Cihazın tutuluşu değişti (ivmeölçer): yatay mı.
+    Tilt {
+        landscape: bool,
+    },
     /// İkinci parmağın ham dokunması (iki parmak hareketi için).
     SecondTouch {
         phase: TouchPhase,

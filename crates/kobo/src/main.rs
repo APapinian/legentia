@@ -12,6 +12,8 @@ mod input;
 
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::mpsc::{RecvTimeoutError, channel};
 use std::time::{Duration, Instant};
 
@@ -80,10 +82,15 @@ fn run() -> ExitCode {
     let mut app = App::new(text, LIBRA2_WIDTH, store, &root);
     log::info!("library scanned in {:?}", started.elapsed());
 
-    let flipped = input::flipped(screen.rotate);
-    log::info!("screen rotation {} (upside down: {flipped})", screen.rotate);
+    // Dikey dönüş (Nickel'ın bıraktığı: 1 ya da ters dikey 3) ve okuma yataya
+    // dönünce kullanılacak dönüş. Yatayın hangi yana olduğu ivmeölçerden gelir;
+    // gelmediyse (elle "Yatay") dikeyin bir sonrakisi. 0/2 seçimi cihazda doğrulanmadı.
+    let portrait_rotate = screen.rotate;
+    let mut landscape_rotate = (portrait_rotate + 1) % 4;
+    log::info!("screen rotation {portrait_rotate}");
+    let rotation = Arc::new(AtomicU32::new(portrait_rotate));
     let (tx, rx) = channel();
-    if input::spawn_readers(&tx, flipped) == 0 {
+    if input::spawn_readers(&tx, &rotation) == 0 {
         log::error!("no input devices");
     }
     drop(tx);
@@ -116,6 +123,19 @@ fn run() -> ExitCode {
                 events.push(Event::SecondTouch { phase, x, y })
             }
             Ok(Input::Page(key)) => events.push(Event::Key(key)),
+            Ok(Input::Tilt {
+                landscape,
+                positive,
+            }) => {
+                if landscape {
+                    landscape_rotate = if positive {
+                        (portrait_rotate + 1) % 4
+                    } else {
+                        (portrait_rotate + 3) % 4
+                    };
+                }
+                events.push(Event::Tilt { landscape });
+            }
             Err(RecvTimeoutError::Timeout) => {}
             Err(RecvTimeoutError::Disconnected) => {
                 log::error!("all input devices closed");
@@ -131,6 +151,21 @@ fn run() -> ExitCode {
             let handled = app.handle(event);
             if event != Event::Tick {
                 log::info!("event: {event:?}, handled in {:?}", started.elapsed());
+            }
+            let size = app.screen_size();
+            if size != (canvas.width(), canvas.height()) {
+                // Okuma yatay ya da dikey döndü: sürücünün dönüşü değişir.
+                let target = if size.0 > size.1 {
+                    landscape_rotate
+                } else {
+                    portrait_rotate
+                };
+                if screen.set_rotation(target) {
+                    rotation.store(target, Ordering::Relaxed);
+                } else {
+                    log::error!("cannot rotate screen to {target}");
+                }
+                canvas = Canvas::new(size.0, size.1);
             }
             if let Some(refresh) = handled {
                 present(&mut screen, &app, &mut canvas, refresh);

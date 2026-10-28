@@ -35,6 +35,17 @@ pub enum TapZones {
     OneHand,
 }
 
+/// Okurken ekranın yönü. Yalnızca okuma ekranı döner; ayarlar, listeler ve
+/// formlar dikeyde kalır.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum Orientation {
+    /// Cihazın ivmeölçerine göre.
+    #[default]
+    Auto,
+    Portrait,
+    Landscape,
+}
+
 /// Okuma ayarları. Değişince bölüm yeniden dizilir, okuma konumu korunur.
 /// Kayıt dosyasında eksik alanlar varsayılanla doldurulur.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -69,6 +80,9 @@ pub struct Settings {
     pub tap_zones: TapZones,
     /// Kitap metninin kalınlaştırılması: 0 (yok) – 3.
     pub weight: u8,
+    pub orientation: Orientation,
+    /// Yatayda EPUB iki sütun (açık kitap gibi); değilse tek geniş sütun.
+    pub two_columns: bool,
 }
 
 impl Default for Settings {
@@ -91,6 +105,8 @@ impl Default for Settings {
             online_wiktionary: false,
             tap_zones: TapZones::Standard,
             weight: 0,
+            orientation: Orientation::Auto,
+            two_columns: true,
         }
     }
 }
@@ -115,6 +131,8 @@ pub enum Field {
     OnlineWiktionary,
     TapZones,
     Weight,
+    Orientation,
+    TwoColumns,
 }
 
 /// Ayarlar ekranının sayfaları: yazı; PDF ve internet; okuma ve ekran. Hepsi
@@ -139,7 +157,12 @@ pub const FIELD_PAGES: [&[Field]; 3] = [
         Field::OnlineTdk,
         Field::OnlineWiktionary,
     ],
-    &[Field::TapZones, Field::Night],
+    &[
+        Field::TapZones,
+        Field::Night,
+        Field::Orientation,
+        Field::TwoColumns,
+    ],
 ];
 
 /// Ayar sayfalarının başlıkları ve bir sonrakine geçiş düğmesinin etiketi.
@@ -165,6 +188,8 @@ impl Field {
             Field::OnlineWiktionary => Msg::SettingWiktionary,
             Field::TapZones => Msg::SettingTapZones,
             Field::Weight => Msg::SettingWeight,
+            Field::Orientation => Msg::SettingOrientation,
+            Field::TwoColumns => Msg::SettingTwoColumns,
         }
     }
 }
@@ -245,6 +270,16 @@ impl Settings {
                     s.weight.saturating_sub(1)
                 }
             }
+            Field::Orientation => {
+                const ALL: [Orientation; 3] = [
+                    Orientation::Auto,
+                    Orientation::Portrait,
+                    Orientation::Landscape,
+                ];
+                let i = ALL.iter().position(|o| *o == s.orientation).unwrap_or(0);
+                s.orientation = ALL[if up { (i + 1) % 3 } else { (i + 2) % 3 }];
+            }
+            Field::TwoColumns => s.two_columns = !s.two_columns,
             Field::TapZones => {
                 const ZONES: [TapZones; 3] =
                     [TapZones::Standard, TapZones::Reversed, TapZones::OneHand];
@@ -292,6 +327,16 @@ impl Settings {
                 &Msg::Off
             }),
             Field::Weight => tr(&Msg::Weight(self.weight)),
+            Field::Orientation => tr(match self.orientation {
+                Orientation::Auto => &Msg::OrientationAuto,
+                Orientation::Portrait => &Msg::OrientationPortrait,
+                Orientation::Landscape => &Msg::OrientationLandscape,
+            }),
+            Field::TwoColumns => tr(if self.two_columns {
+                &Msg::ColumnsTwo
+            } else {
+                &Msg::ColumnsOne
+            }),
             Field::TapZones => tr(match self.tap_zones {
                 TapZones::Standard => &Msg::TapStandard,
                 TapZones::Reversed => &Msg::TapReversed,

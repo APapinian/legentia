@@ -5,7 +5,7 @@
 //! tutmak uzun basma, basılıyken sürüklemek sürükleme. Okurken sol üçte bir
 //! önceki sayfa, sağ üçte bir sonraki sayfa, orta menü.
 //! PageUp / Sol ok = üst sayfa tuşu (geri), PageDown / Sağ ok / Boşluk = alt tuş (ileri).
-//! + / - = iki parmakla büyütme/küçültme (punto). Esc ya da kütüphanedeki "Çık" = çıkış. Tam yenileme, ekranın bir an ters renkte gösterilmesiyle işaretlenir.
+//! + / - = iki parmakla büyütme/küçültme (punto). R = cihazı döndürme (yatay okuma). Esc ya da kütüphanedeki "Çık" = çıkış. Tam yenileme, ekranın bir an ters renkte gösterilmesiyle işaretlenir.
 //!
 //! LEGENTIA_SIM_SCALE: pencere küçültme katsayısı (tam sayı, varsayılan 2).
 //! LEGENTIA_DATA: ayar ve okuma kayıtlarının klasörü (varsayılan ~/.local/share/legentia).
@@ -44,21 +44,9 @@ fn run() -> ExitCode {
         .filter(|&s| s >= 1)
         .unwrap_or(2);
 
-    let (w, h) = (LIBRA2_WIDTH / scale, LIBRA2_HEIGHT / scale);
-    let mut window = match Window::new(
-        &tr(&Msg::WindowTitle),
-        w as usize,
-        h as usize,
-        WindowOptions::default(),
-    ) {
-        Ok(win) => win,
-        Err(e) => {
-            log::error!("window creation failed: {e}");
-            i18n::show_error(&Msg::WindowFailed);
-            return ExitCode::FAILURE;
-        }
+    let Some(mut window) = open_window((LIBRA2_WIDTH, LIBRA2_HEIGHT), scale) else {
+        return ExitCode::FAILURE;
     };
-    window.set_target_fps(60);
 
     let Some(arg) = std::env::args_os().nth(1).map(std::path::PathBuf::from) else {
         i18n::show_error(&Msg::Usage);
@@ -79,7 +67,9 @@ fn run() -> ExitCode {
         app.open_book(&book);
     }
     let mut canvas = Canvas::new(LIBRA2_WIDTH, LIBRA2_HEIGHT);
-    let mut frame = vec![0u32; (w * h) as usize];
+    let mut frame = vec![0u32; (LIBRA2_WIDTH / scale * (LIBRA2_HEIGHT / scale)) as usize];
+    // R tuşunun taklit ettiği cihaz tutuluşu (ivmeölçer).
+    let mut tilted = false;
     let refresh = app.start();
     present(&mut window, &app, &mut canvas, &mut frame, scale, refresh);
 
@@ -95,8 +85,8 @@ fn run() -> ExitCode {
         let down = window.get_mouse_down(MouseButton::Left);
         let at = window.get_mouse_pos(MouseMode::Clamp).map(|(mx, my)| {
             (
-                ((mx as u32) * scale).min(LIBRA2_WIDTH - 1),
-                ((my as u32) * scale).min(LIBRA2_HEIGHT - 1),
+                ((mx as u32) * scale).min(canvas.width() - 1),
+                ((my as u32) * scale).min(canvas.height() - 1),
             )
         });
         let phase = match (down, pressed) {
@@ -121,6 +111,11 @@ fn run() -> ExitCode {
                 // Fareyle iki parmak yapılamaz: + / - iki parmak açma/kapama yerine.
                 Key::Equal | Key::NumPadPlus => events.push(Event::Pinch { permille: 1300 }),
                 Key::Minus | Key::NumPadMinus => events.push(Event::Pinch { permille: 750 }),
+                // Cihazı döndürme: ivmeölçerin yerine.
+                Key::R => {
+                    tilted = !tilted;
+                    events.push(Event::Tilt { landscape: tilted });
+                }
                 _ => {}
             }
         }
@@ -136,6 +131,17 @@ fn run() -> ExitCode {
             if event != Event::Tick {
                 log::info!("event: {event:?}, handled in {:?}", started.elapsed());
             }
+            let size = app.screen_size();
+            if size != (canvas.width(), canvas.height()) {
+                // Okuma yatay ya da dikey döndü: pencere yeni boyutta açılır.
+                let Some(w) = open_window(size, scale) else {
+                    return ExitCode::FAILURE;
+                };
+                window = w;
+                canvas = Canvas::new(size.0, size.1);
+                frame = vec![0u32; (size.0 / scale * (size.1 / scale)) as usize];
+                pressed = None;
+            }
             if let Some(refresh) = handled {
                 present(&mut window, &app, &mut canvas, &mut frame, scale, refresh);
             }
@@ -150,6 +156,25 @@ fn run() -> ExitCode {
         peak_rss().unwrap_or_else(|| "?".into())
     );
     ExitCode::SUCCESS
+}
+
+fn open_window((w, h): (u32, u32), scale: u32) -> Option<Window> {
+    match Window::new(
+        &tr(&Msg::WindowTitle),
+        (w / scale) as usize,
+        (h / scale) as usize,
+        WindowOptions::default(),
+    ) {
+        Ok(mut win) => {
+            win.set_target_fps(60);
+            Some(win)
+        }
+        Err(e) => {
+            log::error!("window creation failed: {e}");
+            i18n::show_error(&Msg::WindowFailed);
+            None
+        }
+    }
 }
 
 fn peak_rss() -> Option<String> {

@@ -322,7 +322,13 @@ impl App {
         for (dict, article) in &def.articles {
             blocks.extend(render::article_blocks(dict, article));
         }
-        let pages = paginate(&self.text, &self.settings, Some("tr"), width, &blocks);
+        let pages = paginate(
+            &self.text,
+            &self.settings,
+            Some("tr"),
+            (width, self.height),
+            &blocks,
+        );
         self.lookup = Some(Lookup {
             pages,
             form: def.form.clone(),
