@@ -34,7 +34,24 @@ pub(super) const ANNOTATIONS: List = List {
     row_h: 120,
 };
 const TOC_INDENT: i32 = 40;
-const MENU_ROW: i32 = 100;
+/// Okuma menüsünün çubuklarındaki düğme yüksekliği, aralık ve üst çubuğun
+/// yan düğmelerinin genişliği.
+const BAR_ROW: i32 = 100;
+const BAR_GAP: i32 = 20;
+const BAR_SIDE_W: i32 = 330;
+const BAR_PX: f32 = 32.0;
+/// Üst çubuğun ikinci satırı ve alt çubuk.
+const NAV_ITEMS: [MenuItem; 4] = [
+    MenuItem::Contents,
+    MenuItem::Bookmarks,
+    MenuItem::Annotations,
+    MenuItem::Words,
+];
+const ACTION_ITEMS: [MenuItem; 3] = [
+    MenuItem::Settings,
+    MenuItem::ExportNotes,
+    MenuItem::SaveSearchable,
+];
 const SETTINGS_ROW: i32 = 128;
 const STEP_BUTTON: i32 = 100;
 /// Kütüphane başlığındaki "Kataloglar" düğmesinin genişliği.
@@ -57,7 +74,6 @@ pub(super) enum MenuItem {
     Settings,
     SaveSearchable,
     Library,
-    Close,
 }
 
 impl App {
@@ -75,7 +91,7 @@ impl App {
         if self.session.as_ref().is_some_and(|s| s.pdf().is_some()) {
             items.push(MenuItem::SaveSearchable);
         }
-        items.extend([MenuItem::Library, MenuItem::Close]);
+        items.push(MenuItem::Library);
         items
     }
 
@@ -411,13 +427,72 @@ impl App {
 
     // --- Menü ---
 
+    /// Menü öğesinin düğmesi. Üst çubuk: kütüphane, kitap adı, yer imi; altında
+    /// gezinme. Alt çubuk (alt bilgi satırının üstünde): ayarlar ve işlemler.
     pub(super) fn menu_rect(&self, index: usize) -> Rect {
-        Rect {
-            x: MARGIN,
-            y: TOP + index as i32 * MENU_ROW,
-            w: self.width as i32 - 2 * MARGIN,
-            h: MENU_ROW,
+        let items = self.menu_items();
+        let w = self.width as i32;
+        let slot = |row_y: i32, i: usize, n: usize| {
+            let n = n.max(1) as i32;
+            let bw = (w - 2 * MARGIN - (n - 1) * BAR_GAP) / n;
+            Rect {
+                x: MARGIN + i as i32 * (bw + BAR_GAP),
+                y: row_y,
+                w: bw,
+                h: BAR_ROW,
+            }
+        };
+        let row_of = |group: &[MenuItem]| {
+            // Çubuktaki sıra grubun sırasıdır; olmayan öğe (EPUB'da aranabilir PDF) atlanır.
+            let members: Vec<&MenuItem> = group.iter().filter(|g| items.contains(g)).collect();
+            let i = members
+                .iter()
+                .position(|m| **m == items[index])
+                .unwrap_or(0);
+            (i, members.len())
+        };
+        match items.get(index) {
+            Some(MenuItem::Library) => Rect {
+                x: MARGIN,
+                y: BAR_GAP,
+                w: BAR_SIDE_W,
+                h: BAR_ROW,
+            },
+            Some(MenuItem::Bookmark) => Rect {
+                x: w - MARGIN - BAR_SIDE_W,
+                y: BAR_GAP,
+                w: BAR_SIDE_W,
+                h: BAR_ROW,
+            },
+            Some(
+                MenuItem::Contents | MenuItem::Bookmarks | MenuItem::Annotations | MenuItem::Words,
+            ) => {
+                let (i, n) = row_of(&NAV_ITEMS);
+                slot(2 * BAR_GAP + BAR_ROW, i, n)
+            }
+            _ => {
+                let (i, n) = row_of(&ACTION_ITEMS);
+                slot(BOTTOM - BAR_GAP - BAR_ROW, i, n)
+            }
         }
+    }
+
+    /// Üst ve alt çubuğun kapladığı alanlar; dışına dokunmak menüyü kapatır.
+    fn menu_bars(&self) -> (Rect, Rect) {
+        let w = self.width as i32;
+        let top = Rect {
+            x: 0,
+            y: 0,
+            w,
+            h: 3 * BAR_GAP + 2 * BAR_ROW,
+        };
+        let bottom = Rect {
+            x: 0,
+            y: BOTTOM - 2 * BAR_GAP - BAR_ROW,
+            w,
+            h: 2 * BAR_GAP + BAR_ROW,
+        };
+        (top, bottom)
     }
 
     fn menu_label(&self, item: MenuItem) -> Msg {
@@ -433,13 +508,12 @@ impl App {
             }
             MenuItem::Bookmark => Msg::AddBookmark,
             MenuItem::Bookmarks => Msg::Bookmarks,
-            MenuItem::Annotations => Msg::Annotations,
+            MenuItem::Annotations => Msg::NotesShort,
             MenuItem::Words => Msg::Words,
             MenuItem::ExportNotes => Msg::ExportNotes,
             MenuItem::Settings => Msg::TextSettings,
             MenuItem::SaveSearchable => Msg::SaveSearchable,
-            MenuItem::Library => Msg::Library,
-            MenuItem::Close => Msg::BackToReading,
+            MenuItem::Library => Msg::BackToLibrary,
         }
     }
 
@@ -454,6 +528,10 @@ impl App {
             .find(|&i| self.menu_rect(i).contains(x, y))
             .map(|i| items[i])
         else {
+            let (top, bottom) = self.menu_bars();
+            if top.contains(x, y) || bottom.contains(x, y) {
+                return None; // çubukta boş yer
+            }
             self.view = View::Reading;
             return Some(self.refresh(false));
         };
@@ -491,40 +569,33 @@ impl App {
                 self.session = None;
                 self.view = View::Library { page: 0 };
             }
-            MenuItem::Close => self.view = View::Reading,
         }
         Some(self.refresh(true))
     }
 
     pub(super) fn draw_menu(&self, canvas: &mut Canvas) {
         let t = &self.text;
-        let whole = Rect {
-            x: MARGIN,
-            y: TOP,
-            w: self.width as i32 - 2 * MARGIN,
-            h: self.menu_items().len() as i32 * MENU_ROW,
-        };
-        canvas.fill_rect(
-            whole.x - 10,
-            whole.y - 10,
-            (whole.w + 20) as u32,
-            (whole.h + 20) as u32,
-            255,
-        );
-        canvas.stroke_rect(whole.x, whole.y, whole.w as u32, whole.h as u32, 3);
+        let (top, bottom) = self.menu_bars();
+        canvas.fill_rect(top.x, top.y, top.w as u32, top.h as u32, 255);
+        canvas.fill_rect(0, top.y + top.h - 3, top.w as u32, 3, 0);
+        canvas.fill_rect(bottom.x, bottom.y, bottom.w as u32, bottom.h as u32, 255);
+        canvas.fill_rect(0, bottom.y, bottom.w as u32, 3, 0);
+        // Kitabın adı, yan düğmelerin arasında ortalanmış.
+        if let Some(s) = &self.session {
+            let max_w = (self.width as i32 - 2 * MARGIN - 2 * BAR_SIDE_W - 2 * BAR_GAP) as f32;
+            let title = one_line(t, &s.title(), BOLD, ROW_PX, max_w);
+            let tw = t.width_plain(&title, Family::Ui, BOLD, ROW_PX);
+            let x = (self.width as f32 - tw) as i32 / 2;
+            let baseline = BAR_GAP + BAR_ROW / 2 + (ROW_PX * 0.35) as i32;
+            t.draw_plain(canvas, &title, Family::Ui, BOLD, x, baseline, ROW_PX);
+        }
         for (i, item) in self.menu_items().iter().enumerate() {
-            let r = self.menu_rect(i);
-            if i > 0 {
-                canvas.fill_rect(r.x, r.y, r.w as u32, 2, 0);
-            }
-            t.draw_plain(
+            draw_button(
+                t,
                 canvas,
+                self.menu_rect(i),
                 &tr(&self.menu_label(*item)),
-                Family::Ui,
-                PLAIN,
-                r.x + 40,
-                r.y + 62,
-                40.0,
+                BAR_PX,
             );
         }
     }

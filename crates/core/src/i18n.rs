@@ -58,7 +58,8 @@ pub enum Msg {
     PdfSettings,
     PdfSettingsNext,
     TextSettingsBack,
-    BackToReading,
+    BackToLibrary,
+    NotesShort,
     SaveSearchable,
     SearchableSaved {
         pages: usize,
@@ -230,6 +231,7 @@ pub enum Msg {
     FontMissing,
     WindowFailed,
     ScreenFailed,
+    Restarting,
     Crashed,
 }
 
@@ -270,16 +272,17 @@ pub fn tr(msg: &Msg) -> String {
         }
         Msg::PageNumber(n) => format!("Sayfa {n}"),
         Msg::PdfDocument => "PDF belgesi".into(),
-        Msg::AddBookmark => "Bu sayfaya yer imi koy".into(),
-        Msg::RemoveBookmark => "Bu sayfadaki yer imini kaldır".into(),
+        Msg::AddBookmark => "Yer imi koy".into(),
+        Msg::RemoveBookmark => "Yer imini kaldır".into(),
         Msg::Bookmarks => "Yer imleri".into(),
         Msg::NoBookmarks => "Henüz yer imi yok. Okurken ekranın ortasına dokunup menüden ekleyebilirsiniz.".into(),
         Msg::TextSettings => "Yazı ayarları".into(),
         Msg::PdfSettings => "PDF ve internet".into(),
         Msg::PdfSettingsNext => "PDF ve internet →".into(),
         Msg::TextSettingsBack => "← Yazı ayarları".into(),
-        Msg::BackToReading => "Okumaya dön".into(),
-        Msg::SaveSearchable => "Aranabilir PDF olarak kaydet".into(),
+        Msg::BackToLibrary => "← Kütüphane".into(),
+        Msg::NotesShort => "Notlar".into(),
+        Msg::SaveSearchable => "Aranabilir PDF".into(),
         Msg::SearchableSaved { pages, name } => {
             format!("Aranabilir PDF kaydedildi: “{name}”. {pages} sayfaya metin katmanı eklendi; orijinal dosya değişmedi.")
         }
@@ -298,7 +301,7 @@ pub fn tr(msg: &Msg) -> String {
         Msg::KeySymbols => "123".into(),
         Msg::Annotations => "Vurgular ve notlar".into(),
         Msg::NoAnnotations => "Bu kitapta henüz vurgu yok. Metne uzun basıp sürükleyerek seçebilirsiniz.".into(),
-        Msg::ExportNotes => "Notları dışa aktar".into(),
+        Msg::ExportNotes => "Notları aktar".into(),
         Msg::NotesExported { count, files } => {
             format!("{count} vurgu dışa aktarıldı: {files}. Dosyalar kitabın yanında; orijinal kitap değişmedi.")
         }
@@ -429,6 +432,7 @@ pub fn tr(msg: &Msg) -> String {
         Msg::PdfPageFailed => "Bu sayfa çizilemedi. Diğer sayfalara geçebilirsiniz.".into(),
         Msg::FontMissing => "Yazı tipleri bulunamadı ya da okunamadı. LEGENTIA_FONTS ortam değişkeni font klasörünü göstermeli (nix develop bunu ayarlar).".into(),
         Msg::WindowFailed => "Simülatör penceresi açılamadı.".into(),
+        Msg::Restarting => "Legentia kapandı. Kobo yeniden başlatılıyor; birkaç saniye bekleyin.".into(),
         Msg::ScreenFailed => "Ekrana erişilemedi ya da ekran beklenen biçimde değil (1264×1680, dikey). Ayrıntılar legentia.log dosyasında.".into(),
         Msg::Crashed => "Beklenmeyen bir hata oluştu ve uygulama kapandı. Ayrıntılar kayıt dosyasında.".into(),
     }
@@ -500,7 +504,8 @@ mod tests {
             PdfSettings,
             PdfSettingsNext,
             TextSettingsBack,
-            BackToReading,
+            BackToLibrary,
+            NotesShort,
             SaveSearchable,
             SearchableSaved {
                 pages: 3,
@@ -662,6 +667,7 @@ mod tests {
             FontMissing,
             WindowFailed,
             ScreenFailed,
+            Restarting,
             Crashed,
         ]
     }

@@ -524,6 +524,18 @@ impl App {
     }
 }
 
+impl App {
+    /// Platform kapanırken son ekran: cihazın yeniden başlatıldığını söyler
+    /// (E Ink'te görüntü kalır; boş kalırsa donmuş sanılır).
+    pub fn draw_farewell(&self, canvas: &mut Canvas) {
+        canvas.fill(255);
+        self.draw_message_lines(canvas, &Msg::Restarting, ui::TOP + 300);
+        if self.settings.night {
+            canvas.invert();
+        }
+    }
+}
+
 fn book_file(id: &str) -> String {
     format!("books/{id}.json")
 }

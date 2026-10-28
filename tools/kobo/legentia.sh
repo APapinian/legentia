@@ -44,6 +44,14 @@ cd "$DIR" || exit 1
     echo "$(date) program bitti, çıkış kodu $?"
     [ -n "$bekci" ] && kill "$bekci" 2>/dev/null
     sync
+    # İlk denemede `reboot` cihazı yeniden başlatmadı; komut bu bloğun
+    # dışında olduğu için hatası da kaydedilmedi. Artık tam yolla çağrılıyor
+    # ve sonucu yazılıyor; 20 sn içinde olmazsa zorla yeniden başlatılır.
+    echo "$(date) yeniden başlatılıyor"
+    /sbin/reboot
+    echo "$(date) reboot döndü: $?"
+    sleep 20
+    echo "$(date) hâlâ açık; zorla yeniden başlatılıyor"
+    sync
+    /sbin/reboot -f
 } >>"$DIR/betik.log" 2>&1
-
-reboot

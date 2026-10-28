@@ -4,6 +4,7 @@
 //!
 //! Klasörler programın yanında: `fonts/` (ya da LEGENTIA_FONTS), `veri/`
 //! (ayar ve okuma kayıtları; ya da LEGENTIA_DATA), günlük `legentia.log`.
+//! Ekran 8 bit griye geçirilir; LEGENTIA_FB8=0 ise 32 bit'te kalır.
 //! Çıkış: kütüphanedeki "Çık" ya da güç tuşu (kayıtlar yazılır).
 
 mod fb;
@@ -59,7 +60,9 @@ fn run() -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
-    let mut screen = match fb::Framebuffer::open(FRAMEBUFFER) {
+    let gray8 = std::env::var("LEGENTIA_FB8").map_or(true, |v| v != "0");
+    let mut screen = match fb::Framebuffer::open(FRAMEBUFFER, (LIBRA2_WIDTH, LIBRA2_HEIGHT), gray8)
+    {
         Ok(s) => s,
         Err(e) => {
             log::error!("cannot open {FRAMEBUFFER}: {e}");
@@ -67,12 +70,6 @@ fn run() -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
-    let l = screen.layout;
-    if (l.width, l.height) != (LIBRA2_WIDTH, LIBRA2_HEIGHT) {
-        log::error!("unexpected screen {}x{} (rotation?)", l.width, l.height);
-        i18n::show_error(&Msg::ScreenFailed);
-        return ExitCode::FAILURE;
-    }
 
     let root = std::env::args_os()
         .nth(1)
@@ -83,8 +80,10 @@ fn run() -> ExitCode {
     let mut app = App::new(text, LIBRA2_WIDTH, store, &root);
     log::info!("library scanned in {:?}", started.elapsed());
 
+    let flipped = input::flipped(screen.rotate);
+    log::info!("screen rotation {} (upside down: {flipped})", screen.rotate);
     let (tx, rx) = channel();
-    if input::spawn_readers(&tx) == 0 {
+    if input::spawn_readers(&tx, flipped) == 0 {
         log::error!("no input devices");
     }
     drop(tx);
@@ -139,6 +138,9 @@ fn run() -> ExitCode {
         }
     }
     app.shutdown();
+    app.draw_farewell(&mut canvas);
+    screen.present(&canvas, Refresh::Full);
+    screen.restore();
     log::info!("exit");
     ExitCode::SUCCESS
 }

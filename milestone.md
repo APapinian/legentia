@@ -309,6 +309,19 @@ Not: PDF'e not yazma, M6'daki ortak konumlandırma modeline bağlıdır; M5'te P
 - [ ] Uygulamayı `.adds/` altında ayrı bir klasöre USB ile kopyala; KOReader, Plato ve KFMon dosyalarına dokunma.
 - [ ] Ayrı bir NickelMenu yapılandırma dosyasıyla başlat; mevcut `nm` dosyalarını düzenleme.
 - [ ] Önce statik test ekranı, sonra dokunma ve sayfa tuşları, sonra EPUB ve PDF.
+  - 1. deneme (2026-10-28):
+    - Çalışanlar: program açıldı, kütüphane 284 ms'de tarandı, EPUB ve PDF çalıştı.
+    - Dokunma yanlış yere düştü. Neden: Nickel ekranı `rotate: 3` (ters dikey) bırakmış; Cobalt yalnızca 1'i ölçmüştü.
+    - Sayfa tuşları beklenen gibi değildi; aynı nedenle yerleri değişmiş olmalı.
+    - Her ekran güncellemesi 1,6–2,3 sn sürdü (32 bit, kare başına 8,6 MB yazma). Çizim hızlıydı (sayfa başına 11–24 ms; yazı tipi önbelleği boşken ~2 sn).
+    - Güç tuşu programı düzgün kapattı, ama betikteki `reboot` cihazı yeniden başlatmadı; kullanıcı cihazı zorla kapattı.
+    - Kullanıcı isteği: okurken ortaya dokununca üst ve alt çubuklu menü.
+  - Düzeltmeler (2. deneme için):
+    - Dönüş 3'te dokunma iki eksende aynalanıyor, sayfa tuşlarının yeri değişiyor.
+    - Ekran 8 bit griye geçiriliyor; yalnızca değişen satırlar yazılıp yenileniyor; her aşamanın süresi günlüğe yazılıyor.
+    - Boyut kontrolü ekran ayarı değiştirilmeden önce yapılıyor.
+    - Çıkışta "yeniden başlatılıyor" ekranı; betik `/sbin/reboot`'u günlüğe yazarak çağırıyor, 20 sn içinde olmazsa `reboot -f`.
+    - Okuma menüsü üst ve alt çubuk oldu.
 - [ ] Uyku/uyanma, Wi-Fi'ın Nickel'a geri verilmesi ve düşük pil senaryolarını dene.
 - [ ] Masaüstünde belirlenen süre ve bellek hedeflerini cihazda yeniden ölç.
 - [ ] OCR'ı cihaz uygulamasına taşı; M5'teki ön değerlendirmeye göre arka planda, kesilebilir ve pil durumunu gözeten biçimde çalıştır.

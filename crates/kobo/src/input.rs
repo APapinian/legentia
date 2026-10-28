@@ -25,8 +25,10 @@ const KEY_POWER: u16 = 116;
 const KEY_PAGE_BACK: u16 = 193;
 const KEY_PAGE_FORWARD: u16 = 194;
 
-/// Dokunmatiğin ham aralıkları (Cobalt'ın Libra 2 ölçümü; cihazda doğrulanacak).
-/// Eksenler yer değiştirir: ekran x'i ham y'den, ekran y'si ham x'ten gelir.
+/// Dokunmatiğin ham aralıkları (Cobalt'ın Libra 2 ölçümü). Eksenler yer
+/// değiştirir: ekran x'i ham y'den, ekran y'si ham x'ten gelir. Ekran ters
+/// dikeyse (framebuffer dönüşü 3; cihazda görüldü) iki eksen de aynalanır ve
+/// sayfa tuşlarının yeri değişir.
 const RAW_X_MAX: i64 = 1680;
 const RAW_Y_MAX: i64 = 1264;
 
@@ -60,16 +62,27 @@ pub fn parse(buf: &[u8; EVENT_SIZE]) -> RawEvent {
     }
 }
 
-/// Ham dokunma konumunu ekran pikseline çevirir (eksen değişimi, yuvarlama).
-pub fn to_screen(raw_x: i32, raw_y: i32) -> (u32, u32) {
+/// Framebuffer dönüşü 3: ters dikey.
+pub fn flipped(rotate: u32) -> bool {
+    rotate == 3
+}
+
+/// Ham dokunma konumunu ekran pikseline çevirir (eksen değişimi, yuvarlama,
+/// ters dikeyde ayna).
+pub fn to_screen(raw_x: i32, raw_y: i32, flipped: bool) -> (u32, u32) {
     let scale = |v: i32, max: i64, pixels: u32| {
         let v = (v as i64).clamp(0, max);
         ((v * (pixels as i64 - 1) + max / 2) / max) as u32
     };
-    (
+    let (x, y) = (
         scale(raw_y, RAW_Y_MAX, LIBRA2_WIDTH),
         scale(raw_x, RAW_X_MAX, LIBRA2_HEIGHT),
-    )
+    );
+    if flipped {
+        (LIBRA2_WIDTH - 1 - x, LIBRA2_HEIGHT - 1 - y)
+    } else {
+        (x, y)
+    }
 }
 
 /// Tek parmak izleyen dokunma durumu; yalnızca ilk temas (yuva 0) kullanılır.
@@ -77,6 +90,7 @@ pub fn to_screen(raw_x: i32, raw_y: i32) -> (u32, u32) {
 /// bildirimleri anlar.
 #[derive(Debug, Default)]
 pub struct Touch {
+    pub flipped: bool,
     slot: i32,
     down: bool,
     was_down: bool,
@@ -100,7 +114,7 @@ impl Touch {
     }
 
     fn report(&mut self) -> Option<Input> {
-        let (x, y) = to_screen(self.raw.0, self.raw.1);
+        let (x, y) = to_screen(self.raw.0, self.raw.1, self.flipped);
         let phase = match (self.was_down, self.down) {
             (false, true) => TouchPhase::Down,
             (true, true) if self.sent != Some((x, y)) => TouchPhase::Move,
@@ -113,14 +127,20 @@ impl Touch {
     }
 }
 
-/// Basılan tuşun komutu (tekrar ve bırakma yok sayılır).
-pub fn key(e: RawEvent) -> Option<Input> {
+/// Basılan tuşun komutu (tekrar ve bırakma yok sayılır). Ters dikeyde
+/// fiziksel üst tuş 194 olur; üstteki tuş her zaman geri.
+pub fn key(e: RawEvent, flipped: bool) -> Option<Input> {
     if e.kind != EV_KEY || e.value != 1 {
         return None;
     }
+    let (back, forward) = if flipped {
+        (KEY_PAGE_FORWARD, KEY_PAGE_BACK)
+    } else {
+        (KEY_PAGE_BACK, KEY_PAGE_FORWARD)
+    };
     match e.code {
-        KEY_PAGE_BACK => Some(Input::Page(PageKey::Back)),
-        KEY_PAGE_FORWARD => Some(Input::Page(PageKey::Forward)),
+        c if c == back => Some(Input::Page(PageKey::Back)),
+        c if c == forward => Some(Input::Page(PageKey::Forward)),
         KEY_POWER => Some(Input::Power),
         _ => None,
     }
@@ -128,7 +148,7 @@ pub fn key(e: RawEvent) -> Option<Input> {
 
 /// Bütün girdi aygıtlarını ayrı iş parçacıklarında okur; okunamayan aygıt
 /// günlüğe yazılıp atlanır. Açılan aygıt sayısını döner.
-pub fn spawn_readers(tx: &Sender<Input>) -> usize {
+pub fn spawn_readers(tx: &Sender<Input>, flipped: bool) -> usize {
     let mut count = 0;
     let Ok(entries) = std::fs::read_dir("/dev/input") else {
         log::error!("cannot list /dev/input");
@@ -158,11 +178,15 @@ pub fn spawn_readers(tx: &Sender<Input>) -> usize {
         log::info!("input {name}: {device} (touch: {touch})");
         let tx = tx.clone();
         std::thread::spawn(move || {
-            let mut state = Touch::default();
+            let mut state = Touch {
+                flipped,
+                ..Touch::default()
+            };
             let mut buf = [0u8; EVENT_SIZE];
             while file.read_exact(&mut buf).is_ok() {
                 let raw = parse(&buf);
-                let input = if touch { state.feed(raw) } else { None }.or_else(|| key(raw));
+                let input =
+                    if touch { state.feed(raw) } else { None }.or_else(|| key(raw, flipped));
                 if let Some(input) = input
                     && tx.send(input).is_err()
                 {
@@ -191,27 +215,51 @@ mod tests {
         buf[EVENT_SIZE - 6..EVENT_SIZE - 4].copy_from_slice(&KEY_PAGE_FORWARD.to_ne_bytes());
         buf[EVENT_SIZE - 4..].copy_from_slice(&1i32.to_ne_bytes());
         assert_eq!(parse(&buf), ev(EV_KEY, KEY_PAGE_FORWARD, 1));
-        assert_eq!(key(parse(&buf)), Some(Input::Page(PageKey::Forward)));
+        assert_eq!(key(parse(&buf), false), Some(Input::Page(PageKey::Forward)));
         assert_eq!(
-            key(ev(EV_KEY, KEY_PAGE_FORWARD, 2)),
+            key(ev(EV_KEY, KEY_PAGE_FORWARD, 2), false),
             None,
             "tekrar yok sayılır"
         );
-        assert_eq!(key(ev(EV_KEY, KEY_POWER, 1)), Some(Input::Power));
+        assert_eq!(key(ev(EV_KEY, KEY_POWER, 1), false), Some(Input::Power));
     }
 
     #[test]
     fn axes_are_swapped_and_scaled() {
-        assert_eq!(to_screen(0, 0), (0, 0));
-        assert_eq!(to_screen(1680, 1264), (LIBRA2_WIDTH - 1, LIBRA2_HEIGHT - 1));
-        // Ham x ekranın dikeyi, ham y yatayı.
-        assert_eq!(to_screen(840, 0), (0, 840));
-        assert_eq!(to_screen(0, 632), (632, 0));
+        assert_eq!(to_screen(0, 0, false), (0, 0));
         assert_eq!(
-            to_screen(-5, 99_999),
+            to_screen(1680, 1264, false),
+            (LIBRA2_WIDTH - 1, LIBRA2_HEIGHT - 1)
+        );
+        // Ham x ekranın dikeyi, ham y yatayı.
+        assert_eq!(to_screen(840, 0, false), (0, 840));
+        assert_eq!(to_screen(0, 632, false), (632, 0));
+        assert_eq!(
+            to_screen(-5, 99_999, false),
             (LIBRA2_WIDTH - 1, 0),
             "aralık dışı kırpılır"
         );
+    }
+
+    #[test]
+    fn upside_down_screen_mirrors_touches_and_swaps_page_keys() {
+        assert!(flipped(3) && !flipped(1));
+        assert_eq!(to_screen(0, 0, true), (LIBRA2_WIDTH - 1, LIBRA2_HEIGHT - 1));
+        assert_eq!(to_screen(1680, 1264, true), (0, 0));
+        let (x, y) = to_screen(840, 300, false);
+        assert_eq!(
+            to_screen(840, 300, true),
+            (LIBRA2_WIDTH - 1 - x, LIBRA2_HEIGHT - 1 - y)
+        );
+        assert_eq!(
+            key(ev(EV_KEY, KEY_PAGE_BACK, 1), true),
+            Some(Input::Page(PageKey::Forward))
+        );
+        assert_eq!(
+            key(ev(EV_KEY, KEY_PAGE_FORWARD, 1), true),
+            Some(Input::Page(PageKey::Back))
+        );
+        assert_eq!(key(ev(EV_KEY, KEY_POWER, 1), true), Some(Input::Power));
     }
 
     #[test]
@@ -235,8 +283,8 @@ mod tests {
         ] {
             out.extend(t.feed(e));
         }
-        let (x, y1) = to_screen(100, 200);
-        let (_, y2) = to_screen(300, 200);
+        let (x, y1) = to_screen(100, 200, false);
+        let (_, y2) = to_screen(300, 200, false);
         assert_eq!(
             out,
             [

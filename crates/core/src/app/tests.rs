@@ -265,8 +265,16 @@ fn night_mode_inverts_the_screen() {
 fn menu_closes_on_outside_tap_and_returns_to_library() {
     let (mut app, _, _) = reading_long_book();
     middle(&mut app);
-    tap(&mut app, (W / 2, LIBRA2_HEIGHT - 200));
-    assert!(matches!(app.view, View::Reading));
+    tap(&mut app, (W / 2, 5));
+    assert!(
+        matches!(app.view, View::Menu),
+        "çubuktaki boş yer menüyü kapatmaz"
+    );
+    tap(&mut app, (W / 2, LIBRA2_HEIGHT / 2 + 300));
+    assert!(
+        matches!(app.view, View::Reading),
+        "sayfaya dokunmak kapatır"
+    );
     menu(&mut app, MenuItem::Library);
     assert!(matches!(app.view, View::Library { .. }));
     assert!(app.session.is_none());
