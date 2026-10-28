@@ -327,6 +327,13 @@ impl Session {
         Some(self.state.annotations.len() - 1)
     }
 
+    /// Vurgunun notunu değiştirir; `None` notu kaldırır (vurgu kalır).
+    pub fn set_note(&mut self, index: usize, note: Option<String>) {
+        if let Some(a) = self.state.annotations.get_mut(index) {
+            a.note = note;
+        }
+    }
+
     pub fn remove_annotation(&mut self, index: usize) {
         if index < self.state.annotations.len() {
             self.state.annotations.remove(index);

@@ -5,6 +5,8 @@
 //! PDF'ler aynı ekranlarla okunur; sayfa görüntüsü çizilip önbellekte tutulur.
 
 mod annotations;
+mod keyboard;
+mod note;
 mod pdf_view;
 mod screens;
 mod select;
@@ -63,6 +65,12 @@ enum View {
     /// Vurguya dokunuldu (`state.annotations` sırası); işlem çubuğu açık.
     Annotation {
         index: usize,
+    },
+    /// Vurgunun notu yazılıyor.
+    Note {
+        index: usize,
+        draft: String,
+        keyboard: keyboard::Keyboard,
     },
 }
 
@@ -235,6 +243,14 @@ impl App {
             }
             View::Selected => self.handle_selected(event),
             View::Annotation { index } => self.handle_annotation(*index, event),
+            View::Note {
+                index,
+                draft,
+                keyboard,
+            } => {
+                let (index, draft, keyboard) = (*index, draft.clone(), keyboard.clone());
+                self.handle_note(index, draft, keyboard, event)
+            }
         }
     }
 
@@ -379,6 +395,11 @@ impl App {
                 self.draw_reading(canvas);
                 self.draw_actions(canvas);
             }
+            View::Note {
+                index,
+                draft,
+                keyboard,
+            } => self.draw_note(canvas, *index, draft, keyboard),
         }
         if self.settings.night {
             canvas.invert();

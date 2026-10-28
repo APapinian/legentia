@@ -22,6 +22,8 @@ const ACTION_GAP: i32 = 20;
 pub(super) const HIGHLIGHT_GRAY: u8 = 215;
 /// Seçimin zemini; vurgudan koyu, ayırt edilsin.
 pub(super) const SELECTION_GRAY: u8 = 170;
+/// Notlu vurgunun sonundaki işaretin kenarı (piksel).
+const NOTE_MARK: u32 = 14;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) struct Selection {
@@ -193,6 +195,8 @@ fn box_areas(text: &PageText, start: Position, end: Position) -> Vec<Area> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum Action {
     Highlight,
+    /// Not ekranını açar; seçimdeyse önce vurgular.
+    Note,
     Remove,
     Cancel,
 }
@@ -241,17 +245,23 @@ impl App {
         let Some(s) = self.session.as_ref() else {
             return;
         };
+        let noted = |i: usize| s.state.annotations.get(i).is_some_and(|a| a.note.is_some());
         let marks = s
             .placed
             .iter()
-            .map(|(_, a, b)| (*a, *b, HIGHLIGHT_GRAY))
+            .map(|(i, a, b)| (*a, *b, HIGHLIGHT_GRAY, noted(*i)))
             .chain(
                 self.selection
-                    .map(|sel| (sel.start, sel.end, SELECTION_GRAY)),
+                    .map(|sel| (sel.start, sel.end, SELECTION_GRAY, false)),
             );
-        for (a, b, gray) in marks {
-            for r in self.range_rects(a, b) {
+        for (a, b, gray, note) in marks {
+            let rects = self.range_rects(a, b);
+            for r in &rects {
                 canvas.darken_rect(r.x, r.y, r.w.max(0) as u32, r.h.max(0) as u32, gray);
+            }
+            // Notlu vurgunun sonunda küçük siyah işaret.
+            if note && let Some(r) = rects.last() {
+                canvas.fill_rect(r.x + r.w, r.y, NOTE_MARK, NOTE_MARK, 0);
             }
         }
     }
@@ -294,8 +304,8 @@ impl App {
 
     fn actions(&self) -> &'static [Action] {
         match self.view {
-            View::Selected => &[Action::Highlight, Action::Cancel],
-            View::Annotation { .. } => &[Action::Remove, Action::Cancel],
+            View::Selected => &[Action::Highlight, Action::Note, Action::Cancel],
+            View::Annotation { .. } => &[Action::Note, Action::Remove, Action::Cancel],
             _ => &[],
         }
     }
@@ -349,33 +359,64 @@ impl App {
         if let Event::Hold { x, y } = event {
             return self.start_selection(x, y);
         }
-        if self.tapped_action(event) == Some(Action::Highlight)
-            && let (Some(sel), Some(s)) = (self.selection, self.session.as_mut())
-        {
-            s.add_annotation(sel.start, sel.end);
-            self.save_progress();
-        }
+        let action = self.tapped_action(event);
+        let added = match (action, self.selection, self.session.as_mut()) {
+            (Some(Action::Highlight | Action::Note), Some(sel), Some(s)) => {
+                s.add_annotation(sel.start, sel.end)
+            }
+            _ => None,
+        };
         // Başka her dokunma ya da tuş seçimi bırakır.
         self.selection = None;
+        if let Some(index) = added {
+            self.save_progress();
+            if action == Some(Action::Note) {
+                return self.open_note(index);
+            }
+        }
         self.view = View::Reading;
         Some(self.refresh(false))
     }
 
     pub(super) fn handle_annotation(&mut self, index: usize, event: Event) -> Option<Refresh> {
-        if self.tapped_action(event) == Some(Action::Remove)
-            && let Some(s) = self.session.as_mut()
-        {
-            s.remove_annotation(index);
-            self.save_progress();
+        match self.tapped_action(event) {
+            Some(Action::Note) => return self.open_note(index),
+            Some(Action::Remove) => {
+                if let Some(s) = self.session.as_mut() {
+                    s.remove_annotation(index);
+                }
+                self.save_progress();
+            }
+            _ => {}
         }
         self.view = View::Reading;
         Some(self.refresh(false))
     }
 
+    /// Dokunulan vurgunun notu.
+    fn opened_note(&self) -> Option<&str> {
+        let View::Annotation { index } = self.view else {
+            return None;
+        };
+        self.session
+            .as_ref()?
+            .state
+            .annotations
+            .get(index)?
+            .note
+            .as_deref()
+    }
+
     pub(super) fn draw_actions(&self, canvas: &mut Canvas) {
+        let note = self.opened_note();
+        if let Some(note) = note {
+            self.draw_note_panel(canvas, note);
+        }
         for (i, action) in self.actions().iter().enumerate() {
             let label = match action {
                 Action::Highlight => Msg::Highlight,
+                Action::Note if note.is_some() => Msg::EditNote,
+                Action::Note => Msg::AddNote,
                 Action::Remove => Msg::RemoveHighlight,
                 Action::Cancel => Msg::Cancel,
             };

@@ -13,6 +13,16 @@ pub fn turkish_lower(c: char) -> char {
     }
 }
 
+/// Türkçe büyük harf: `i` → `İ`, `ı` → `I`. Bazı harfler birden çok harfe
+/// dönüşebildiği için (ß → SS) dizgi döner.
+pub fn turkish_upper(c: char) -> String {
+    match c {
+        'i' => "İ".into(),
+        'ı' => "I".into(),
+        _ => c.to_uppercase().collect(),
+    }
+}
+
 /// Sıralama anahtarı: boşluklar önce, sonra rakamlar, sonra Türk alfabesi,
 /// en sonda diğer karakterler. Noktalama yok sayılır.
 pub fn sort_key(s: &str) -> Vec<u32> {

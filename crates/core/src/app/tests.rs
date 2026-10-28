@@ -605,7 +605,7 @@ fn hold_drag_and_highlight_then_remove_it() {
     tap(&mut app, (x, y));
     assert!(matches!(app.view, View::Annotation { index: 0 }));
     assert_eq!(session(&app).page, 0);
-    let at = app.action_rect(0).center(); // Vurguyu sil
+    let at = app.action_rect(1).center(); // Vurguyu sil
     tap(&mut app, at);
     assert!(session(&app).state.annotations.is_empty());
     assert!(matches!(app.view, View::Reading));
@@ -675,6 +675,79 @@ fn pdf_image_highlights_are_shared_with_reflow() {
     let s = session(&app);
     let (_, a, b) = s.placed[0];
     assert_eq!(&s.blocks[a.block].text[a.offset..b.offset], "Birinci");
+}
+
+/// Not ekranında klavye tuşuna dokunur.
+fn press_key(app: &mut App, key: keyboard::Key) {
+    let View::Note { keyboard, .. } = &app.view else {
+        panic!("not ekranı açık değil");
+    };
+    let r = keyboard
+        .keys(W)
+        .into_iter()
+        .find(|(k, _)| *k == key)
+        .map(|(_, r)| r)
+        .expect("tuş klavyede olmalı");
+    tap(app, r.center());
+}
+
+#[test]
+fn notes_are_typed_saved_shown_and_cleared() {
+    use keyboard::Key::*;
+    let (mut app, data, root) = setup(&[("uzun.epub", long_book())]);
+    tap_row(&mut app, &LIBRARY, 0);
+    tap_row(&mut app, &CONTENTS, 0);
+    let (x, y) = glyph_point(&app, 1, 6);
+    app.handle(Event::Hold { x, y });
+    app.handle(Event::HoldEnd { x, y });
+    let at = app.action_rect(1).center(); // Not ekle
+    tap(&mut app, at);
+    assert!(matches!(app.view, View::Note { .. }));
+    assert_eq!(
+        session(&app).state.annotations.len(),
+        1,
+        "not eklemek vurgular"
+    );
+    for k in [
+        Shift,
+        Char('i'),
+        Char('ş'),
+        Space,
+        Char('ı'),
+        Char('k'),
+        Backspace,
+    ] {
+        press_key(&mut app, k);
+    }
+    let mut c = Canvas::new(W, LIBRA2_HEIGHT);
+    app.draw(&mut c);
+    let at = app.note_buttons().1.center(); // Kaydet
+    tap(&mut app, at);
+    assert!(matches!(app.view, View::Reading));
+    assert_eq!(
+        session(&app).state.annotations[0].note.as_deref(),
+        Some("İş ı")
+    );
+    app.shutdown();
+
+    let mut app = restart(&data, &root);
+    tap_row(&mut app, &LIBRARY, 0);
+    tap(&mut app, (x, y));
+    assert!(matches!(app.view, View::Annotation { index: 0 }));
+    app.draw(&mut c);
+    let at = app.action_rect(0).center(); // Notu düzenle
+    tap(&mut app, at);
+    let View::Note { draft, .. } = &app.view else {
+        panic!("not ekranı açılmalı");
+    };
+    assert_eq!(draft, "İş ı");
+    for _ in 0..4 {
+        press_key(&mut app, Backspace);
+    }
+    let at = app.note_buttons().1.center();
+    tap(&mut app, at);
+    let a = &session(&app).state.annotations[0];
+    assert_eq!(a.note, None, "boş not kaldırılır, vurgu kalır");
 }
 
 #[test]
