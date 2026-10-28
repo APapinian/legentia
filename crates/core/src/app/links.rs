@@ -46,14 +46,14 @@ impl App {
         if s.pdf().is_some() {
             return None;
         }
-        let page = s.pages.get(s.page)?;
+        let (page, left) = s.column_at(self.settings.margin, self.width, x)?;
         let y = y as i32;
-        let line = page
+        let line = s.pages[page]
             .lines
             .iter()
             .find(|l| y >= l.top && y < l.top + l.height)?;
         let block = s.blocks.get(line.block)?;
-        let rel = x as f32 - self.settings.margin as f32;
+        let rel = x as f32 - left as f32;
         block.links.iter().find_map(|link| {
             let glyphs = line
                 .line

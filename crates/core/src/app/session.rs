@@ -113,6 +113,9 @@ pub(super) struct Session {
     pub images: super::images::ImageCache,
     /// Bölümün dizildiği ekran boyutu (yön değişince yeniden dizilir).
     pub laid_out: (u32, u32),
+    /// Ekranda yan yana sütun sayısı: yatayda iki sütun açıksa 2 (her
+    /// sayfa bir sütundur, `page` hep sütun sayısının katıdır), değilse 1.
+    pub columns: usize,
 }
 
 impl Session {
@@ -133,6 +136,7 @@ impl Session {
             pdf_text: None,
             images: Default::default(),
             laid_out: (0, 0),
+            columns: 1,
         }
     }
 
@@ -229,6 +233,7 @@ impl Session {
             )),
             _ => None,
         };
+        let mut columns = 1;
         let pages = match &image {
             // Sayfa görüntüsünün ekranları; konum, ekranın okuma sırasındaki yeri (binde).
             // Bölünemeyen sayfa tek ekran kalır, çizilirken hata gösterilir.
@@ -249,9 +254,18 @@ impl Session {
                     screen: Some(*screen),
                 })
                 .collect(),
-            None => paginate(text, settings, self.language(), size, &blocks),
+            None => {
+                columns = text_columns(settings, size);
+                paginate(
+                    text,
+                    settings,
+                    self.language(),
+                    column_size(settings, size, columns),
+                    &blocks,
+                )
+            }
         };
-        self.page = match target {
+        let page = match target {
             Target::Start => 0,
             Target::End => pages.len() - 1,
             // Yeniden akıtılmış metindeki konumun (blok > 0) görüntüde karşılığı yok.
@@ -262,6 +276,8 @@ impl Session {
                 .position(|b| b.anchors.contains(&id))
                 .map_or(0, |block| page_of(&pages, Position { block, offset: 0 })),
         };
+        self.page = page / columns * columns;
+        self.columns = columns;
         self.spine = spine;
         self.blocks = blocks;
         self.pages = pages;
@@ -283,9 +299,43 @@ impl Session {
             let _ = self.load_chapter(text, settings, size, spine, Target::At(at));
             return;
         }
-        self.pages = paginate(text, settings, self.language(), size, &self.blocks);
+        self.columns = text_columns(settings, size);
+        let column = column_size(settings, size, self.columns);
+        self.pages = paginate(text, settings, self.language(), column, &self.blocks);
         self.laid_out = size;
-        self.page = page_of(&self.pages, at);
+        self.page = page_of(&self.pages, at) / self.columns * self.columns;
+    }
+
+    /// Ekranda görünen sayfalar (sütunlar) ve metin kenarlarının x konumu.
+    pub fn visible(&self, margin: i32, width: u32) -> Vec<(usize, i32)> {
+        (0..self.columns)
+            .map(|c| {
+                (
+                    self.page + c,
+                    margin + c as i32 * column_shift(margin, width),
+                )
+            })
+            .filter(|(p, _)| *p < self.pages.len())
+            .collect()
+    }
+
+    /// Bir sütunun metin genişliği.
+    pub fn text_width(&self, margin: i32, width: u32) -> i32 {
+        if self.columns > 1 {
+            column_shift(margin, width) - margin
+        } else {
+            width as i32 - 2 * margin
+        }
+    }
+
+    /// Ekrandaki `x` noktasının sütunu: (sayfa sırası, metin kenarının x konumu).
+    pub fn column_at(&self, margin: i32, width: u32, x: u32) -> Option<(usize, i32)> {
+        let c = if self.columns > 1 && x >= width / 2 {
+            1
+        } else {
+            0
+        };
+        self.visible(margin, width).get(c).copied()
     }
 
     pub fn position(&self) -> Position {
@@ -464,6 +514,30 @@ pub(super) fn ocr_layer(pdf: &PdfDoc, cache: Option<&Store>, page: usize) -> Opt
 }
 
 /// Blokları sayfalara dizer. Her zaman en az bir (belki boş) sayfa döner.
+/// Yatayda iki sütun mu? (PDF sayfa görüntüsü burada dizilmez.)
+fn text_columns(settings: &Settings, size: (u32, u32)) -> usize {
+    if size.0 > size.1 && settings.two_columns {
+        2
+    } else {
+        1
+    }
+}
+
+/// Sütunun dizildiği boyut: iki sütunda iki metin sütunu, dış kenarlar ve
+/// aradaki boşluk kenar boşluğu kadar (2·sütun + 3·kenar = genişlik).
+fn column_size(settings: &Settings, size: (u32, u32), columns: usize) -> (u32, u32) {
+    if columns == 1 {
+        size
+    } else {
+        ((size.0 + settings.margin as u32) / 2, size.1)
+    }
+}
+
+/// İkinci sütunun metin kenarının birinciye uzaklığı.
+fn column_shift(margin: i32, width: u32) -> i32 {
+    (width as i32 - margin) / 2
+}
+
 pub(super) fn paginate(
     text: &Text,
     s: &Settings,

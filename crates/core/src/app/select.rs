@@ -204,12 +204,13 @@ pub(super) enum Action {
 
 impl App {
     /// Ekrandaki noktanın altındaki kelime (okunan bölümün metin bloklarında).
-    fn word_at(&self, x: u32, y: u32) -> Option<(Position, Position)> {
+    pub(super) fn word_at(&self, x: u32, y: u32) -> Option<(Position, Position)> {
         let s = self.session.as_ref()?;
-        let page = s.pages.get(s.page)?;
         if !s.showing_pdf_image() {
-            return word_at(page, &s.blocks, self.settings.margin, x, y);
+            let (page, left) = s.column_at(self.settings.margin, self.width, x)?;
+            return word_at(&s.pages[page], &s.blocks, left, x, y);
         }
+        let page = s.pages.get(s.page)?;
         let (text, screen) = (s.pdf_text.as_ref()?, page.screen?);
         let (px, py) = pdf_view::to_page(&screen, (self.width, self.height), x, y);
         let (block, offset) = char_at(text, px, py)?;
@@ -222,16 +223,21 @@ impl App {
         let Some(s) = self.session.as_ref() else {
             return Vec::new();
         };
+        if !s.showing_pdf_image() {
+            return s
+                .visible(self.settings.margin, self.width)
+                .into_iter()
+                .flat_map(|(page, left)| {
+                    s.pages[page]
+                        .lines
+                        .iter()
+                        .filter_map(move |l| line_rect(l, left, start, end))
+                })
+                .collect();
+        }
         let Some(page) = s.pages.get(s.page) else {
             return Vec::new();
         };
-        if !s.showing_pdf_image() {
-            return page
-                .lines
-                .iter()
-                .filter_map(|l| line_rect(l, self.settings.margin, start, end))
-                .collect();
-        }
         match (s.pdf_text.as_ref(), page.screen) {
             (Some(text), Some(screen)) => box_areas(text, start, end)
                 .into_iter()

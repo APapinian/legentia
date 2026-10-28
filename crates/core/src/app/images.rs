@@ -58,12 +58,13 @@ impl Session {
 }
 
 impl App {
-    /// Sayfadaki görsel satırını yatayda ortalayarak çizer.
+    /// Sayfadaki görsel satırını sütununda (metin kenarı `left`) yatayda ortalayarak çizer.
     pub(super) fn draw_book_image(
         &self,
         canvas: &mut Canvas,
         s: &Session,
         placed: &PlacedLine,
+        left: i32,
     ) -> bool {
         let Some(img) = s.blocks.get(placed.block).and_then(|b| b.image.as_ref()) else {
             return false;
@@ -71,7 +72,8 @@ impl App {
         let h = placed.height.max(1) as u32;
         let w = ((img.width as f32 * h as f32 / img.height as f32).round() as u32).max(1);
         if let Some(pixels) = s.image_pixels(img, w, h) {
-            let x = (self.width as i32 - w as i32) / 2;
+            let text_w = s.text_width(self.settings.margin, self.width);
+            let x = left + (text_w - w as i32) / 2;
             canvas.blit(&pixels, w, h, x, placed.top);
         }
         true
@@ -80,9 +82,10 @@ impl App {
     /// Okunan sayfada dokunulan görselin bloğu.
     pub(super) fn image_at(&self, x: u32, y: u32) -> Option<usize> {
         let s = self.session.as_ref()?;
-        let page = s.pages.get(s.page)?;
+        let (page, _) = s.column_at(self.settings.margin, self.width, x)?;
         let y = y as i32;
-        page.lines
+        s.pages[page]
+            .lines
             .iter()
             .find(|l| {
                 y >= l.top

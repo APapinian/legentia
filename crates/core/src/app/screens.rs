@@ -379,10 +379,12 @@ impl App {
         let s = self.session.as_mut()?;
         // EPUB'da bölüm değişimi tam yenilenir; PDF'te her sayfa bir bölüm olduğundan normal sayaç.
         let full = s.pdf().is_none();
-        if forward && s.page + 1 < s.pages.len() {
-            s.page += 1;
-        } else if !forward && s.page > 0 {
-            s.page -= 1;
+        // İki sütunda iki sütun birden çevrilir.
+        let step = s.columns;
+        if forward && s.page + step < s.pages.len() {
+            s.page += step;
+        } else if !forward && s.page >= step {
+            s.page -= step;
         } else if forward && s.spine + 1 < s.chapter_count() {
             let next = s.spine + 1;
             self.open_chapter(next, Target::Start);
@@ -446,9 +448,11 @@ impl App {
             self.draw_results_button(canvas);
             return;
         }
-        for placed in &page.lines {
-            if !self.draw_book_image(canvas, s, placed) {
-                t.draw_line(canvas, &placed.line, self.settings.margin, placed.baseline);
+        for (index, left) in s.visible(self.settings.margin, self.width) {
+            for placed in &s.pages[index].lines {
+                if !self.draw_book_image(canvas, s, placed, left) {
+                    t.draw_line(canvas, &placed.line, left, placed.baseline);
+                }
             }
         }
         self.paint_marks(canvas);

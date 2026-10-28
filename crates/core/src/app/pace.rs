@@ -88,7 +88,9 @@ impl App {
         if s.showing_pdf_image() {
             self.pace.record_screen(secs);
         } else {
-            self.pace.record_text(s.page_chars(s.page), secs);
+            // Yatayda iki sütun birlikte okunur.
+            let chars = (s.page..s.page + s.columns).map(|p| s.page_chars(p)).sum();
+            self.pace.record_text(chars, secs);
         }
         self.pace_dirty = true;
     }

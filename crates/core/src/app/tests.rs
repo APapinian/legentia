@@ -2371,6 +2371,7 @@ fn reading_turns_landscape_but_other_screens_stay_portrait() {
 
     let mut wide = app.settings.clone();
     wide.orientation = Orientation::Landscape;
+    wide.two_columns = false; // tek geniş sütun (iki sütun ayrı testte)
     app.apply_settings(wide);
     assert!(app.fit_orientation(), "ekran döndü");
     let (w, h) = app.screen_size();
@@ -2438,4 +2439,57 @@ fn reading_turns_landscape_but_other_screens_stay_portrait() {
     );
     menu(&mut app, MenuItem::Library);
     assert_eq!(app.screen_size(), (W, LIBRA2_HEIGHT), "kütüphane dikey");
+}
+
+#[test]
+fn landscape_epub_reads_in_two_columns() {
+    let (mut app, _, _) = reading_long_book();
+    for _ in 0..3 {
+        key(&mut app, true);
+    }
+    let before = session(&app).position();
+    app.handle(Event::Tilt { landscape: true });
+    let (w, h) = app.screen_size();
+    let s = session(&app);
+    assert_eq!(s.columns, 2);
+    assert_eq!(s.page % 2, 0, "sayfa iki sütunun ilki");
+    assert!(s.pages[s.page].start <= before && before < s.pages[s.page + 2].start);
+    let column_w = (w as i32 - 3 * app.settings.margin) / 2;
+    let widest = s
+        .pages
+        .iter()
+        .flat_map(|p| &p.lines)
+        .filter_map(|l| l.line.glyphs.last().map(|(g, gx)| gx + g.advance))
+        .fold(0.0f32, f32::max);
+    assert!(
+        widest <= column_w as f32 + 1.0,
+        "satırlar sütuna sığar: {widest}"
+    );
+
+    // Sağ sütun çizilir ve dokunulabilir.
+    let mut c = Canvas::new(w, h);
+    app.draw(&mut c);
+    let right_ink = (0..h)
+        .flat_map(|y| (w / 2 + 40..w - 40).map(move |x| (x, y)))
+        .filter(|&(x, y)| c.pixels()[(y * w + x) as usize] < 128)
+        .count();
+    assert!(right_ink > 1000, "sağ sütunda metin: {right_ink}");
+    let s = session(&app);
+    let right = &s.pages[s.page + 1].lines[0];
+    let y = (right.top + right.height / 2) as u32;
+    let word = app.word_at(w / 2 + 120, y).expect("sağ sütunda kelime");
+    assert_eq!(word.0.block, right.block);
+
+    // Çevirme iki sütun atlar.
+    let page = session(&app).page;
+    key(&mut app, true);
+    assert_eq!(session(&app).page, page + 2);
+    key(&mut app, false);
+    assert_eq!(session(&app).page, page);
+
+    // Tek sütun ayarı.
+    let mut one = app.settings.clone();
+    one.two_columns = false;
+    app.apply_settings(one);
+    assert_eq!(session(&app).columns, 1);
 }
