@@ -72,6 +72,34 @@ Akış şöyle: hayro ile çizim (200 dpi) → `ocr::deskew` (izdüşüm profili
 - OCR sonucu kitap başına önbelleğe yazılır (`ocr/<kimlik>/<sayfa>.json`); sayfa ikinci kez açıldığında Tesseract çalışmaz.
 - Şimdilik OCR sayfa açılırken çalışıyor ve arayüzü bekletiyor (masaüstünde ~1 sn). Cihazda arka planda çalışmalı (M10).
 
+## Cihazda OCR ön değerlendirmesi (M5)
+
+**Tarih:** 2026-10-28. Belge: KPSS 2020, s.4 (iki sütun, ~330 kelime). Tesseract 5.5.3, `tur`, `OMP_THREAD_LIMIT=1` (cihaz tek çekirdekli). Her değer üç ölçümün ortancası; ilk (soğuk) çalıştırma sayılmadı.
+
+### Masaüstünde ölçülen (Ryzen 7 8840HS, tek iş parçacığı)
+
+| Çözünürlük | Görüntü | Tesseract süresi | Tesseract en yüksek bellek |
+|---|---|---|---|
+| 150 dpi | 1240×1801 | 1,58 sn | 80 MB |
+| 200 dpi (uygulamanın şu anki değeri) | 1654×2402 | 1,77 sn | 98 MB |
+| 300 dpi | 2480×3601 | 2,14 sn | 149 MB |
+
+Uygulama akışının geri kalanı (`ocr_check`, 2° eğik sayfa): hayro ile çizim 23 ms (150 dpi) / 43 ms (200 dpi), eğiklik bulma ve düzeltme 55 / 82 ms. Yani sürenin %95'inden fazlası Tesseract'ta. Karakter hatası 150 dpi'de %8,2, 200 dpi'de %7,5; fark okuma sırasından (sınav düzeni), iki çözünürlükte de harf tanıma hatası yok denecek kadar az.
+
+### Cihaz için tahmin (ölçülmedi)
+
+- **Süre:** Libra 2'nin işlemcisi tek çekirdekli Cortex-A9, ~1 GHz (Cobalt'ın bilgisi, bizim cihazda doğrulanmadı). Saat hızı ~5 kat, saat başına iş ~3–4 kat düşük; Tesseract'ın LSTM'i x86'da AVX2/FMA kullanırken A9'un NEON birimi dar. Bu yüzden 15–40 kat yavaşlama bekleniyor: **sayfa başına kabaca 25–70 saniye**. Bu bir tahmindir; M10'da cihazda ölçülecek.
+- **Bellek:** büyük ölçüde aktarılabilir. 150 dpi'de ~80 MB, 200 dpi'de ~100 MB; buna PDF çiziminin geçici tepesi (çoğu sayfada 20–40 MB, tam sayfa görüntülü taramada 150 MB'a kadar) eklenir. ~512 MB RAM'li cihazda tek sayfa sığar; iki sayfa aynı anda işlenmemeli.
+- **Pil:** 25–70 saniye tam yük, sayfa başına okumadan çok daha pahalı. Tüm kitabı toplu OCR'lamak (ör. 300 sayfa → 2–6 saat) yalnızca şarjdayken mantıklı.
+
+### Sonuçlar ve M10 için kararlar
+
+1. **Cihazda 150 dpi.** Bu yazı boyutunda doğruluk aynı, bellek %20 daha az, süre %10 daha kısa. Küçük yazılı belgelerde 200 dpi'ye çıkılabilir (ayar ya da otomatik: x yüksekliğine göre).
+2. **OCR ayrı bir süreçte, arka planda.** Arayüz hiç beklememeli: sayfa önce görüntü olarak gösterilir, OCR bitince yeniden akıtılmış metne geçilir. Süreç öldürülerek iptal edilir; Tesseract zaten ayrı süreç olarak çalışıyor.
+3. **Önden okuma:** okunan sayfa bitince sonraki 1–2 sayfa sırayla OCR'lanır; sonuçlar mevcut önbelleğe (`ocr/<kimlik>/<sayfa>.json`) yazılır.
+4. **Toplu OCR ("Aranabilir PDF olarak kaydet")** yalnızca şarjdayken ya da pil belirli bir düzeyin üstündeyken, kesilip kaldığı yerden devam edebilecek biçimde.
+5. **Denenecek hızlandırma:** `tessdata_fast` modelleri (daha küçük LSTM; hız/doğruluk farkı Türkçe için ölçülmeli) ve Tesseract'ı ARMv7 musl için çapraz derleme (`nixpkgs` `pkgsCross`). Saf Rust OCR motoru seçeneği hâlâ açık; aynı ölçütlerle karşılaştırılacak.
+
 ## Eksikler
 
 - Gerçek bir taranmış kitap sayfasıyla (kâğıt dokusu, gölge, iki sütun, sayfa numarası, dipnot) henüz denenmedi. Kullanıcıdan örnek istenecek.

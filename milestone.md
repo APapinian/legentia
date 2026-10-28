@@ -180,13 +180,13 @@ Süreler cihaz performansı değildir; Libra 2'de kat kat yavaş olacak (M10'da 
 - [x] OCR'ı önce NixOS'ta deney amaçlı çalıştır (Türkçe dil paketiyle); doğruluk ve süreyi ölç. (`docs/ocr-deney.md`: `tur` ile temiz ve hafif bozuk görüntüde %0 hata; kötü taramada eğiklik düzeltmesi hatayı %31–69'dan %0'a indirdi)
 - [x] OCR metnini PDF'e görünmez, aranabilir metin katmanı olarak göm; orijinal dosyayı koru, yeni dosyayı ayrı yaz. (`pdf/write.rs`, lopdf; menüde "Aranabilir PDF olarak kaydet". 2° eğik görüntü PDF'inde pdftotext ile geri okuma: karakter hatası %4,75, Türkçe kelimeler %100. Kelimeler eğik yazılınca %16'ydı; satır başına yatay ortak taban çizgisine geçildi.)
 - [ ] Notları ve vurguları PDF'e standart PDF açıklamaları (annotation) olarak yaz; başka PDF okuyucularında da görünmeli. (Yazıcı hazır ve testli: Highlight + not + görünüm akışı. Arayüz M6'da.)
-- [ ] Cihazda OCR için ön değerlendirme: tek çekirdekli ARMv7 ve kısıtlı RAM'de sayfa başı süre ve bellek tahmini. Uygulama M10'da.
+- [x] Cihazda OCR için ön değerlendirme: tek çekirdekli ARMv7 ve kısıtlı RAM'de sayfa başı süre ve bellek tahmini. Uygulama M10'da. (`docs/ocr-deney.md`: masaüstünde tek iş parçacığıyla sayfa başı 1,6–1,8 sn, 80–100 MB; cihazda tahminen 25–70 sn. Karar: 150 dpi, ayrı süreçte arka planda, iptal edilebilir, önden okumalı; toplu OCR yalnızca şarjda.)
 
 ### Kabul ölçütleri
 - Metin PDF'i, taranmış PDF, çok sütunlu PDF ve büyük PDF test kümeleri var.
 - Yeniden akıtılmış metinde Türkçe karakterler ve paragraf sırası doğru.
-- OCR doğruluğu Türkçe örnek sayfalarda ölçülmüş. `[ölçülecek]`
-- Büyük PDF'lerde bellek ve sayfa render süresi ölçülmüş. `[ölçülecek]`
+- OCR doğruluğu Türkçe örnek sayfalarda ölçülmüş. (`docs/ocr-deney.md`: hukuk metni ve KPSS sayfaları; gerçek taranmış kitap sayfasıyla henüz denenmedi)
+- Büyük PDF'lerde bellek ve sayfa render süresi ölçülmüş. (aşağıdaki ara ölçümler: 7 PDF, 1528 sayfa)
 - PDF desteğinin sınırları belgelenmiş.
 - OCR katmanı gömülmüş PDF başka bir PDF okuyucusunda aranabiliyor ve seçilebiliyor.
 - PDF'e yazılan notlar ve vurgular başka bir PDF okuyucusunda görünüyor.
