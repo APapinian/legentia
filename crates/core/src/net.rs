@@ -106,22 +106,25 @@ impl Net {
         }
     }
 
+    /// GET isteği. Yetki bilgisi hemen gönderilmez: sunucu 401 ile yöntemini
+    /// bildirince (Digest ya da Basic) onunla yeniden denenir. Böylece Digest
+    /// isteyen sunucuya (ör. düz HTTP'deki Calibre) şifre açık gitmez.
     fn request(
         &self,
         url: &str,
         auth: Option<&Auth>,
     ) -> Result<ureq::http::Response<ureq::Body>, NetError> {
-        let mut req = self.agent.get(url);
-        if let Some(a) = auth {
-            req = req.header(
-                "Authorization",
-                format!(
-                    "Basic {}",
-                    base64(format!("{}:{}", a.user, a.password).as_bytes())
-                ),
-            );
+        let mut resp = self.agent.get(url).call()?;
+        if let (401, Some(a)) = (resp.status().as_u16(), auth) {
+            let challenges: Vec<String> = resp
+                .headers()
+                .get_all("www-authenticate")
+                .iter()
+                .filter_map(|v| v.to_str().ok().map(str::to_string))
+                .collect();
+            let header = authorization(&challenges, a, url)?;
+            resp = self.agent.get(url).header("Authorization", header).call()?;
         }
-        let resp = req.call()?;
         match resp.status().as_u16() {
             200..=299 => Ok(resp),
             401 | 403 => Err(NetError::Unauthorized),
@@ -203,6 +206,142 @@ pub fn partial_path(dest: &Path) -> PathBuf {
     PathBuf::from(format!("{}.{PARTIAL}", dest.display()))
 }
 
+/// Sunucunun istediği `Authorization` başlığı: MD5 Digest istendiyse o,
+/// yöntem bildirilmediyse ya da Basic istendiyse Basic.
+fn authorization(challenges: &[String], auth: &Auth, url: &str) -> Result<String, NetError> {
+    let digests: Vec<&str> = challenges
+        .iter()
+        .filter_map(|c| {
+            let (scheme, rest) = c.trim().split_once(' ')?;
+            scheme.eq_ignore_ascii_case("digest").then_some(rest)
+        })
+        .collect();
+    if digests.is_empty() {
+        let pair = format!("{}:{}", auth.user, auth.password);
+        return Ok(format!("Basic {}", base64(pair.as_bytes())));
+    }
+    digests
+        .iter()
+        .find_map(|d| digest(&params(d), auth, &request_target(url), &cnonce()))
+        .ok_or_else(|| NetError::Invalid(format!("unsupported digest challenge: {digests:?}")))
+}
+
+/// RFC 7616 Digest yanıtı (yalnızca MD5; `qop=auth` ya da eski biçim).
+fn digest(params: &[(String, String)], auth: &Auth, uri: &str, cnonce: &str) -> Option<String> {
+    let get = |k: &str| {
+        params
+            .iter()
+            .find(|(key, _)| key == k)
+            .map(|(_, v)| v.as_str())
+    };
+    let realm = get("realm")?;
+    let nonce = get("nonce")?;
+    if !get("algorithm").is_none_or(|a| a.eq_ignore_ascii_case("md5")) {
+        return None;
+    }
+    let qop = match get("qop") {
+        None => None,
+        Some(q) if q.split(',').any(|t| t.trim() == "auth") => Some("auth"),
+        Some(_) => return None, // yalnızca auth-int
+    };
+    let ha1 = md5_hex(&format!("{}:{realm}:{}", auth.user, auth.password));
+    let ha2 = md5_hex(&format!("GET:{uri}"));
+    let nc = "00000001";
+    let response = match qop {
+        Some(q) => md5_hex(&format!("{ha1}:{nonce}:{nc}:{cnonce}:{q}:{ha2}")),
+        None => md5_hex(&format!("{ha1}:{nonce}:{ha2}")),
+    };
+    let mut out = format!(
+        "Digest username={}, realm={}, nonce={}, uri={}, response={}, algorithm=MD5",
+        quote(&auth.user),
+        quote(realm),
+        quote(nonce),
+        quote(uri),
+        quote(&response)
+    );
+    if let Some(q) = qop {
+        out.push_str(&format!(", qop={q}, nc={nc}, cnonce={}", quote(cnonce)));
+    }
+    if let Some(opaque) = get("opaque") {
+        out.push_str(&format!(", opaque={}", quote(opaque)));
+    }
+    Some(out)
+}
+
+/// `anahtar=değer, anahtar="tırnaklı, değer"` listesi; anahtarlar küçük harfle.
+fn params(s: &str) -> Vec<(String, String)> {
+    let mut out = Vec::new();
+    let mut rest = s.trim();
+    while let Some(eq) = rest.find('=') {
+        let key = rest[..eq].trim().to_ascii_lowercase();
+        rest = rest[eq + 1..].trim_start();
+        let mut value = String::new();
+        if let Some(quoted) = rest.strip_prefix('"') {
+            let mut end = quoted.len();
+            let mut escaped = false;
+            for (i, c) in quoted.char_indices() {
+                match c {
+                    _ if escaped => {
+                        value.push(c);
+                        escaped = false;
+                    }
+                    '\\' => escaped = true,
+                    '"' => {
+                        end = i + 1;
+                        break;
+                    }
+                    _ => value.push(c),
+                }
+            }
+            rest = &quoted[end..];
+        } else {
+            let end = rest.find(',').unwrap_or(rest.len());
+            value = rest[..end].trim().to_string();
+            rest = &rest[end..];
+        }
+        rest = rest.trim_start().trim_start_matches(',').trim_start();
+        out.push((key, value));
+    }
+    out
+}
+
+fn quote(s: &str) -> String {
+    format!("\"{}\"", s.replace('\\', "\\\\").replace('"', "\\\""))
+}
+
+/// İstek satırındaki yol: `https://sunucu/a/b?c` → `/a/b?c`.
+fn request_target(url: &str) -> String {
+    let after_scheme = url.find("://").map_or(0, |i| i + 3);
+    let url = url.split('#').next().unwrap_or(url);
+    match url[after_scheme..].find(['/', '?']) {
+        Some(i) if url[after_scheme + i..].starts_with('?') => {
+            format!("/{}", &url[after_scheme + i..])
+        }
+        Some(i) => url[after_scheme + i..].to_string(),
+        None => "/".to_string(),
+    }
+}
+
+fn md5_hex(s: &str) -> String {
+    use md5::{Digest, Md5};
+    Md5::digest(s.as_bytes())
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect()
+}
+
+/// İstemci rastgele sayısı: saat, süreç ve sayaçtan türetilir (gizli olması
+/// gerekmez, yalnızca tekrarlanmamalı).
+fn cnonce() -> String {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static COUNTER: AtomicU64 = AtomicU64::new(0);
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_nanos());
+    let n = COUNTER.fetch_add(1, Ordering::Relaxed);
+    md5_hex(&format!("{nanos}:{}:{n}", std::process::id()))[..16].to_string()
+}
+
 fn base64(data: &[u8]) -> String {
     const T: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     let mut out = String::new();
@@ -230,6 +369,16 @@ pub(crate) mod testserver {
 
     /// Her istekte `respond(yol, başlıklar)` çağrılır: (durum, gövde). Adresi döner.
     pub fn serve(respond: impl Fn(&str, &str) -> (u16, Vec<u8>) + Send + 'static) -> String {
+        serve_with_headers(move |path, headers| {
+            let (status, body) = respond(path, headers);
+            (status, String::new(), body)
+        })
+    }
+
+    /// `serve` gibi; yanıta eklenecek başlık satırları da (`"Ad: değer\r\n"`) döner.
+    pub fn serve_with_headers(
+        respond: impl Fn(&str, &str) -> (u16, String, Vec<u8>) + Send + 'static,
+    ) -> String {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = listener.local_addr().unwrap();
         std::thread::spawn(move || {
@@ -248,11 +397,11 @@ pub(crate) mod testserver {
                     }
                     headers.push_str(&line);
                 }
-                let (status, body) = respond(&path, &headers);
+                let (status, extra, body) = respond(&path, &headers);
                 let mut s = stream;
                 let _ = write!(
                     s,
-                    "HTTP/1.1 {status} X\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                    "HTTP/1.1 {status} X\r\n{extra}Content-Length: {}\r\nConnection: close\r\n\r\n",
                     body.len()
                 );
                 let _ = s.write_all(&body);
@@ -278,6 +427,108 @@ mod tests {
         ] {
             assert_eq!(base64(plain.as_bytes()), enc);
         }
+    }
+
+    #[test]
+    fn digest_matches_rfc2617_example() {
+        let challenge = r#"Digest realm="testrealm@host.com", qop="auth,auth-int", nonce="dcd98b7102dd2f0e8b11d0f600bfb0c093", opaque="5ccc069c403ebaf9f0171e9517f40e41""#;
+        let (_, rest) = challenge.split_once(' ').unwrap();
+        let auth = Auth {
+            user: "Mufasa".into(),
+            password: "Circle Of Life".into(),
+        };
+        let header = digest(&params(rest), &auth, "/dir/index.html", "0a4f113b").unwrap();
+        assert!(
+            header.contains(r#"response="6629fae49393a05397450978507c4ef1""#),
+            "{header}"
+        );
+        assert!(header.contains("qop=auth, nc=00000001"));
+        assert!(header.contains(r#"opaque="5ccc069c403ebaf9f0171e9517f40e41""#));
+        // SHA-256 ya da yalnızca auth-int istenirse desteklenmez.
+        let sha = params(r#"realm="r", nonce="n", algorithm=SHA-256"#);
+        assert!(digest(&sha, &auth, "/", "c").is_none());
+        let int = params(r#"realm="r", nonce="n", qop="auth-int""#);
+        assert!(digest(&int, &auth, "/", "c").is_none());
+    }
+
+    #[test]
+    fn challenge_parsing_and_request_targets() {
+        assert_eq!(
+            params(r#"realm="a, \"b\"", nonce=xyz ,qop="auth""#),
+            [
+                ("realm".to_string(), r#"a, "b""#.to_string()),
+                ("nonce".to_string(), "xyz".to_string()),
+                ("qop".to_string(), "auth".to_string()),
+            ]
+        );
+        assert_eq!(
+            request_target("http://h:8080/opds/nav?x=1#y"),
+            "/opds/nav?x=1"
+        );
+        assert_eq!(request_target("http://h:8080"), "/");
+        assert_eq!(request_target("http://h?q=1"), "/?q=1");
+        assert_eq!(quote(r#"a"b\c"#), r#""a\"b\\c""#);
+    }
+
+    #[test]
+    fn digest_challenge_is_answered_and_password_never_sent_first() {
+        use std::sync::{Arc, Mutex};
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let log = seen.clone();
+        // Calibre'nin düz HTTP'deki davranışı: MD5 Digest, qop=auth.
+        let url = super::testserver::serve_with_headers(move |path, headers| {
+            let header = headers.lines().find_map(|l| {
+                let (name, value) = l.split_once(':')?;
+                name.eq_ignore_ascii_case("authorization")
+                    .then(|| value.trim().to_string())
+            });
+            log.lock().unwrap().push(header.clone());
+            let challenge = "WWW-Authenticate: Digest realm=\"calibre\", nonce=\"n1\", algorithm=\"MD5\", qop=\"auth\"\r\n".to_string();
+            let Some(h) = header else {
+                return (401, challenge, Vec::new());
+            };
+            let p = params(h.strip_prefix("Digest ").unwrap_or(""));
+            let get = |k: &str| {
+                p.iter()
+                    .find(|(key, _)| key == k)
+                    .map(|(_, v)| v.clone())
+                    .unwrap_or_default()
+            };
+            let ha1 = md5_hex("okur:calibre:gizli sifre");
+            let ha2 = md5_hex(&format!("GET:{}", get("uri")));
+            let expected = md5_hex(&format!(
+                "{ha1}:n1:{}:{}:auth:{ha2}",
+                get("nc"),
+                get("cnonce")
+            ));
+            if get("uri") == path && get("response") == expected {
+                (200, String::new(), b"katalog".to_vec())
+            } else {
+                (401, challenge, Vec::new())
+            }
+        });
+        let net = Net::default();
+        let auth = Auth {
+            user: "okur".into(),
+            password: "gizli sifre".into(),
+        };
+        let body = net
+            .get(&format!("{url}/opds?library_id=lib"), Some(&auth), 100)
+            .unwrap();
+        assert_eq!(body, b"katalog");
+        let seen = seen.lock().unwrap().clone();
+        assert_eq!(seen.len(), 2);
+        assert_eq!(seen[0], None, "şifre ilk istekte gönderilmez");
+        assert!(seen[1].as_deref().is_some_and(|h| h.starts_with("Digest ")));
+        // Yanlış şifre: Basic'e düşülmez, yetki hatası.
+        let wrong = Auth {
+            password: "yanlis".into(),
+            ..auth
+        };
+        assert!(matches!(
+            net.get(&format!("{url}/opds"), Some(&wrong), 100),
+            Err(NetError::Unauthorized)
+        ));
     }
 
     #[test]

@@ -163,10 +163,26 @@ fn fetch(net: &Net, catalog: &Catalog, request: Request) -> Loaded {
     Ok(FeedPage { feed, page: 0 })
 }
 
+/// Kısaltılmış adresi tamamlar: şema yoksa `http://`, yol yoksa Calibre'nin
+/// OPDS yolu `/opds` eklenir ("192.168.1.5:8080" → "http://192.168.1.5:8080/opds").
+fn complete_url(url: &str) -> String {
+    let url = if url.contains("://") {
+        url.to_string()
+    } else {
+        format!("http://{url}")
+    };
+    let host = url.find("://").map_or(0, |i| i + 3);
+    if url[host..].contains(['/', '?']) {
+        url
+    } else {
+        format!("{url}/opds")
+    }
+}
+
 /// Formdan girilen katalog; geçersizse nedeni.
 fn catalog_from(form: &Form, members_only: bool) -> Result<Catalog, Msg> {
     let value = |i: usize| form.fields[i].value.trim().to_string();
-    let (name, url, user) = (value(0), value(1), value(2));
+    let (name, url, user) = (value(0), complete_url(&value(1)), value(2));
     if name.is_empty() {
         return Err(Msg::NameRequired);
     }
@@ -295,10 +311,7 @@ impl App {
         password.secret = true;
         let fields = vec![
             Field::new(Msg::FieldName, c.as_ref().map_or("", |c| c.name.as_str())),
-            Field::new(
-                Msg::FieldUrl,
-                c.as_ref().map_or("https://", |c| c.url.as_str()),
-            ),
+            Field::new(Msg::FieldUrl, c.as_ref().map_or("", |c| c.url.as_str())),
             Field::new(
                 Msg::FieldUser,
                 auth.as_ref().map_or("", |a| a.user.as_str()),
@@ -646,6 +659,22 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn short_addresses_are_completed() {
+        for (typed, full) in [
+            ("192.168.1.5:8080", "http://192.168.1.5:8080/opds"),
+            ("kitap.ev/katalog", "http://kitap.ev/katalog"),
+            (
+                "https://www.gutenberg.org/ebooks.opds/",
+                "https://www.gutenberg.org/ebooks.opds/",
+            ),
+            ("https://ornek.org", "https://ornek.org/opds"),
+            ("ornek.org?x=1", "http://ornek.org?x=1"),
+        ] {
+            assert_eq!(complete_url(typed), full);
+        }
+    }
 
     #[test]
     fn credentials_stay_on_the_catalog_server() {

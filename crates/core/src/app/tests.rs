@@ -1411,7 +1411,7 @@ fn catalogs_are_added_validated_edited_and_deleted() {
     );
     open_catalogs(&mut app);
     tap(&mut app, super::ui::header_button(W, 170).center());
-    assert_eq!(form(&app).fields[1].value, "https://");
+    assert_eq!(form(&app).fields[1].value, "");
     form_button(&mut app, form::Button::Submit);
     assert_eq!(form(&app).error, Some(Msg::NameRequired));
     type_text(&mut app, "ev");
@@ -1431,7 +1431,10 @@ fn catalogs_are_added_validated_edited_and_deleted() {
     let mut app = restart(&data, &root);
     let added = app.browser.catalogs.last().unwrap().clone();
     assert_eq!(added.name, "ev");
-    assert_eq!(added.url, "https://kitap.ev:8080/opds");
+    assert_eq!(
+        added.url, "http://kitap.ev:8080/opds",
+        "kısaltma tamamlandı"
+    );
     assert_eq!(
         added.auth,
         Some(crate::net::Auth {

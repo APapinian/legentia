@@ -32,4 +32,6 @@ Yeni bir eksik bulununca bu dosyaya eklenir; giderilen madde silinir ve ne yapı
 - **İptal ve hemen yeniden indirme:** iptal edilen indirme bir sonraki veri parçasına kadar yarım dosyasını silmiyor. Aynı kitap hemen yeniden indirilirse iki iş aynı yarım dosyaya denk gelebilir (düşük olasılık, denenmedi). (M8)
 - **Notlu PDF kütüphanede ayrı kitap:** dışa aktarılan "- notlu.pdf" kütüphanede ayrı bir kitap olarak görünüyor. (M6)
 - **Değişen PDF yeni kitap sayılıyor:** PDF'in kimliği dosya adı + boyut olduğundan, değişen PDF'in konum ve notları eşleşmiyor. (M6)
+- **Digest yalnızca MD5:** SHA-256 Digest isteyen sunucuya bağlanılamaz ("Sunucunun yanıtı anlaşılamadı" mesajı çıkar). Calibre MD5 kullandığı için sorun değil. (M8)
+- **Yetkili isteklerde iki gidiş-dönüş:** şifre ilk istekte gönderilmediği için yetki isteyen katalogda her sayfa iki istekle açılıyor; sunucunun nonce'u yeniden kullanılmıyor. Cihazda yavaş hissettirirse bakılacak. (M8)
 - **Sağdan sola yazı yok:** bidi desteği henüz yok; altyapı buna uygun kuruldu. (M3)

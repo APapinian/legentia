@@ -916,6 +916,7 @@ dependencies = [
  "hayro",
  "log",
  "lopdf",
+ "md-5",
  "nix",
  "quick-xml",
  "ripemd",
