@@ -28,6 +28,6 @@ Bu belge, okuyucunun EPUB'ın neyini gösterdiğini ve neyini (henüz) gösterme
 | `<pre>` (önceden biçimlenmiş) | Boşluklar birleştirilir | Sonra |
 | Sağdan sola yazı (Arapça harfli Osmanlıca) | Soldan sağa dizilir (yanlış) | Mimari hazır (glifler kaynak konumu taşıyor); bidi M7 öncesi |
 | Dikey yazı, CJK satır kuralları | Desteklenmiyor | Japonca sözlük aşamasıyla |
-| Türkçe dışı heceleme | Türkçe olmayan kitaplarda heceleme kapalı; q/w/x içeren kelimeler bölünmez | Diğer diller için desen tabanlı heceleme sonra |
+| Türkçe dışı heceleme | İngilizce, Almanca, Fransızca, İspanyolca ve İtalyanca kitaplar TeX hyph-utf8 desenleriyle (Liang) hecelenir; diğer dillerde heceleme kapalı. Türkçe kitapta q/w/x içeren kelimeler bölünmez | Rusça (desen yalnızca LPPL) ve diğer diller sonra |
 | Satır sonu dengeleme (Knuth–Plass), dul/öksüz satır | Açgözlü satır doldurma; yalnızca başlık sayfa sonunda yalnız kalmaz | Sonra |
 | DRM'li kitaplar | Açılmaz (şifreli içerik bozuk görünür) | Desteklenmeyecek |

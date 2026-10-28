@@ -8,6 +8,7 @@
 mod fonts;
 mod hyphen;
 mod layout;
+mod liang;
 
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;

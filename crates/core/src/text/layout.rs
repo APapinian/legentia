@@ -4,7 +4,7 @@
 use unicode_linebreak::linebreaks;
 
 use super::fonts::{Family, Style};
-use super::{Glyph, Text, hyphen};
+use super::{Glyph, Text, hyphen, liang};
 
 /// Paragraf metninin `[start, end)` bayt aralığının biçimi.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -89,7 +89,14 @@ pub(crate) fn layout(
     };
 
     let breaks: Vec<usize> = linebreaks(text).map(|(i, _)| i).collect();
-    let hyphenate = style.hyphenate && style.lang.is_none_or(|l| l.starts_with("tr"));
+    // Türkçe (ya da dili bilinmeyen) kitap Türkçe kurallarıyla, desteklenen diğer
+    // diller TeX desenleriyle hecelenir; desteklenmeyen dilde heceleme yok.
+    let turkish = style.lang.is_none_or(|l| l.starts_with("tr"));
+    let patterns = style
+        .lang
+        .filter(|_| !turkish)
+        .and_then(liang::for_language);
+    let hyphenate = style.hyphenate && (turkish || patterns.is_some());
 
     let mut lines = Vec::new();
     let mut start = 0;
@@ -123,10 +130,12 @@ pub(crate) fn layout(
         let mut cut = None;
         if hyphenate {
             let word_end = trim(word_start, over);
-            for h in hyphen::turkish(&text[word_start..word_end])
-                .into_iter()
-                .rev()
-            {
+            let word = &text[word_start..word_end];
+            let points = match patterns {
+                Some(p) => p.hyphenate(word),
+                None => hyphen::turkish(word),
+            };
+            for h in points.into_iter().rev() {
                 let h = word_start + h;
                 if !is_cluster_start(h) {
                     continue;
@@ -365,6 +374,30 @@ mod tests {
                 assert_eq!(l.glyphs.last().unwrap().0.id, dash[0].id);
             }
         }
+    }
+
+    #[test]
+    fn other_languages_use_their_patterns_and_unknown_ones_are_not_hyphenated() {
+        let t = test_text();
+        let text = "Characteristically, international organizations communicate electronically.";
+        let split = |lang: &'static str| {
+            let style = ParaStyle {
+                lang: Some(lang),
+                ..para(Align::Left, true)
+            };
+            // Her kelime tek başına sığar (sığmayan kelime harf harf bölünürdü).
+            layout(&t, text, &plain(text), &style, 480.0)
+                .iter()
+                .filter(|l| l.end < text.len() && !text[..l.end].ends_with(' '))
+                .map(|l| l.end)
+                .collect::<Vec<_>>()
+        };
+        let english = split("en");
+        assert!(!english.is_empty(), "İngilizce desenlerle bölündü");
+        // Bölünmeler İngilizce desenlerin izin verdiği yerlerde.
+        let allowed = super::liang::for_language("en").unwrap().hyphenate(text);
+        assert!(english.iter().all(|e| allowed.contains(e)), "{english:?}");
+        assert!(split("ru").is_empty(), "desteklenmeyen dilde heceleme yok");
     }
 
     #[test]

@@ -25,7 +25,7 @@ Doğrudan kullanılan crate'ler. Lisanslar `cargo metadata` ile alınmıştır (
 | minifb | 0.29.0 | MIT OR Apache-2.0 | sim | Masaüstü penceresi (yalnızca X11 arka ucu). Cihazda kullanılmaz. | Gerekmiyor |
 | env_logger | 0.11.11 | MIT OR Apache-2.0 | sim, kobo | Log çıktısı (cihazda programın yanındaki `legentia.log` dosyasına). | Derleniyor |
 
-Türkçe heceleme kendi kodumuzdur (`crates/core/src/text/hyphen.rs`, TDK kuralları); dış desen dosyası yoktur. Türkçe kök bulma da kendi kodumuzdur (`crates/core/src/dict/stem.rs`). Uygulamayla sözlük verisi dağıtılmaz; kullanıcının kendi sözlük dosyaları okunur.
+Türkçe heceleme kendi kodumuzdur (`crates/core/src/text/hyphen.rs`, TDK kuralları). Diğer diller (İngilizce, Almanca, Fransızca, İspanyolca, İtalyanca) için TeX hyph-utf8 desenleri değiştirilmeden gömülüdür (`crates/core/hyph/`, ~350 KB; Almanca 272 KB); Liang algoritması kendi kodumuz (`text/liang.rs`). Desen lisansları (MIT ve İngilizce için telifsiz kullanım izni) `crates/core/hyph/LISANSLAR.md`'de; yalnızca LPPL'li Rusça alınmadı. Türkçe kök bulma da kendi kodumuzdur (`crates/core/src/dict/stem.rs`). Uygulamayla sözlük verisi dağıtılmaz; kullanıcının kendi sözlük dosyaları okunur.
 
 ## Masaüstü araçları (cihaza girmez)
 

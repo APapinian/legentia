@@ -359,7 +359,7 @@ Kullanıcı isteği (2026-10-28): 50 maddelik öneri listesi milestone olarak ka
 - [x] 12. Otomatik sayfa çevirme zamanlayıcısı (K) (Kullanıcı kararı: menüden başlat, süre ayarlı. Alt çubukta "Otomatik çevir" / "Otomatiği durdur"; aralık ayarlarda 10–120 sn ya da "okuma hızıma göre" (sayfadaki karakter ÷ öğrenilen hız; hız bilinmiyorsa 30 sn). Dokunma/tuş durdurur, kitap sonunda durur; otomatik çevirmeler okuma hızına katılmaz. Testli.)
 - [ ] 13. Sağdan sola yazı (Osmanlıca, Arapça) (B)
 - [ ] 14. Japonca dikey yazı ve furigana (B)
-- [ ] 15. İngilizce ve diğer diller için heceleme (O)
+- [x] 15. İngilizce ve diğer diller için heceleme (O) (Kullanıcı kararı: TeX hyph-utf8 desenleri. İngilizce, Almanca, Fransızca, İspanyolca, İtalyanca; Liang algoritması kendi kodumuz, desenler gömülü ve ilk kullanımda ayrıştırılır. Lisanslar dil dil kontrol edildi (MIT / telifsiz izin); Rusça yalnızca LPPL olduğu için alınmadı. TeX çıktısıyla aynı bölünmeler testli.)
 
 ### Cihaz (Libra 2)
 - [ ] 16. Ön ışık ve sıcak ışık ayarı (O)
