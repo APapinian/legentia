@@ -3,7 +3,7 @@
 //! ```text
 //! <veri klasörü>/settings.json      okuma ayarları
 //! <veri klasörü>/library.json       kütüphane önbelleği (kitap başlıkları)
-//! <veri klasörü>/books/<kimlik>.json  kitap başına konum ve yer imleri
+//! <veri klasörü>/books/<kimlik>.json  kitap başına konum, yer imleri, vurgular ve notlar
 //! ```
 //!
 //! Yazma önce `.tmp` dosyasına yapılır, sonra yeniden adlandırılır; yarıda

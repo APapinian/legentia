@@ -6,6 +6,9 @@
 //! 3. Satırlar paragraflara birleştirilir: büyük satır aralığı, yukarı sıçrama
 //!    (yeni sütun), boyut değişimi, girinti ya da kısa kalan satır yeni paragraf
 //!    başlatır. Satır sonu tireleri kaldırılır, büyük yazılar başlık olur.
+//!
+//! Her karakterin sayfadaki kutusu blok metnindeki bayt aralığıyla birlikte
+//! taşınır: sayfa görüntüsünde seçim, vurgu çizimi ve PDF açıklaması için.
 
 use hayro::hayro_interpret::font::{Glyph, GlyphRun};
 use hayro::hayro_interpret::hayro_cmap::BfString;
@@ -16,8 +19,9 @@ use hayro::hayro_interpret::{
 };
 use hayro::kurbo::{BezPath, Point, Rect, Vec2};
 use unicode_normalization::UnicodeNormalization;
+use unicode_normalization::char::is_combining_mark;
 
-use super::{PdfDoc, PdfError};
+use super::{Area, PdfDoc, PdfError};
 use crate::epub::{Block, BlockKind};
 use crate::text::{Span, Style};
 
@@ -42,6 +46,22 @@ struct TextLine {
     x1: f32,
     y: f32,
     size: f32,
+    boxes: Vec<CharBox>,
+}
+
+/// Bir karakterin (ya da bitişik harfin) metindeki bayt aralığı ve sayfadaki kutusu.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct CharBox {
+    pub start: usize,
+    pub end: usize,
+    pub area: Area,
+}
+
+/// Sayfanın metni: bloklar ve her bloğun karakter kutuları (eklenen boşluklar kutusuz).
+#[derive(Debug, Clone, Default)]
+pub struct PageText {
+    pub blocks: Vec<Block>,
+    pub boxes: Vec<Vec<CharBox>>,
 }
 
 struct Collector {
@@ -92,6 +112,11 @@ impl<'a> Device<'a> for Collector {
 impl PdfDoc {
     /// Sayfanın metni, paragraf ve başlık blokları olarak. Metin katmanı yoksa boş.
     pub fn page_blocks(&self, index: usize) -> Result<Vec<Block>, PdfError> {
+        Ok(self.page_text(index)?.blocks)
+    }
+
+    /// Sayfanın metni ve karakter kutuları.
+    pub fn page_text(&self, index: usize) -> Result<PageText, PdfError> {
         let glyphs = self.page_glyphs(index)?;
         Ok(paragraphs(&lines(&glyphs)))
     }
@@ -136,6 +161,7 @@ fn lines(glyphs: &[TextGlyph]) -> Vec<TextLine> {
                 x1: g.x,
                 y: g.y,
                 size: g.size,
+                boxes: Vec::new(),
             });
         }
         let line = out.last_mut().expect("az önce eklendi");
@@ -149,29 +175,64 @@ fn lines(glyphs: &[TextGlyph]) -> Vec<TextLine> {
                 line.text.push(' ');
             }
         } else {
-            line.text.push_str(&g.text);
+            push_glyph(line, g);
             line.size = line.size.max(g.size);
         }
         end = g.x + g.width;
         line.x1 = line.x1.max(end);
     }
     for l in &mut out {
-        l.text = l.text.trim().nfc().collect();
+        let len = l.text.trim_end().len();
+        l.text.truncate(len);
     }
     out.retain(|l| !l.text.is_empty());
     out
 }
 
+/// Glifin metnini NFC olarak satıra ekler. Birleştiren işaret (ör. `I` + U+0307)
+/// önceki karakterle birleştirilir, kutusu da onunkine katılır; böylece bayt
+/// aralıkları normalleştirmeden sonra da doğru kalır.
+fn push_glyph(line: &mut TextLine, g: &TextGlyph) {
+    let area = Area {
+        x: g.x,
+        y: g.y - 0.8 * g.size,
+        w: g.width,
+        h: g.size,
+    };
+    let combining = g.text.chars().next().is_some_and(is_combining_mark);
+    if combining && let Some(last) = line.boxes.last_mut() {
+        let joined: String = line.text[last.start..]
+            .chars()
+            .chain(g.text.chars())
+            .nfc()
+            .collect();
+        line.text.truncate(last.start);
+        line.text.push_str(&joined);
+        last.end = line.text.len();
+        let right = (last.area.x + last.area.w).max(area.x + area.w);
+        last.area.w = right - last.area.x;
+        return;
+    }
+    let start = line.text.len();
+    line.text.extend(g.text.nfc());
+    line.boxes.push(CharBox {
+        start,
+        end: line.text.len(),
+        area,
+    });
+}
+
 /// Satırları paragraflara ve başlıklara birleştirir.
-fn paragraphs(lines: &[TextLine]) -> Vec<Block> {
+fn paragraphs(lines: &[TextLine]) -> PageText {
+    let mut out = PageText::default();
     if lines.is_empty() {
-        return Vec::new();
+        return out;
     }
     let body = body_size(lines);
     let spacing = line_spacing(lines, body);
 
-    let mut out = Vec::new();
     let mut text = String::new();
+    let mut boxes: Vec<CharBox> = Vec::new();
     let mut para_size = 0.0f32;
     for (i, line) in lines.iter().enumerate() {
         let new_para = match i.checked_sub(1).map(|p| (p, &lines[p])) {
@@ -187,15 +248,27 @@ fn paragraphs(lines: &[TextLine]) -> Vec<Block> {
             }
         };
         if new_para && !text.is_empty() {
-            out.push(block(std::mem::take(&mut text), para_size, body));
+            out.blocks
+                .push(block(std::mem::take(&mut text), para_size, body));
+            out.boxes.push(std::mem::take(&mut boxes));
         }
         if new_para {
             para_size = line.size;
         }
+        let before = text.len();
         join_line(&mut text, &line.text);
+        let base = text.len() - line.text.len();
+        // Satır sonu tiresi silindiyse kutusu da gider.
+        boxes.retain(|b| b.end <= base.min(before));
+        boxes.extend(line.boxes.iter().map(|b| CharBox {
+            start: b.start + base,
+            end: b.end + base,
+            area: b.area,
+        }));
     }
     if !text.is_empty() {
-        out.push(block(text, para_size, body));
+        out.blocks.push(block(text, para_size, body));
+        out.boxes.push(boxes);
     }
     out
 }
@@ -313,6 +386,65 @@ mod tests {
                 ),
                 (BlockKind::Paragraph, "Ikinci paragraf burada."),
             ]
+        );
+    }
+
+    #[test]
+    fn char_boxes_follow_the_joined_paragraph_text() {
+        let content = "BT /F1 12 Tf 72 690 Td (Bu satir kardes-) Tj 0 -14 Td (lerimiz ile.) Tj ET";
+        let doc = PdfDoc::from_bytes(pdf_with_content(&[content])).unwrap();
+        let page = doc.page_text(0).unwrap();
+        let (text, boxes) = (&page.blocks[0].text, &page.boxes[0]);
+        assert_eq!(text, "Bu satir kardeslerimiz ile.");
+        // Her kutu boşluk olmayan bir karaktere düşer; tire kutusu atılmıştır.
+        assert_eq!(boxes.len(), text.chars().filter(|c| *c != ' ').count());
+        let at = |s: &str| {
+            boxes
+                .iter()
+                .find(|b| &text[b.start..b.end] == s)
+                .unwrap()
+                .area
+        };
+        // "l" ikinci satırda (taban 792-676=116 punto aşağıda), "B" birincide.
+        let (b, l) = (at("B"), at("l"));
+        assert!(
+            (b.x - 72.0).abs() < 0.5 && (l.x - 72.0).abs() < 0.5,
+            "{b:?} {l:?}"
+        );
+        assert!((l.y - b.y - 14.0).abs() < 0.5, "{b:?} {l:?}");
+        assert!(
+            b.y < 792.0 - 690.0 && b.y + b.h > 792.0 - 690.0,
+            "taban çizgisi kutunun içinde"
+        );
+    }
+
+    #[test]
+    fn a_combining_dot_is_merged_into_its_letter() {
+        let mut line = TextLine {
+            text: String::new(),
+            x0: 0.0,
+            x1: 0.0,
+            y: 10.0,
+            size: 10.0,
+            boxes: Vec::new(),
+        };
+        let glyph = |text: &str, x: f32| TextGlyph {
+            text: text.into(),
+            x,
+            y: 10.0,
+            width: 5.0,
+            size: 10.0,
+        };
+        for g in [glyph("I", 0.0), glyph("\u{307}", 2.0), glyph("s", 5.0)] {
+            push_glyph(&mut line, &g);
+        }
+        assert_eq!(line.text, "İs");
+        assert_eq!(
+            line.boxes
+                .iter()
+                .map(|b| (b.start, b.end))
+                .collect::<Vec<_>>(),
+            vec![(0, 2), (2, 3)]
         );
     }
 

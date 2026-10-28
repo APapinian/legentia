@@ -216,8 +216,8 @@ Not: PDF'e not yazma, M6'daki ortak konumlandırma modeline bağlıdır; M5'te P
 **Amaç:** EPUB ve PDF için tek bir konumlandırma modeliyle kalıcı kişisel çalışma araçları sağlamak.
 
 ### İşler
-- [ ] EPUB ve PDF için ortak içerik konumlandırma modeli tasarla.
-- [ ] Metin seçimi, vurgulama ve seçili metne not ekleme/düzenleme. (Kararlar, 2026-10-28: seçim uzun bas + sürükle; not metni Türkçe ekran klavyesiyle. Yapıldı: ham dokunmadan dokunma/uzun basma/sürükleme tanıma (`event.rs`, zamanlayıcısız: uzun basma süre dolduktan sonraki ilk hareket ya da kaldırmada tanınır); simülatörde fare.)
+- [x] EPUB ve PDF için ortak içerik konumlandırma modeli tasarla. (`app/annotations.rs`: vurgu = bölüm/PDF sayfası + blok metninde bayt aralığı + alıntı + not; yazı ayarından bağımsız, PDF'te görüntü ve yeniden akıtma aynı blokları kullanır. Dosya değişip aralık kayarsa alıntı en yakın yerde yeniden bulunur, bulunamazsa vurgu silinmez, çizilmez. PDF metninde her karakterin sayfa kutusu taşınır (`pdf::PageText`): görüntüde seçim, çizim ve PDF açıklaması için.)
+- [ ] Metin seçimi, vurgulama ve seçili metne not ekleme/düzenleme. (Kararlar, 2026-10-28: seçim uzun bas + sürükle; not metni Türkçe ekran klavyesiyle. Yapıldı: ham dokunmadan dokunma/uzun basma/sürükleme tanıma (`event.rs`, zamanlayıcısız: uzun basma süre dolduktan sonraki ilk hareket ya da kaldırmada tanınır); simülatörde fare. EPUB'da ve yeniden akıtılmış PDF'te seçim (`app/select.rs`): uzun basma kelimeyi seçer ("İstanbul'dan" tek kelime), sürükleme kelime kelime uzatır; işlem çubuğu (Vurgula / Vazgeç), vurguya dokununca (Vurguyu sil / Vazgeç); vurgu açık gri, seçim koyu gri zemin. Kalan: PDF sayfa görüntüsünde seçim, notlar (ekran klavyesi).)
 - [ ] Notları kitap, bölüm ve konum bilgisiyle ilişkilendir.
 - [ ] Notları dışa aktarma ve yedekleme/geri yükleme. (Karar: Markdown, PDF'lerde standart PDF açıklamaları (ayrı kopya), JSON yedek.)
 

@@ -65,6 +65,8 @@ pub enum Msg {
     },
     NothingToOcr,
     SearchableFailed,
+    Highlight,
+    RemoveHighlight,
     // Yazı ayarları
     SettingsHint,
     SettingFont,
@@ -157,6 +159,8 @@ pub fn tr(msg: &Msg) -> String {
         }
         Msg::NothingToOcr => "Bu PDF'in bütün sayfalarında zaten metin var; aranabilir kopyaya gerek yok.".into(),
         Msg::SearchableFailed => "Aranabilir PDF kaydedilemedi. Ayrıntılar kayıt dosyasında.".into(),
+        Msg::Highlight => "Vurgula".into(),
+        Msg::RemoveHighlight => "Vurguyu sil".into(),
         Msg::SettingsHint => "Değişiklikler “Tamam”a dokununca uygulanır.".into(),
         Msg::SettingFont => "Yazı tipi".into(),
         Msg::SettingSize => "Yazı boyutu".into(),
@@ -271,6 +275,8 @@ mod tests {
             },
             NothingToOcr,
             SearchableFailed,
+            Highlight,
+            RemoveHighlight,
             SettingsHint,
             SettingFont,
             SettingSize,

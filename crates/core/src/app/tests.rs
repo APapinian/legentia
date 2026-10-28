@@ -526,6 +526,109 @@ fn raw_touches_become_taps_and_holds_do_not_turn_pages() {
 }
 
 #[test]
+fn annotations_survive_restart_and_font_changes() {
+    let (mut app, data, root) = setup(&[("uzun.epub", long_book())]);
+    tap_row(&mut app, &LIBRARY, 0);
+    tap_row(&mut app, &CONTENTS, 0);
+    let s = app.session.as_mut().unwrap();
+    let start = Position {
+        block: 1,
+        offset: 5,
+    };
+    let end = Position {
+        block: 1,
+        offset: 20,
+    };
+    let i = s.add_annotation(start, end).unwrap();
+    assert_eq!(s.state.annotations[i].quote, "bir paragraf: a");
+    assert_eq!(s.placed, vec![(i, start, end)]);
+    assert_eq!(s.add_annotation(end, start), None, "boş aralık");
+    app.shutdown();
+    app.save_progress();
+
+    let mut app = restart(&data, &root);
+    tap_row(&mut app, &LIBRARY, 0);
+    assert_eq!(session(&app).state.annotations.len(), 1);
+    assert_eq!(session(&app).placed, vec![(0, start, end)]);
+    change_setting(&mut app, Field::Size, 3);
+    assert_eq!(
+        session(&app).placed,
+        vec![(0, start, end)],
+        "yazı ayarı vurguyu kaydırmamalı"
+    );
+    app.session.as_mut().unwrap().remove_annotation(0);
+    assert!(session(&app).placed.is_empty());
+}
+
+/// Okunan sayfanın `line`. satırındaki `n`. glifin ekran noktası.
+fn glyph_point(app: &App, line: usize, n: usize) -> (u32, u32) {
+    let s = session(app);
+    let l = &s.pages[s.page].lines[line];
+    let (g, gx) = &l.line.glyphs[n];
+    (
+        (app.settings().margin as f32 + gx + g.advance / 2.0) as u32,
+        (l.top + l.height / 2) as u32,
+    )
+}
+
+#[test]
+fn hold_drag_and_highlight_then_remove_it() {
+    let (mut app, _, _) = setup(&[("uzun.epub", long_book())]);
+    tap_row(&mut app, &LIBRARY, 0);
+    tap_row(&mut app, &CONTENTS, 0);
+    // 0. satır başlık ("Başlık"); 1. satır paragrafın başı: "Uzun bir paragraf: ..."
+    let (x, y) = glyph_point(&app, 1, 6); // "bir" içinde
+    app.handle(Event::Hold { x, y });
+    let sel = app.selection.unwrap();
+    let text = &session(&app).blocks[1].text;
+    assert_eq!(&text[sel.start.offset..sel.end.offset], "bir");
+    let (x2, y2) = glyph_point(&app, 1, 12); // "paragraf" içinde
+    app.handle(Event::HoldMove { x: x2, y: y2 });
+    app.handle(Event::HoldEnd { x: x2, y: y2 });
+    assert!(matches!(app.view, View::Selected));
+    let mut c = Canvas::new(W, LIBRA2_HEIGHT);
+    app.draw(&mut c);
+
+    let at = app.action_rect(0).center(); // Vurgula
+    tap(&mut app, at);
+    assert!(matches!(app.view, View::Reading));
+    assert!(app.selection.is_none());
+    let s = session(&app);
+    assert_eq!(s.state.annotations[0].quote, "bir paragraf");
+    assert_eq!(s.placed.len(), 1);
+    // Vurgu zemini çizilir: satırda açık gri piksel var.
+    app.draw(&mut c);
+    let row = |y: u32| &c.pixels()[(y * W) as usize..((y + 1) * W) as usize];
+    assert!(row(y).contains(&select::HIGHLIGHT_GRAY));
+
+    // Vurguya dokunmak sayfa çevirmez, işlem çubuğunu açar.
+    tap(&mut app, (x, y));
+    assert!(matches!(app.view, View::Annotation { index: 0 }));
+    assert_eq!(session(&app).page, 0);
+    let at = app.action_rect(0).center(); // Vurguyu sil
+    tap(&mut app, at);
+    assert!(session(&app).state.annotations.is_empty());
+    assert!(matches!(app.view, View::Reading));
+}
+
+#[test]
+fn a_tap_elsewhere_cancels_the_selection() {
+    let (mut app, _, _) = setup(&[("uzun.epub", long_book())]);
+    tap_row(&mut app, &LIBRARY, 0);
+    tap_row(&mut app, &CONTENTS, 0);
+    let (x, y) = glyph_point(&app, 2, 3);
+    app.handle(Event::Hold { x, y });
+    app.handle(Event::HoldEnd { x, y });
+    tap(&mut app, (W / 2, LIBRA2_HEIGHT / 2));
+    assert!(matches!(app.view, View::Reading));
+    assert!(app.selection.is_none());
+    assert!(session(&app).state.annotations.is_empty());
+    // Satır arası boşluğa ya da kenara uzun basmak seçim başlatmaz.
+    app.handle(Event::Hold { x: 5, y: 5 });
+    assert!(app.selection.is_none());
+}
+
+#[test]
 fn broken_pdf_shows_turkish_error() {
     let (mut app, _, _) = setup(&[("bozuk.pdf", b"%PDF-1.4 bozuk".to_vec())]);
     tap_row(&mut app, &LIBRARY, 0);

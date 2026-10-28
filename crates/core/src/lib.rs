@@ -20,7 +20,7 @@ pub mod pdf;
 mod storage;
 mod text;
 
-pub use app::{App, BookState, Bookmark, Position, Settings};
+pub use app::{Annotation, App, BookState, Bookmark, Position, Settings};
 pub use canvas::Canvas;
 pub use epub::{Book, EpubError};
 pub use event::{Event, PageKey, Refresh, TouchPhase};

@@ -4,8 +4,10 @@
 //! yazı ayarları. Okurken ekranın ortasına dokunmak menüyü açar.
 //! PDF'ler aynı ekranlarla okunur; sayfa görüntüsü çizilip önbellekte tutulur.
 
+mod annotations;
 mod pdf_view;
 mod screens;
+mod select;
 mod session;
 mod settings;
 mod ui;
@@ -22,6 +24,7 @@ use crate::library::{self, Entry, Format};
 use crate::pdf::{GrayImage, PdfDoc, PdfEdit};
 use crate::storage::Store;
 use crate::text::Text;
+pub use annotations::Annotation;
 pub use session::{BookState, Bookmark, Position};
 use session::{Doc, Session, Target};
 pub use settings::Settings;
@@ -36,13 +39,31 @@ const SETTINGS_FILE: &str = "settings.json";
 const SAVE_EVERY_TURNS: u32 = 10;
 
 enum View {
-    Library { page: usize },
-    Message { msg: Msg, back: Back },
-    Contents { page: usize },
+    Library {
+        page: usize,
+    },
+    Message {
+        msg: Msg,
+        back: Back,
+    },
+    Contents {
+        page: usize,
+    },
     Reading,
     Menu,
-    Bookmarks { page: usize },
-    Settings { draft: Settings, page: usize },
+    Bookmarks {
+        page: usize,
+    },
+    Settings {
+        draft: Settings,
+        page: usize,
+    },
+    /// Metin seçili; işlem çubuğu açık.
+    Selected,
+    /// Vurguya dokunuldu (`state.annotations` sırası); işlem çubuğu açık.
+    Annotation {
+        index: usize,
+    },
 }
 
 /// Mesaj ekranından dokununca dönülecek yer.
@@ -69,6 +90,8 @@ pub struct App {
     /// Son çizilen PDF ekranı; menü açılıp kapanınca yeniden çizilmez.
     pdf_frame: RefCell<Option<PdfFrame>>,
     gestures: Gestures,
+    /// Okurken uzun basmayla başlayan seçim.
+    selection: Option<select::Selection>,
 }
 
 /// Ekrana yerleştirilmiş PDF sayfa görüntüsü.
@@ -106,6 +129,7 @@ impl App {
             unsaved_turns: 0,
             pdf_frame: RefCell::new(None),
             gestures: Gestures::default(),
+            selection: None,
         }
     }
 
@@ -209,6 +233,8 @@ impl App {
                 let (draft, page) = (draft.clone(), *page);
                 self.handle_settings(draft, page, event)
             }
+            View::Selected => self.handle_selected(event),
+            View::Annotation { index } => self.handle_annotation(*index, event),
         }
     }
 
@@ -349,6 +375,10 @@ impl App {
             }
             View::Bookmarks { page } => self.draw_bookmarks(canvas, *page),
             View::Settings { draft, page } => self.draw_settings(canvas, draft, *page),
+            View::Selected | View::Annotation { .. } => {
+                self.draw_reading(canvas);
+                self.draw_actions(canvas);
+            }
         }
         if self.settings.night {
             canvas.invert();

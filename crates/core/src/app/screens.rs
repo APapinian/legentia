@@ -1,5 +1,6 @@
 //! Ekranlar: her biri için olay işleme ve çizim.
 
+use super::select;
 use super::session::Target;
 use super::settings::{FIELD_PAGES, Settings};
 use super::ui::{
@@ -254,6 +255,18 @@ impl App {
     // --- Okuma ---
 
     pub(super) fn handle_reading(&mut self, event: Event) -> Option<Refresh> {
+        match event {
+            Event::Hold { x, y } => return self.start_selection(x, y),
+            Event::HoldMove { x, y } => return self.extend_selection(x, y),
+            Event::HoldEnd { .. } => return self.finish_selection(),
+            Event::Tap { x, y } => {
+                if let Some(index) = self.annotation_at(x, y) {
+                    self.view = View::Annotation { index };
+                    return Some(self.refresh(false));
+                }
+            }
+            _ => {}
+        }
         let third = self.width / 3;
         let forward = match event {
             Event::Key(PageKey::Forward) => true,
@@ -321,8 +334,22 @@ impl App {
             draw_footer(t, canvas, &footer, MARGIN);
             return;
         }
+        let margin = self.settings.margin;
+        for (_, a, b) in &s.placed {
+            select::paint(canvas, page, margin, *a, *b, select::HIGHLIGHT_GRAY);
+        }
+        if let Some(sel) = &self.selection {
+            select::paint(
+                canvas,
+                page,
+                margin,
+                sel.start,
+                sel.end,
+                select::SELECTION_GRAY,
+            );
+        }
         for placed in &page.lines {
-            t.draw_line(canvas, &placed.line, self.settings.margin, placed.baseline);
+            t.draw_line(canvas, &placed.line, margin, placed.baseline);
         }
         if page.lines.is_empty() {
             t.draw_msg(canvas, &Msg::EmptyChapter, MARGIN, TOP + 300, ROW_PX);

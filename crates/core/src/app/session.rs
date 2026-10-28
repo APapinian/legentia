@@ -8,6 +8,7 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
+use super::annotations::{self, Annotation, Flat};
 use super::pdf_view::{Screen, page_screens};
 use super::settings::Settings;
 use super::ui::{BOTTOM, TOP};
@@ -50,11 +51,18 @@ pub struct BookState {
     /// Kitabın yaklaşık ne kadarının okunduğu (yüzde).
     pub percent: u32,
     pub bookmarks: Vec<Bookmark>,
+    /// Vurgular ve notlar, oluşturulma sırasıyla.
+    pub annotations: Vec<Annotation>,
 }
 
 pub(super) struct PlacedLine {
     pub line: Line,
     pub baseline: i32,
+    /// Satırın ait olduğu blok.
+    pub block: usize,
+    /// Satır kutusunun üstü ve yüksekliği (satır aralığı dahil); seçim ve vurgu için.
+    pub top: i32,
+    pub height: i32,
 }
 
 pub(super) struct Page {
@@ -91,6 +99,8 @@ pub(super) struct Session {
     pub blocks: Vec<Block>,
     pub pages: Vec<Page>,
     pub page: usize,
+    /// Okunan bölümdeki vurgular: (`state.annotations` sırası, başlangıç, bitiş).
+    pub placed: Vec<(usize, Position, Position)>,
 }
 
 impl Session {
@@ -107,6 +117,7 @@ impl Session {
             blocks: Vec::new(),
             pages: Vec::new(),
             page: 0,
+            placed: Vec::new(),
         }
     }
 
@@ -224,6 +235,7 @@ impl Session {
         self.spine = spine;
         self.blocks = blocks;
         self.pages = pages;
+        self.place_annotations();
         Ok(())
     }
 
@@ -259,6 +271,46 @@ impl Session {
     pub fn record(&mut self) {
         self.state.last = Some((self.spine, self.position()));
         self.state.percent = self.percent();
+    }
+
+    /// Okunan bölümün metnindeki `[start, end)` aralığını vurgular; aralık boş
+    /// ya da geçersizse `None`. Dönen değer `state.annotations` sırasıdır.
+    pub fn add_annotation(&mut self, start: Position, end: Position) -> Option<usize> {
+        let flat = Flat::new(&self.blocks);
+        let (s, e) = (flat.index(start)?, flat.index(end)?);
+        if s >= e {
+            return None;
+        }
+        self.state.annotations.push(Annotation {
+            spine: self.spine,
+            start,
+            end,
+            quote: flat.text[s..e].to_string(),
+            note: None,
+            created: annotations::now(),
+        });
+        self.place_annotations();
+        Some(self.state.annotations.len() - 1)
+    }
+
+    pub fn remove_annotation(&mut self, index: usize) {
+        if index < self.state.annotations.len() {
+            self.state.annotations.remove(index);
+            self.place_annotations();
+        }
+    }
+
+    /// Okunan bölümün vurgularını metne yerleştirir; yeri bulunamayanlar atlanır.
+    fn place_annotations(&mut self) {
+        let flat = Flat::new(&self.blocks);
+        self.placed = self
+            .state
+            .annotations
+            .iter()
+            .enumerate()
+            .filter(|(_, a)| a.spine == self.spine)
+            .filter_map(|(i, a)| annotations::locate(&flat, a).map(|(s, e)| (i, s, e)))
+            .collect();
     }
 
     /// Bu sayfaya düşen yer iminin sırası.
@@ -415,7 +467,13 @@ fn paginate(
                 };
             }
             let baseline = (y + (line_h - (ascent + descent)) / 2.0 + ascent) as i32;
-            current.lines.push(PlacedLine { line, baseline });
+            current.lines.push(PlacedLine {
+                line,
+                baseline,
+                block: index,
+                top: y as i32,
+                height: line_h.ceil() as i32,
+            });
             y += line_h;
         }
         y += body_line * 0.35;

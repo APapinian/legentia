@@ -16,6 +16,8 @@ use hayro::{RenderCache, RenderSettings};
 use crate::i18n::Msg;
 
 pub(crate) mod text;
+
+pub use text::{CharBox, PageText};
 mod write;
 
 pub use write::{Highlight, OcrLayer, PdfEdit};
