@@ -5,7 +5,7 @@ use std::collections::HashMap;
 
 use super::session::Session;
 use super::settings::{PdfView, Settings};
-use super::ui::{MARGIN, ROW_PX, TOP};
+use super::ui::{MARGIN, ROW_PX, Rect, TOP};
 use super::{App, PdfFrame};
 use crate::LIBRA2_HEIGHT;
 use crate::canvas::Canvas;
@@ -29,6 +29,37 @@ const OVERLAP: f32 = 0.05;
 pub(super) struct Screen {
     pub area: Area,
     pub scale: f32,
+}
+
+/// Ekranın görüntüsünün sol üst köşesi; görüntü sayfa alanının ortasına yerleşir.
+pub(super) fn screen_origin(screen: &Screen, width: u32) -> (i32, i32) {
+    let w = (screen.area.w * screen.scale).round() as i32;
+    let h = (screen.area.h * screen.scale).round() as i32;
+    let avail_w = width as i32 - 2 * PAD;
+    let avail_h = PAGE_BOTTOM - 2 * PAD;
+    (PAD + (avail_w - w) / 2, PAD + (avail_h - h) / 2)
+}
+
+/// Ekran noktasının sayfadaki yeri (punto).
+pub(super) fn to_page(screen: &Screen, width: u32, x: u32, y: u32) -> (f32, f32) {
+    let (ox, oy) = screen_origin(screen, width);
+    (
+        screen.area.x + (x as i32 - ox) as f32 / screen.scale,
+        screen.area.y + (y as i32 - oy) as f32 / screen.scale,
+    )
+}
+
+/// Sayfa alanının (punto) ekrandaki dikdörtgeni.
+pub(super) fn to_screen(screen: &Screen, width: u32, a: Area) -> Rect {
+    let (ox, oy) = screen_origin(screen, width);
+    let x = ox + ((a.x - screen.area.x) * screen.scale).floor() as i32;
+    let y = oy + ((a.y - screen.area.y) * screen.scale).floor() as i32;
+    Rect {
+        x,
+        y,
+        w: (a.w * screen.scale).ceil() as i32 + 1,
+        h: (a.h * screen.scale).ceil() as i32 + 1,
+    }
 }
 
 /// Sayfanın okuma sırasıyla ekranları. Sayfa düzeni (kırpma, sütunlar) sayfa
@@ -128,13 +159,12 @@ impl App {
         {
             *frame = match doc.render_area(s.spine, screen.area, screen.scale) {
                 Ok(image) => {
-                    let avail_w = canvas.width() as i32 - 2 * PAD;
-                    let avail_h = PAGE_BOTTOM - 2 * PAD;
+                    let (x, y) = screen_origin(&screen, canvas.width());
                     Some(PdfFrame {
                         page: s.spine,
                         screen,
-                        x: PAD + (avail_w - image.width as i32) / 2,
-                        y: PAD + (avail_h - image.height as i32) / 2,
+                        x,
+                        y,
                         image,
                     })
                 }

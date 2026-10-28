@@ -15,7 +15,7 @@ use super::ui::{BOTTOM, TOP};
 use crate::epub::{Block, BlockKind, Book, TocEntry};
 use crate::i18n::{Msg, tr};
 use crate::ocr;
-use crate::pdf::{OcrLayer, PageLayout, PdfDoc};
+use crate::pdf::{OcrLayer, PageLayout, PageText, PdfDoc};
 use crate::storage::Store;
 use crate::text::{Align, Family, Line, ParaStyle, Style, Text, layout};
 
@@ -101,6 +101,9 @@ pub(super) struct Session {
     pub page: usize,
     /// Okunan bölümdeki vurgular: (`state.annotations` sırası, başlangıç, bitiş).
     pub placed: Vec<(usize, Position, Position)>,
+    /// PDF sayfa görüntüsünde sayfanın metni ve karakter kutuları; yalnızca
+    /// gerektiğinde (seçim, sayfada vurgu) çıkarılır.
+    pub pdf_text: Option<PageText>,
 }
 
 impl Session {
@@ -118,6 +121,7 @@ impl Session {
             pages: Vec::new(),
             page: 0,
             placed: Vec::new(),
+            pdf_text: None,
         }
     }
 
@@ -235,6 +239,10 @@ impl Session {
         self.spine = spine;
         self.blocks = blocks;
         self.pages = pages;
+        self.pdf_text = None;
+        if self.state.annotations.iter().any(|a| a.spine == spine) {
+            self.load_page_text();
+        }
         self.place_annotations();
         Ok(())
     }
@@ -273,10 +281,36 @@ impl Session {
         self.state.percent = self.percent();
     }
 
+    /// Okunan bölümün metin blokları: dizilmiş metinde dizilen bloklar, PDF sayfa
+    /// görüntüsünde (yüklendiyse) sayfanın metni.
+    pub fn text_blocks(&self) -> &[Block] {
+        match &self.pdf_text {
+            Some(t) if self.showing_pdf_image() => &t.blocks,
+            _ => &self.blocks,
+        }
+    }
+
+    /// PDF sayfa görüntüsündeyse sayfanın metnini (henüz yoksa) çıkarır ve vurguları yerleştirir.
+    /// Taranmış sayfanın metni yoktur; orada seçim yapılamaz.
+    pub fn load_page_text(&mut self) {
+        if self.pdf_text.is_some() || !self.showing_pdf_image() {
+            return;
+        }
+        let Some(pdf) = self.pdf() else {
+            return;
+        };
+        let text = pdf.page_text(self.spine).unwrap_or_else(|e| {
+            log::warn!("no text for pdf page {}: {e:?}", self.spine);
+            PageText::default()
+        });
+        self.pdf_text = Some(text);
+        self.place_annotations();
+    }
+
     /// Okunan bölümün metnindeki `[start, end)` aralığını vurgular; aralık boş
     /// ya da geçersizse `None`. Dönen değer `state.annotations` sırasıdır.
     pub fn add_annotation(&mut self, start: Position, end: Position) -> Option<usize> {
-        let flat = Flat::new(&self.blocks);
+        let flat = Flat::new(self.text_blocks());
         let (s, e) = (flat.index(start)?, flat.index(end)?);
         if s >= e {
             return None;
@@ -302,7 +336,7 @@ impl Session {
 
     /// Okunan bölümün vurgularını metne yerleştirir; yeri bulunamayanlar atlanır.
     fn place_annotations(&mut self) {
-        let flat = Flat::new(&self.blocks);
+        let flat = Flat::new(self.text_blocks());
         self.placed = self
             .state
             .annotations

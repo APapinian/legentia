@@ -1,6 +1,9 @@
-//! Metin seçimi ve vurgu çizimi (dizilmiş metin sayfaları: EPUB ve yeniden
-//! akıtılmış PDF). Uzun basma kelimeyi seçer, sürükleme seçimi kelime kelime uzatır.
+//! Metin seçimi ve vurgu çizimi. Uzun basma kelimeyi seçer, sürükleme seçimi
+//! kelime kelime uzatır. Dizilmiş metinde (EPUB, yeniden akıtılmış PDF) satırların
+//! glifleri, PDF sayfa görüntüsünde sayfa metninin karakter kutuları kullanılır.
+//! Vurgu, sayfa çizildikten sonra dikdörtgenleri koyulaştırarak çizilir; yazı siyah kalır.
 
+use super::pdf_view;
 use super::session::{Page, PlacedLine, Position};
 use super::ui::{MARGIN, Rect, TOP, draw_button};
 use super::{App, View};
@@ -9,6 +12,7 @@ use crate::canvas::Canvas;
 use crate::epub::Block;
 use crate::event::{Event, Refresh};
 use crate::i18n::{Msg, tr};
+use crate::pdf::{Area, PageText};
 
 /// İşlem çubuğu düğmelerinin yüksekliği ve aralığı (piksel).
 const ACTION_H: i32 = 100;
@@ -112,9 +116,8 @@ fn word_bounds(text: &str, offset: usize) -> (usize, usize) {
     (start, end)
 }
 
-/// Satırın `[start, end)` aralığına düşen kısmının yatay sınırı (satırın sol
-/// kenarına göre piksel).
-fn line_span(line: &PlacedLine, start: Position, end: Position) -> Option<(f32, f32)> {
+/// Satırın `[start, end)` aralığına düşen kısmının ekrandaki dikdörtgeni.
+fn line_rect(line: &PlacedLine, margin: i32, start: Position, end: Position) -> Option<Rect> {
     let inside = |cluster: usize| {
         let p = Position {
             block: line.block,
@@ -122,52 +125,68 @@ fn line_span(line: &PlacedLine, start: Position, end: Position) -> Option<(f32, 
         };
         p >= start && p < end
     };
-    line.line
+    let (a, b) = line
+        .line
         .glyphs
         .iter()
         .filter(|(g, _)| inside(g.cluster))
-        .fold(None, |acc, (g, gx)| {
+        .fold(None, |acc: Option<(f32, f32)>, (g, gx)| {
             let (a, b) = acc.unwrap_or((*gx, gx + g.advance));
             Some((a.min(*gx), b.max(gx + g.advance)))
-        })
+        })?;
+    Some(Rect {
+        x: margin + a as i32,
+        y: line.top,
+        w: (b - a).ceil() as i32,
+        h: line.height,
+    })
 }
 
-/// Sayfadaki her satırda `[start, end)` aralığının zeminini boyar (yazıdan önce çizilmeli).
-pub(super) fn paint(
-    canvas: &mut Canvas,
-    page: &Page,
-    margin: i32,
-    start: Position,
-    end: Position,
-    gray: u8,
-) {
-    for line in &page.lines {
-        if let Some((a, b)) = line_span(line, start, end) {
-            canvas.fill_rect(
-                margin + a as i32,
-                line.top,
-                (b - a).ceil() as u32,
-                line.height as u32,
-                gray,
-            );
+/// Sayfa noktasının (punto) altındaki karakter: (blok, bayt). Kutuya düşmeyen
+/// nokta, dikeyde içine düştüğü satırın en yakın karakterine bağlanır (en fazla
+/// bir yazı boyu uzaktaysa); kelimeler arası boşluğa basmak da kelime seçer.
+fn char_at(text: &PageText, x: f32, y: f32) -> Option<(usize, usize)> {
+    text.boxes
+        .iter()
+        .enumerate()
+        .flat_map(|(block, boxes)| boxes.iter().map(move |b| (block, b)))
+        .filter(|(_, b)| y >= b.area.y && y < b.area.y + b.area.h)
+        .map(|(block, b)| {
+            let dx = (b.area.x - x).max(x - (b.area.x + b.area.w)).max(0.0);
+            (dx, b.area.h, block, b.start)
+        })
+        .filter(|(dx, h, ..)| *dx <= *h)
+        .min_by(|a, b| a.0.total_cmp(&b.0))
+        .map(|(_, _, block, offset)| (block, offset))
+}
+
+/// `[start, end)` aralığındaki karakter kutuları, aynı satırdakiler birleştirilerek (punto).
+fn box_areas(text: &PageText, start: Position, end: Position) -> Vec<Area> {
+    let mut out: Vec<Area> = Vec::new();
+    for (block, boxes) in text.boxes.iter().enumerate() {
+        for b in boxes {
+            let p = Position {
+                block,
+                offset: b.start,
+            };
+            if p < start || p >= end {
+                continue;
+            }
+            let a = b.area;
+            match out.last_mut() {
+                // Aynı satırda, sağa doğru devam ediyor.
+                Some(last) if (a.y - last.y).abs() < 0.5 * a.h && a.x >= last.x => {
+                    let right = (last.x + last.w).max(a.x + a.w);
+                    let bottom = (last.y + last.h).max(a.y + a.h);
+                    last.y = last.y.min(a.y);
+                    last.w = right - last.x;
+                    last.h = bottom - last.y;
+                }
+                _ => out.push(a),
+            }
         }
     }
-}
-
-/// Ekrandaki noktaya düşen vurgu: `placed` içinden (sıra, başlangıç, bitiş).
-pub(super) fn annotation_at(
-    page: &Page,
-    blocks: &[Block],
-    placed: &[(usize, Position, Position)],
-    margin: i32,
-    x: u32,
-    y: u32,
-) -> Option<usize> {
-    let (s, _) = word_at(page, blocks, margin, x, y)?;
-    placed
-        .iter()
-        .find(|(_, a, b)| s >= *a && s < *b)
-        .map(|(i, _, _)| *i)
+    out
 }
 
 /// İşlem çubuğundaki düğmeler.
@@ -179,18 +198,67 @@ pub(super) enum Action {
 }
 
 impl App {
-    /// Okunan sayfa dizilmiş metinse (sayfa görüntüsü değil) sayfa ve bloklar.
-    fn text_page(&self) -> Option<(&Page, &[Block])> {
-        let s = self.session.as_ref().filter(|s| !s.showing_pdf_image())?;
-        Some((s.pages.get(s.page)?, &s.blocks))
+    /// Ekrandaki noktanın altındaki kelime (okunan bölümün metin bloklarında).
+    fn word_at(&self, x: u32, y: u32) -> Option<(Position, Position)> {
+        let s = self.session.as_ref()?;
+        let page = s.pages.get(s.page)?;
+        if !s.showing_pdf_image() {
+            return word_at(page, &s.blocks, self.settings.margin, x, y);
+        }
+        let (text, screen) = (s.pdf_text.as_ref()?, page.screen?);
+        let (px, py) = pdf_view::to_page(&screen, self.width, x, y);
+        let (block, offset) = char_at(text, px, py)?;
+        let (a, b) = word_bounds(&text.blocks[block].text, offset);
+        Some((Position { block, offset: a }, Position { block, offset: b }))
     }
 
-    fn word_at(&self, x: u32, y: u32) -> Option<(Position, Position)> {
-        let (page, blocks) = self.text_page()?;
-        word_at(page, blocks, self.settings.margin, x, y)
+    /// `[start, end)` aralığının okunan ekrandaki dikdörtgenleri.
+    fn range_rects(&self, start: Position, end: Position) -> Vec<Rect> {
+        let Some(s) = self.session.as_ref() else {
+            return Vec::new();
+        };
+        let Some(page) = s.pages.get(s.page) else {
+            return Vec::new();
+        };
+        if !s.showing_pdf_image() {
+            return page
+                .lines
+                .iter()
+                .filter_map(|l| line_rect(l, self.settings.margin, start, end))
+                .collect();
+        }
+        match (s.pdf_text.as_ref(), page.screen) {
+            (Some(text), Some(screen)) => box_areas(text, start, end)
+                .into_iter()
+                .map(|a| pdf_view::to_screen(&screen, self.width, a))
+                .collect(),
+            _ => Vec::new(),
+        }
+    }
+
+    /// Okunan ekrandaki vurguları ve seçimi çizer (sayfa çizildikten sonra).
+    pub(super) fn paint_marks(&self, canvas: &mut Canvas) {
+        let Some(s) = self.session.as_ref() else {
+            return;
+        };
+        let marks = s
+            .placed
+            .iter()
+            .map(|(_, a, b)| (*a, *b, HIGHLIGHT_GRAY))
+            .chain(
+                self.selection
+                    .map(|sel| (sel.start, sel.end, SELECTION_GRAY)),
+            );
+        for (a, b, gray) in marks {
+            for r in self.range_rects(a, b) {
+                canvas.darken_rect(r.x, r.y, r.w.max(0) as u32, r.h.max(0) as u32, gray);
+            }
+        }
     }
 
     pub(super) fn start_selection(&mut self, x: u32, y: u32) -> Option<Refresh> {
+        // Sayfa görüntüsünde metin yalnızca gerektiğinde çıkarılır.
+        self.session.as_mut()?.load_page_text();
         let word = self.word_at(x, y)?;
         self.selection = Some(Selection::new(word));
         self.view = View::Reading;
@@ -211,10 +279,17 @@ impl App {
         Some(self.refresh(false))
     }
 
+    /// Dokunulan vurgunun `state.annotations` sırası.
     pub(super) fn annotation_at(&self, x: u32, y: u32) -> Option<usize> {
-        let (page, blocks) = self.text_page()?;
         let s = self.session.as_ref()?;
-        annotation_at(page, blocks, &s.placed, self.settings.margin, x, y)
+        if s.placed.is_empty() {
+            return None;
+        }
+        let (at, _) = self.word_at(x, y)?;
+        s.placed
+            .iter()
+            .find(|(_, a, b)| at >= *a && at < *b)
+            .map(|(i, _, _)| *i)
     }
 
     fn actions(&self) -> &'static [Action] {
@@ -246,9 +321,8 @@ impl App {
         }
     }
 
-    /// Seçimin ya da dokunulan vurgunun sayfadaki ilk satırının üstü.
+    /// Seçimin ya da dokunulan vurgunun ekrandaki üst kenarı.
     fn marked_top(&self) -> Option<i32> {
-        let (page, _) = self.text_page()?;
         let s = self.session.as_ref()?;
         let (a, b) = match self.view {
             View::Annotation { index } => s
@@ -258,10 +332,7 @@ impl App {
                 .map(|(_, a, b)| (*a, *b))?,
             _ => self.selection.map(|sel| (sel.start, sel.end))?,
         };
-        page.lines
-            .iter()
-            .find(|l| line_span(l, a, b).is_some())
-            .map(|l| l.top)
+        self.range_rects(a, b).iter().map(|r| r.y).min()
     }
 
     fn tapped_action(&self, event: Event) -> Option<Action> {

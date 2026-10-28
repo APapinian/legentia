@@ -43,6 +43,22 @@ impl Canvas {
         }
     }
 
+    /// Dikdörtgendeki pikselleri en fazla `gray` kadar açık bırakır: beyaz zemin
+    /// griye döner, koyu yazı olduğu gibi kalır (vurgu). Ekran dışı kırpılır.
+    pub fn darken_rect(&mut self, x: i32, y: i32, w: u32, h: u32, gray: u8) {
+        let x0 = x.clamp(0, self.width as i32) as u32;
+        let y0 = y.clamp(0, self.height as i32) as u32;
+        let x1 = (x + w as i32).clamp(0, self.width as i32) as u32;
+        let y1 = (y + h as i32).clamp(0, self.height as i32) as u32;
+        for row in y0..y1 {
+            let start = (row * self.width + x0) as usize;
+            let end = (row * self.width + x1) as usize;
+            for p in &mut self.pixels[start..end] {
+                *p = (*p).min(gray);
+            }
+        }
+    }
+
     /// Dikdörtgenin `thickness` kalınlığında siyah çerçevesi.
     pub fn stroke_rect(&mut self, x: i32, y: i32, w: u32, h: u32, thickness: u32) {
         let t = thickness.min(w).min(h);
@@ -91,6 +107,15 @@ impl Canvas {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn darken_keeps_dark_pixels() {
+        let mut c = Canvas::new(4, 1);
+        c.fill(255);
+        c.fill_rect(1, 0, 1, 1, 0);
+        c.darken_rect(-1, 0, 10, 1, 200);
+        assert_eq!(c.pixels(), &[200, 0, 200, 200]);
+    }
 
     #[test]
     fn fill_rect_clips_to_canvas() {

@@ -1,6 +1,5 @@
 //! Ekranlar: her biri için olay işleme ve çizim.
 
-use super::select;
 use super::session::Target;
 use super::settings::{FIELD_PAGES, Settings};
 use super::ui::{
@@ -313,6 +312,7 @@ impl App {
         };
         if s.showing_pdf_image() {
             self.draw_pdf_page(canvas, s);
+            self.paint_marks(canvas);
             if s.bookmark_here().is_some() {
                 draw_dog_ear(canvas);
             }
@@ -334,23 +334,10 @@ impl App {
             draw_footer(t, canvas, &footer, MARGIN);
             return;
         }
-        let margin = self.settings.margin;
-        for (_, a, b) in &s.placed {
-            select::paint(canvas, page, margin, *a, *b, select::HIGHLIGHT_GRAY);
-        }
-        if let Some(sel) = &self.selection {
-            select::paint(
-                canvas,
-                page,
-                margin,
-                sel.start,
-                sel.end,
-                select::SELECTION_GRAY,
-            );
-        }
         for placed in &page.lines {
-            t.draw_line(canvas, &placed.line, margin, placed.baseline);
+            t.draw_line(canvas, &placed.line, self.settings.margin, placed.baseline);
         }
+        self.paint_marks(canvas);
         if page.lines.is_empty() {
             t.draw_msg(canvas, &Msg::EmptyChapter, MARGIN, TOP + 300, ROW_PX);
         }

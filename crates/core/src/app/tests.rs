@@ -629,6 +629,55 @@ fn a_tap_elsewhere_cancels_the_selection() {
 }
 
 #[test]
+fn pdf_image_highlights_are_shared_with_reflow() {
+    let (mut app, data, root) = setup(&[("metin.pdf", text_pdf())]);
+    tap_row(&mut app, &LIBRARY, 0);
+    assert!(session(&app).showing_pdf_image());
+    assert!(
+        session(&app).pdf_text.is_none(),
+        "metin yalnızca gerektiğinde çıkarılır"
+    );
+    // "Birinci" başlığı: sayfada (72, 740) taban çizgisi, 20 punto.
+    let screen = session(&app).pages[0].screen.unwrap();
+    let at = |x: f32, y: f32| {
+        let r = super::pdf_view::to_screen(
+            &screen,
+            W,
+            crate::pdf::Area {
+                x,
+                y,
+                w: 0.0,
+                h: 0.0,
+            },
+        );
+        (r.x as u32, r.y as u32)
+    };
+    let (x, y) = at(90.0, 792.0 - 745.0);
+    app.handle(Event::Hold { x, y });
+    app.handle(Event::HoldEnd { x, y });
+    assert!(matches!(app.view, View::Selected));
+    let ok = app.action_rect(0).center();
+    tap(&mut app, ok);
+    assert_eq!(session(&app).state.annotations[0].quote, "Birinci");
+    let mut c = Canvas::new(W, LIBRA2_HEIGHT);
+    app.draw(&mut c);
+    let row = &c.pixels()[(y * W) as usize..((y + 1) * W) as usize];
+    assert!(
+        row.contains(&select::HIGHLIGHT_GRAY),
+        "vurgu görüntü üzerine çizilmeli"
+    );
+    app.shutdown();
+
+    let mut app = restart(&data, &root);
+    tap_row(&mut app, &LIBRARY, 0);
+    assert_eq!(session(&app).placed.len(), 1, "görüntüde vurgu yerleşmeli");
+    toggle_reflow(&mut app);
+    let s = session(&app);
+    let (_, a, b) = s.placed[0];
+    assert_eq!(&s.blocks[a.block].text[a.offset..b.offset], "Birinci");
+}
+
+#[test]
 fn broken_pdf_shows_turkish_error() {
     let (mut app, _, _) = setup(&[("bozuk.pdf", b"%PDF-1.4 bozuk".to_vec())]);
     tap_row(&mut app, &LIBRARY, 0);
