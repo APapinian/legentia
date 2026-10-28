@@ -40,6 +40,11 @@ const STEP_BUTTON: i32 = 100;
 /// Kütüphane başlığındaki "Kataloglar" düğmesinin genişliği.
 pub(super) const CATALOGS_BUTTON_W: i32 = 230;
 
+/// Kütüphane başlığında "Kataloglar"ın solundaki "Çık" düğmesi.
+pub(super) fn exit_button(width: u32) -> Rect {
+    super::ui::left_of(header_button(width, CATALOGS_BUTTON_W), 130)
+}
+
 /// Okurken açılan menünün seçenekleri.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum MenuItem {
@@ -107,6 +112,11 @@ impl App {
             if header_button(self.width, CATALOGS_BUTTON_W).contains(x, y) {
                 return self.open_catalogs();
             }
+            if exit_button(self.width).contains(x, y) {
+                self.shutdown();
+                self.exit = true;
+                return None;
+            }
             let index = LIBRARY.row_at(page, self.library.len(), y)?;
             let path = self.library[index].path.clone();
             self.open_book(&path);
@@ -120,13 +130,15 @@ impl App {
     pub(super) fn draw_library(&self, canvas: &mut Canvas, page: usize) {
         let t = &self.text;
         let catalogs = header_button(canvas.width(), CATALOGS_BUTTON_W);
+        let exit = exit_button(canvas.width());
         draw_header_until(
             t,
             canvas,
             &tr(&Msg::Library),
             &tr(&Msg::BookCount(self.library.len())),
-            catalogs.x - 30,
+            exit.x - 30,
         );
+        draw_button(t, canvas, exit, &tr(&Msg::Exit), ROW_PX);
         // Başlıktaki "Geri" düğmesinin yerinde yedekleme ekranı düğmesi, solunda kataloglar.
         draw_button(
             t,

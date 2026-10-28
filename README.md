@@ -40,6 +40,7 @@ cargo run --release -p legentia-core --example screenshots -- <kütüphane> <ç�
 # Kobo hedefi: statik ARMv7 musl; testler qemu-arm ile çalışır.
 # TLS'in (ring) C kodu flake'teki clang ile derlenir; nix develop dışında CC_armv7_unknown_linux_musleabihf gerekir.
 cargo build -p legentia-core --target armv7-unknown-linux-musleabihf
+cargo build --release -p legentia-kobo --target armv7-unknown-linux-musleabihf   # cihaz programı (statik)
 cargo test  -p legentia-core --target armv7-unknown-linux-musleabihf
 ```
 

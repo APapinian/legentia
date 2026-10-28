@@ -5,7 +5,7 @@
 //! tutmak uzun basma, basılıyken sürüklemek sürükleme. Okurken sol üçte bir
 //! önceki sayfa, sağ üçte bir sonraki sayfa, orta menü.
 //! PageUp / Sol ok = üst sayfa tuşu (geri), PageDown / Sağ ok / Boşluk = alt tuş (ileri).
-//! Esc = çıkış. Tam yenileme, ekranın bir an ters renkte gösterilmesiyle işaretlenir.
+//! Esc ya da kütüphanedeki "Çık" = çıkış. Tam yenileme, ekranın bir an ters renkte gösterilmesiyle işaretlenir.
 //!
 //! LEGENTIA_SIM_SCALE: pencere küçültme katsayısı (tam sayı, varsayılan 2).
 //! LEGENTIA_DATA: ayar ve okuma kayıtlarının klasörü (varsayılan ~/.local/share/legentia).
@@ -136,6 +136,9 @@ fn run() -> ExitCode {
             if let Some(refresh) = handled {
                 present(&mut window, &app, &mut canvas, &mut frame, scale, refresh);
             }
+        }
+        if app.wants_exit() {
+            break;
         }
     }
     app.shutdown();

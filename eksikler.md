@@ -9,6 +9,14 @@ Yeni bir eksik bulununca bu dosyaya eklenir; giderilen madde silinir ve ne yapı
 ## Cihazda ayarlanacak ya da doğrulanacak
 
 - **E Ink yenilemesi:** 6 kısmi yenilemeden sonra bir tam yenileme yapılıyor (`PARTIALS_PER_FULL`). Sayı geçici; cihazdaki gölgelenmeye bakılarak ayarlanacak. (M3)
+- **Kobo platform katmanı hiç cihazda çalışmadı** (M10 1. kısım). Cihazda bakılacaklar:
+  - Dokunma eşlemesi (Cobalt'ın ölçümü: eksenler yer değiştiriyor, ayna yok).
+  - Dokunmatik aygıtın adla bulunması ("touch").
+  - Kısmi yenilemede GL16'nın mı REAGL'in mi daha az iz bıraktığı.
+  - Kare başına 8,6 MB dosya yazmasının hızı (yavaşsa mmap ya da yalnız değişen bölge).
+  - Nickel ekranı farklı dönüşte bırakırsa programın çizmeden çıkması.
+  - 16 MB'lık ikilinin küçültülmesi (strip).
+- **Güç tuşu uyku yerine çıkış yapıyor:** şimdilik güvenlik yolu; uyku/uyanma M10'da ayrıca ele alınacak.
 - **Kontrast ve gamma:** gece modu ve PDF kenar yumuşatması cihaz ekranında değerlendirilecek. (M4, M5)
 - **Uzun basma:** zamanlayıcı yok; uzun basma ancak parmak kalkınca ya da kıpırdayınca tanınıyor. Cihazda doğal hissettiriyor mu bakılacak. (M6)
 - **Süreler ve bellek:** kitap açma, sayfalama ve sayfa çizme süreleri yalnızca masaüstünde ölçüldü. Cihazda yeniden ölçülecek. (M2, M3, M5)

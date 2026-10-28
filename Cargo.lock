@@ -931,6 +931,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "legentia-kobo"
+version = "0.1.0"
+dependencies = [
+ "env_logger",
+ "legentia-core",
+ "log",
+ "nix",
+]
+
+[[package]]
 name = "legentia-sim"
 version = "0.1.0"
 dependencies = [

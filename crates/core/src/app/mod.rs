@@ -160,6 +160,8 @@ pub struct App {
     online: Option<lookup::OnlineSearch>,
     /// Çevrimiçi sözlüklerin adresleri.
     endpoints: lookup::Endpoints,
+    /// Kullanıcı "Çık"a dokundu; kayıtlar yazıldı, platform uygulamayı kapatmalı.
+    exit: bool,
 }
 
 /// Ekrana yerleştirilmiş PDF sayfa görüntüsü.
@@ -210,12 +212,19 @@ impl App {
             downloads: Vec::new(),
             online: None,
             endpoints: lookup::Endpoints::default(),
+            exit: false,
         }
     }
 
     /// İlk açılışta ekran her zaman tam yenilenir.
     pub fn start(&mut self) -> Refresh {
         self.refresh(true)
+    }
+
+    /// Kullanıcı uygulamadan çıkmak istedi (kayıtlar yazıldı); platform
+    /// kendi ekranına dönmeli.
+    pub fn wants_exit(&self) -> bool {
+        self.exit
     }
 
     pub fn settings(&self) -> &Settings {

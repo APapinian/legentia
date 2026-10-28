@@ -1810,3 +1810,19 @@ fn words_missing_locally_are_looked_up_online_and_cached() {
         }
     ));
 }
+
+#[test]
+fn exit_button_saves_and_asks_the_platform_to_quit() {
+    let (mut app, data, root) = reading_long_book();
+    key(&mut app, true);
+    key(&mut app, true);
+    menu(&mut app, MenuItem::Library);
+    assert!(!app.wants_exit());
+    let mut c = Canvas::new(W, LIBRA2_HEIGHT);
+    app.draw(&mut c);
+    tap(&mut app, super::screens::exit_button(W).center());
+    assert!(app.wants_exit());
+    let mut app = restart(&data, &root);
+    tap_row(&mut app, &LIBRARY, 0);
+    assert_eq!(session(&app).page, 2, "çevrilen sayfalar kaydedildi");
+}

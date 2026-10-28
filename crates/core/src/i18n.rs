@@ -13,6 +13,7 @@ pub enum Msg {
     Usage,
     // Kütüphane
     Library,
+    Exit,
     BookCount(usize),
     LibraryEmpty,
     Unreadable,
@@ -228,6 +229,7 @@ pub enum Msg {
     PdfPageFailed,
     FontMissing,
     WindowFailed,
+    ScreenFailed,
     Crashed,
 }
 
@@ -247,6 +249,7 @@ pub fn tr(msg: &Msg) -> String {
         Msg::WindowTitle => "Legentia — Libra 2 simülatörü".into(),
         Msg::Usage => "Kullanım: legentia-sim <kitap klasörü ya da kitap.epub>".into(),
         Msg::Library => "Kütüphane".into(),
+        Msg::Exit => "Çık".into(),
         Msg::BookCount(n) => format!("{n} kitap"),
         Msg::LibraryEmpty => "Kütüphanede kitap yok. EPUB dosyalarını USB ile cihaza kopyalayın.".into(),
         Msg::Unreadable => "Açılamıyor".into(),
@@ -426,6 +429,7 @@ pub fn tr(msg: &Msg) -> String {
         Msg::PdfPageFailed => "Bu sayfa çizilemedi. Diğer sayfalara geçebilirsiniz.".into(),
         Msg::FontMissing => "Yazı tipleri bulunamadı ya da okunamadı. LEGENTIA_FONTS ortam değişkeni font klasörünü göstermeli (nix develop bunu ayarlar).".into(),
         Msg::WindowFailed => "Simülatör penceresi açılamadı.".into(),
+        Msg::ScreenFailed => "Ekrana erişilemedi ya da ekran beklenen biçimde değil (1264×1680, dikey). Ayrıntılar legentia.log dosyasında.".into(),
         Msg::Crashed => "Beklenmeyen bir hata oluştu ve uygulama kapandı. Ayrıntılar kayıt dosyasında.".into(),
     }
 }
@@ -456,6 +460,7 @@ mod tests {
             WindowTitle,
             Usage,
             Library,
+            Exit,
             BookCount(3),
             LibraryEmpty,
             Unreadable,
@@ -656,6 +661,7 @@ mod tests {
             PdfPageFailed,
             FontMissing,
             WindowFailed,
+            ScreenFailed,
             Crashed,
         ]
     }
