@@ -2953,3 +2953,37 @@ fn cover_grid_draws_covers_in_background_and_opens_books() {
     assert!(has_cover(&app, "Kapaklı"));
     assert!(!has_cover(&app, "Çalıkuşu"));
 }
+
+#[test]
+fn reading_time_and_pages_are_counted_saved_and_shown() {
+    let (mut app, data, root) = reading_long_book();
+    let back = |secs| Some(std::time::Instant::now() - std::time::Duration::from_secs(secs));
+    // İleri çevrilen sayfa: süre ve sayfa; geri çevrilen: yalnızca süre.
+    app.page_shown = back(40);
+    key(&mut app, true);
+    app.page_shown = back(20);
+    key(&mut app, false);
+    // 10 dakikadan uzun bekleme ara sayılır.
+    app.page_shown = back(1200);
+    key(&mut app, true);
+    // Menü açılınca o ana kadarki süre eklenir.
+    app.page_shown = back(30);
+    middle(&mut app);
+    assert!(app.page_shown.is_none());
+    let id = session(&app).id.clone();
+    let book = app.stats.books[&id];
+    assert_eq!((book.secs / 10, book.pages), (9, 1), "40 + 20 + 30 sn");
+    app.shutdown();
+
+    let mut app = restart(&data, &root);
+    assert_eq!(app.stats.books[&id].pages, 1, "kalıcı");
+    tap(&mut app, super::ui::back_button(W).center());
+    assert!(matches!(app.view, View::Backup));
+    let at = app.stats_button().center();
+    tap(&mut app, at);
+    assert!(matches!(app.view, View::Stats));
+    let mut c = Canvas::new(W, LIBRA2_HEIGHT);
+    app.draw(&mut c);
+    tap(&mut app, super::ui::back_button(W).center());
+    assert!(matches!(app.view, View::Backup));
+}

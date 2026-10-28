@@ -138,6 +138,27 @@ pub enum Msg {
     },
     ExportFailed,
     NoteLine(String),
+    Tools,
+    Stats,
+    StatToday {
+        secs: u64,
+        pages: u32,
+    },
+    StatWeek {
+        secs: u64,
+        pages: u32,
+    },
+    StatTotal {
+        secs: u64,
+        pages: u32,
+    },
+    StatStreak(u32),
+    StatSpeed(u32),
+    StatChart,
+    StatBooks,
+    Minutes(u32),
+    Duration(u64),
+    RemovedBook,
     TagLine(String),
     MarkKind(Box<Msg>),
     MarkGray,
@@ -456,6 +477,24 @@ pub fn tr(msg: &Msg) -> String {
         }
         Msg::ExportFailed => "Notlar dışa aktarılamadı. Ayrıntılar kayıt dosyasında.".into(),
         Msg::NoteLine(note) => format!("Not: {note}"),
+        Msg::Tools => "Araçlar".into(),
+        Msg::Stats => "Okuma istatistikleri".into(),
+        Msg::StatToday { secs, pages } => {
+            format!("Bugün: {} · {pages} sayfa", duration((secs / 60) as u32))
+        }
+        Msg::StatWeek { secs, pages } => {
+            format!("Son 7 gün: {} · {pages} sayfa", duration((secs / 60) as u32))
+        }
+        Msg::StatTotal { secs, pages } => {
+            format!("Toplam: {} · {pages} sayfa", duration((secs / 60) as u32))
+        }
+        Msg::StatStreak(n) => format!("Art arda okunan gün: {n}"),
+        Msg::StatSpeed(n) => format!("Okuma hızı: dakikada yaklaşık {n} kelime"),
+        Msg::StatChart => "Son 14 gün (dakika)".into(),
+        Msg::StatBooks => "En çok okunan kitaplar".into(),
+        Msg::Minutes(m) => duration(*m),
+        Msg::Duration(secs) => duration((secs / 60) as u32),
+        Msg::RemovedBook => "(kütüphanede yok)".into(),
         Msg::TagLine(tag) => format!("Etiket: {tag}"),
         Msg::MarkKind(m) => format!("Tür: {}", tr(m)),
         Msg::MarkGray => "gri".into(),
@@ -464,7 +503,7 @@ pub fn tr(msg: &Msg) -> String {
         Msg::Tag => "Etiket".into(),
         Msg::TagTitle => "Vurgunun etiketi".into(),
         Msg::FieldTag => "Etiket (boş bırakılırsa kaldırılır)".into(),
-        Msg::BackupButton => "Yedek".into(),
+        Msg::BackupButton => "Araçlar".into(),
         Msg::Backup => "Yedekleme".into(),
         Msg::BackupHint => "Ayarlar, kelime listesi, okuma konumları, yer imleri, vurgular ve notlar kütüphane klasörüne “Legentia yedek.json” olarak yazılır. Geri yükleme mevcut kayıtları silmez; yedektekilerle birleştirir.".into(),
         Msg::BackupNow => "Yedekle".into(),
@@ -775,6 +814,21 @@ mod tests {
             },
             ExportFailed,
             NoteLine("x".into()),
+            Tools,
+            Stats,
+            StatToday {
+                secs: 4000,
+                pages: 3,
+            },
+            StatWeek { secs: 60, pages: 1 },
+            StatTotal { secs: 0, pages: 0 },
+            StatStreak(2),
+            StatSpeed(230),
+            StatChart,
+            StatBooks,
+            Minutes(75),
+            Duration(3600),
+            RemovedBook,
             TagLine("x".into()),
             MarkKind(Box::new(MarkGray)),
             MarkGray,

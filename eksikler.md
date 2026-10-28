@@ -42,6 +42,7 @@ Yeni bir eksik bulununca bu dosyaya eklenir; giderilen madde silinir ve ne yapı
 - **Kitap içi arama eşzamanlı:** bütün bölümler arama sırasında okunur; cihazda büyük kitapta (ya da yüzlerce sayfalık PDF'te) ekran birkaç saniye bekleyebilir. Yavaşsa arka plana alınacak. (M11)
 - **EPUB görselleri:** GIF ve SVG çizimleri gösterilmiyor; tablolar ızgara olarak değil satır satır akıyor; satır içi küçük görseller paragrafı bölüyor; gece modunda görseller de ters dönüyor. Görsel çözme süresi (büyük JPEG) cihazda ölçülecek. (M11)
 - **Kütüphanede arama yok.** Türkçe sıralama var ama kütüphanede kitap aramak için alan yok. (M4)
+- **İstatistik günleri UTC:** cihazın saat dilimi okunmuyor; Türkiye'de gün gece 03:00'te değişiyor. İstatistikler yedeğe girmiyor. Okuma ekranı açık bırakılıp 10 dakikadan uzun sayfa çevrilmezse o süre hiç sayılmıyor (ara sayılıyor). (M11)
 - **Vurgu türleri notlu PDF'e geçmiyor:** altı çizili ve çerçeveli vurgular "notlu PDF"te de sarı/gri vurgu (Highlight) olarak yazılıyor; çerçeve, alt satırdaki harflerin uzantılarına değebiliyor. (M11)
 - **Kapak önbelleği:** kitap dosyası değişse de (aynı kimlikle) eski kapak kalır; silinen kitapların kapakları `kapaklar/`'da durur. Cihazda kapak üretme süresi (özellikle büyük PDF'in ilk sayfası) ölçülecek. Araç çubuğundaki süzgeç düğmeleri dar; yazılar sığıyor ama sıkışık. (M11)
 - **Katalog şifresi düz metin:** `catalogs.json` dosyasında açık duruyor. (M8)

@@ -42,10 +42,12 @@ impl App {
         if !matches!(self.view, View::Reading) || since.elapsed() < self.auto_interval() {
             return None;
         }
-        // Ölçüme katılmasın: okuma hızı ayarlanan aralığı öğrenmesin.
+        // Süre istatistiğe sayılır ama okuma hızı ölçümüne katılmaz: hız
+        // ayarlanan aralığı öğrenmesin.
+        self.flush_reading(true);
         self.page_shown = None;
         let refresh = self.handle_reading(Event::Key(PageKey::Forward));
-        self.page_shown = None;
+        self.page_shown = Some(Instant::now());
         match refresh {
             Some(r) => {
                 self.auto_turn = Some(Instant::now());

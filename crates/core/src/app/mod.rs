@@ -28,6 +28,7 @@ mod select;
 mod session;
 mod settings;
 mod shelf;
+mod stats;
 mod ui;
 mod words;
 
@@ -76,8 +77,10 @@ enum View {
     Annotations {
         page: usize,
     },
-    /// Yedekleme ve geri yükleme (kütüphaneden).
+    /// Araçlar: yedekleme, geri yükleme, istatistikler (kütüphaneden).
     Backup,
+    /// Okuma istatistikleri.
+    Stats,
     /// Sözlük sonucu (`lookup`), sayfası.
     Lookup {
         page: usize,
@@ -173,6 +176,9 @@ pub struct App {
     /// ve eksikleri üreten iş.
     covers: HashMap<String, Option<covers::Thumb>>,
     cover_job: Option<covers::CoverJob>,
+    /// Okuma istatistikleri ve kaydedilmemiş değişikliği var mı.
+    stats: stats::Stats,
+    stats_dirty: bool,
     /// Kütüphanede arama (başlık/yazar); yoksa hepsi.
     library_query: Option<String>,
     /// Vurgular ve notlar listesinde arama.
@@ -246,6 +252,7 @@ impl App {
         let settings: Settings = store.load(SETTINGS_FILE).unwrap_or_default();
         let words = store.load(words::WORDS_FILE).unwrap_or_default();
         let pace = store.load(pace::PACE_FILE).unwrap_or_default();
+        let stats = store.load(stats::STATS_FILE).unwrap_or_default();
         let catalogs = store
             .load(catalog::CATALOGS_FILE)
             .unwrap_or_else(catalog::default_catalogs);
@@ -279,6 +286,8 @@ impl App {
             shelf,
             covers: HashMap::new(),
             cover_job: None,
+            stats,
+            stats_dirty: false,
             library_query: None,
             annotation_query: None,
             store,
@@ -479,6 +488,7 @@ impl App {
             View::Bookmarks { page } => self.handle_bookmarks(*page, event),
             View::Annotations { page } => self.handle_annotations(*page, event),
             View::Backup => self.handle_backup(event),
+            View::Stats => self.handle_stats(event),
             View::Lookup { page } => self.handle_lookup(*page, event),
             View::Words { page } => self.handle_words(*page, event),
             View::Settings { draft, page } => {
@@ -555,6 +565,9 @@ impl App {
         if self.unsaved_turns > 0 {
             self.save_progress();
         }
+        // Okunmakta olan sayfanın süresi de kaydedilsin.
+        self.flush_reading(false);
+        self.save_stats();
     }
 
     /// Sayfa çevrildi: konum her `SAVE_EVERY_TURNS` çevirmede bir kaydedilir.
@@ -579,6 +592,7 @@ impl App {
         self.store.save(&book_file(&session.id), &session.state);
         self.progress
             .insert(session.id.clone(), session.state.percent);
+        self.save_stats();
     }
 
     /// PDF'in metin katmanı olmayan sayfalarını OCR'dan geçirip görünmez metin
@@ -693,6 +707,7 @@ impl App {
             View::Bookmarks { page } => self.draw_bookmarks(canvas, *page),
             View::Annotations { page } => self.draw_annotations(canvas, *page),
             View::Backup => self.draw_backup(canvas),
+            View::Stats => self.draw_stats(canvas),
             View::Lookup { page } => self.draw_lookup(canvas, *page),
             View::Words { page } => self.draw_words(canvas, *page),
             View::Settings { draft, page } => self.draw_settings(canvas, draft, *page),

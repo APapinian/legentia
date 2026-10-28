@@ -16,8 +16,8 @@ use super::{App, View};
 use crate::i18n::Msg;
 
 pub(super) const PACE_FILE: &str = "okuma-hizi.json";
-const MIN_DWELL: Duration = Duration::from_secs(3);
-const MAX_DWELL: Duration = Duration::from_secs(600);
+pub(super) const MIN_DWELL: Duration = Duration::from_secs(3);
+pub(super) const MAX_DWELL: Duration = Duration::from_secs(600);
 /// Tahmin bu kadar ölçümden sonra gösterilir.
 const MIN_SAMPLES: u32 = 3;
 /// Yeni ölçümün ortalamadaki ağırlığı.
@@ -72,15 +72,12 @@ fn minutes(secs: f32) -> u32 {
 }
 
 impl App {
-    /// Sayfa değişmeden hemen önce: ileri çevriliyorsa sayfada geçen süre
-    /// ölçüme katılır; sayaç yeni sayfa için baştan başlar.
+    /// Sayfa değişmeden hemen önce: sayfada geçen süre istatistiğe, ileri
+    /// çevriliyorsa okuma hızı ölçümüne katılır; sayaç yeni sayfa için baştan başlar.
     pub(super) fn note_dwell(&mut self, forward: bool) {
-        let now = Instant::now();
-        let shown = self.page_shown.replace(now);
-        let (Some(shown), Some(s)) = (shown, &self.session) else {
+        let (Some(dwell), Some(s)) = (self.flush_reading(forward), &self.session) else {
             return;
         };
-        let dwell = now.duration_since(shown);
         if !forward || !(MIN_DWELL..=MAX_DWELL).contains(&dwell) {
             return;
         }
@@ -95,10 +92,14 @@ impl App {
         self.pace_dirty = true;
     }
 
-    /// Okuma ekranından çıkınca (menü, sözlük…) geçen süre sayılmaz.
+    /// Okuma ekranından çıkınca (menü, sözlük…) o ana kadarki süre istatistiğe
+    /// eklenir, sonrası sayılmaz; okumaya dönünce sayaç yeniden başlar.
     pub(super) fn pause_dwell(&mut self) {
         if !matches!(self.view, View::Reading) {
+            self.flush_reading(false);
             self.page_shown = None;
+        } else if self.page_shown.is_none() {
+            self.page_shown = Some(Instant::now());
         }
     }
 

@@ -148,6 +148,14 @@ impl App {
         (r(0), r(1))
     }
 
+    pub(super) fn stats_button(&self) -> Rect {
+        let (_, restore) = self.backup_buttons();
+        Rect {
+            y: restore.y + 2 * (BUTTON_H + 40),
+            ..restore
+        }
+    }
+
     pub(super) fn handle_backup(&mut self, event: Event) -> Option<Refresh> {
         let Event::Tap { x, y } = event else {
             return None;
@@ -157,6 +165,9 @@ impl App {
             self.save_backup()
         } else if restore.contains(x, y) {
             self.restore_backup()
+        } else if self.stats_button().contains(x, y) {
+            self.view = View::Stats;
+            return Some(self.refresh(true));
         } else if back_button(self.width).contains(x, y) {
             self.view = View::Library { page: 0 };
             return Some(self.refresh(true));
@@ -172,11 +183,12 @@ impl App {
 
     pub(super) fn draw_backup(&self, canvas: &mut Canvas) {
         let t = &self.text;
-        draw_header(t, canvas, &tr(&Msg::Backup), "", true);
+        draw_header(t, canvas, &tr(&Msg::Tools), "", true);
         self.draw_message_lines(canvas, &Msg::BackupHint, HEADER_BOTTOM + 60);
         let (save, restore) = self.backup_buttons();
         draw_button(t, canvas, save, &tr(&Msg::BackupNow), ROW_PX);
         draw_button(t, canvas, restore, &tr(&Msg::RestoreNow), ROW_PX);
+        draw_button(t, canvas, self.stats_button(), &tr(&Msg::Stats), ROW_PX);
     }
 }
 

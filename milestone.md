@@ -390,7 +390,7 @@ Kullanıcı isteği (2026-10-28): 50 maddelik öneri listesi milestone olarak ka
 - [ ] 37. Cihazda aralıklı tekrarlı kelime çalışması (O)
 - [ ] 38. Seçili cümleyi çevrimiçi çevirme (O)
 - [x] 39. Seçili kelimeyi Türkçe Vikipedi'de arama (K) (Seçim çubuğunda "Vikipedi": önce Vikipedi araması (çekimli biçimi de bulur: "İstanbul'dan" → İstanbul), sonra maddenin özeti tanım ekranında, kaynak "Vikipedi (CC BY-SA)". Arka planda, "Vazgeç" ile bırakılır; internet kapalıyken açıklama. Gerçek API'nin yanıt biçimi curl ile doğrulandı; uygulama testi taklit sunucuyla.)
-- [ ] 40. Okuma istatistikleri (O)
+- [x] 40. Okuma istatistikleri (O) (Kütüphanedeki "Yedek" düğmesi "Araçlar" oldu; içinde "Okuma istatistikleri": bugün, son 7 gün, toplam (süre ve sayfa), art arda okunan gün, dakikada kelime (okuma hızından, 7 karakter = 1 kelime), son 14 günün çubuk grafiği, en çok okunan 5 kitap. Süre okuma ekranında sayılır (sayfa çevrilince, okumadan çıkınca, kapanışta); 10 dakikadan uzun bekleme ara sayılır; otomatik çevirmede süre sayılır ama hız ölçümüne katılmaz. `istatistik.json`, günler UTC.)
 
 ### Bağlantı ve eşitleme
 - [ ] 41. KOReader eşitleme sunucusuyla okuma konumu eşitleme (O)
