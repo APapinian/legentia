@@ -1,0 +1,3 @@
+# Legentia: NickelMenu'ye "Legentia" satırı ekler.
+# Kaldırmak için bu dosyayı ve .adds/legentia klasörünü silin.
+menu_item : main : Legentia : cmd_spawn : quiet : exec /mnt/onboard/.adds/legentia/legentia.sh
