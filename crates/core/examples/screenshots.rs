@@ -4,7 +4,8 @@
 //!
 //!     cargo run --release -p legentia-core --example screenshots -- <kütüphane> <çıktı klasörü> [kitap sırası] [reflow] [sutun]
 //!
-//! `reflow` verilirse PDF'ler yeniden akıtılmış, `sutun` verilirse sütun sütun açılır.
+//! `reflow` verilirse PDF'ler yeniden akıtılmış, `sutun` verilirse sütun sütun açılır,
+//! `izgara` verilirse kütüphane kapak ızgarası olarak (kapaklar beklenir) çekilir.
 #![allow(clippy::print_stdout, clippy::print_stderr)]
 
 use std::path::{Path, PathBuf};
@@ -42,6 +43,9 @@ fn main() {
     if flag("sutun") {
         settings.push(r#""pdf_view": "Columns""#);
     }
+    if flag("izgara") {
+        settings.push(r#""library_grid": true"#);
+    }
     if !settings.is_empty() {
         std::fs::create_dir_all(&data).expect("data dir");
         std::fs::write(
@@ -65,6 +69,11 @@ fn main() {
     let middle = (LIBRA2_WIDTH / 2, LIBRA2_HEIGHT / 2);
     let menu_item = |i: u32| (LIBRA2_WIDTH / 2, MENU_TOP + i * MENU_ROW + MENU_ROW / 2);
 
+    app.start();
+    while app.wants_ticks() {
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        app.handle(Event::Tick);
+    }
     shot(&app, "1-kutuphane");
     tap(
         &mut app,

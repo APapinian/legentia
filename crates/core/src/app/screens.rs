@@ -150,15 +150,15 @@ impl App {
                 return Some(refresh);
             }
             let books = self.visible_books();
-            let row = LIBRARY.row_at(page, books.len(), y)?;
+            let row = self.library_index_at(page, books.len(), x, y)?;
             let path = self.library[books[row]].path.clone();
             self.open_book(&path);
             return Some(self.refresh(true));
         }
-        if let Event::Hold { y, .. } = event {
-            return self.open_book_actions(page, y);
+        if let Event::Hold { x, y } = event {
+            return self.open_book_actions(page, x, y);
         }
-        let page = Self::page_list(page, LIBRARY.pages(self.visible_books().len()), event)?;
+        let page = Self::page_list(page, self.library_pages(self.visible_books().len()), event)?;
         self.view = View::Library { page };
         Some(self.refresh(false))
     }
@@ -198,6 +198,15 @@ impl App {
         } else if books.is_empty() {
             self.draw_message_lines(canvas, &Msg::NoMatchingBooks, LIBRARY.top + 80);
         }
+        let footer = Msg::ListFooter {
+            page: page + 1,
+            pages: self.library_pages(books.len()),
+        };
+        draw_footer(t, canvas, &footer, MARGIN);
+        if self.settings.library_grid {
+            self.draw_grid(canvas, &books, page);
+            return;
+        }
         let max_w = (canvas.width() as i32 - 2 * MARGIN) as f32;
         for (index, row) in LIBRARY.visible(page, books.len()) {
             let entry = &self.library[books[index]];
@@ -224,11 +233,6 @@ impl App {
             let second = one_line(t, &second, PLAIN, 30.0, max_w);
             t.draw_plain(canvas, &second, Family::Ui, PLAIN, MARGIN, r.y + 95, 30.0);
         }
-        let footer = Msg::ListFooter {
-            page: page + 1,
-            pages: LIBRARY.pages(books.len()),
-        };
-        draw_footer(t, canvas, &footer, MARGIN);
     }
 
     pub(super) fn draw_message_lines(&self, canvas: &mut Canvas, msg: &Msg, top: i32) {

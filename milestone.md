@@ -372,7 +372,7 @@ Kullanıcı isteği (2026-10-28): 50 maddelik öneri listesi milestone olarak ka
 
 ### Kütüphane
 - [x] 23. Kütüphanede arama ve sıralama (K) (Kullanıcı kararı: başlığın altında araç çubuğu. Ara (başlık/yazar; büyük/küçük harf, şapka, noktalı i fark etmez; yeniden dokununca kaldırılır), sıra: son okunan / başlık / yazar / eklenme (dokundukça değişir, kalıcı). Testli.)
-- [ ] 24. Kapaklı ızgara görünümü (O)
+- [x] 24. Kapaklı ızgara görünümü (O) (Araç çubuğunda "Kapaklar"/"Liste" düğmesi; 3×3 ızgara, kapağın altında başlık ve ilerleme/durum. Kapak EPUB'da OPF'teki `cover-image` ya da EPUB2 `<meta name="cover">`, PDF'te ilk sayfa; arka planda üretilip `veri/kapaklar/<kimlik>.png` olarak saklanır, bellekte yalnızca görünen sayfanınkiler. Kapağı olmayan kitapta başlıklı düz kapak. Masaüstünde gerçek kitaplarla denendi; cihazda üretim süresi ölçülecek.)
 - [ ] 25. Koleksiyonlar ve raflar (O)
 - [x] 26. Okuma durumu: okunacak / okunuyor / bitti (K) (Araç çubuğunda süzgeç: hepsi / okunuyor / okunacak / bitti. Kitaba uzun basınca durum seçilir; seçilmediyse ilerlemeden çıkar (açılmamış okunacak, açılmış okunuyor, %100 bitti). Kitap kaydında, yedeğe girer. Testli.)
 - [ ] 27. Seri bilgisi ve seri sırası (O)

@@ -127,3 +127,38 @@ pub fn epub2_sample() -> Vec<u8> {
         ("b.html", "<html><body><p>iki</p></body></html>"),
     ])
 }
+
+/// Kapaklı EPUB: EPUB3 biçiminde `cover-image` özelliğiyle, değilse EPUB2'nin
+/// `<meta name="cover">`ıyla. Kapak 60×90, koyu gri.
+pub fn epub_with_cover(epub3: bool) -> Vec<u8> {
+    let (meta, props) = if epub3 {
+        ("", r#" properties="cover-image""#)
+    } else {
+        (r#"<meta name="cover" content="kapak"/>"#, "")
+    };
+    let opf = format!(
+        r#"<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>Kapaklı</dc:title>{meta}</metadata>
+  <manifest>
+    <item id="kapak" href="resim/kapak.png" media-type="image/png"{props}/>
+    <item id="c" href="c.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine><itemref idref="c"/></spine>
+</package>"#
+    );
+    let cover = png(60, 90, 40);
+    zip_of_bytes(&[
+        ("mimetype", b"application/epub+zip".as_slice()),
+        (
+            "META-INF/container.xml",
+            container("OEBPS/content.opf").as_bytes(),
+        ),
+        ("OEBPS/content.opf", opf.as_bytes()),
+        (
+            "OEBPS/c.xhtml",
+            b"<html><body><p>metin</p></body></html>".as_slice(),
+        ),
+        ("OEBPS/resim/kapak.png", &cover),
+    ])
+}

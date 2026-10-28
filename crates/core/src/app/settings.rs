@@ -92,6 +92,8 @@ pub struct Settings {
     /// Kütüphane araç çubuğunun sıralaması ve süzgeci.
     pub library_sort: super::shelf::Sort,
     pub library_filter: super::shelf::Filter,
+    /// Kütüphane liste yerine kapak ızgarası.
+    pub library_grid: bool,
 }
 
 impl Default for Settings {
@@ -120,6 +122,7 @@ impl Default for Settings {
             auto_turn: 30,
             library_sort: Default::default(),
             library_filter: Default::default(),
+            library_grid: false,
         }
     }
 }

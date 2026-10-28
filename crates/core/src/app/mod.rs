@@ -9,6 +9,7 @@ mod annotations;
 mod autoturn;
 mod backup;
 mod catalog;
+mod covers;
 mod downloads;
 mod export;
 mod form;
@@ -168,6 +169,10 @@ pub struct App {
     tilted: bool,
     /// Kitap kimliği → son açılma ve elle seçilen okuma durumu.
     shelf: HashMap<String, shelf::Shelved>,
+    /// Kapak ızgarasında görünen kitapların kapakları (`None`: kapağı yok)
+    /// ve eksikleri üreten iş.
+    covers: HashMap<String, Option<covers::Thumb>>,
+    cover_job: Option<covers::CoverJob>,
     /// Kütüphanede arama (başlık/yazar); yoksa hepsi.
     library_query: Option<String>,
     /// Vurgular ve notlar listesinde arama.
@@ -272,6 +277,8 @@ impl App {
             tilted: false,
             auto_turn: None,
             shelf,
+            covers: HashMap::new(),
+            cover_job: None,
             library_query: None,
             annotation_query: None,
             store,
@@ -308,6 +315,7 @@ impl App {
 
     /// İlk açılışta ekran her zaman tam yenilenir.
     pub fn start(&mut self) -> Refresh {
+        self.request_covers();
         self.refresh(true)
     }
 
@@ -410,7 +418,8 @@ impl App {
             let downloads = self.poll_downloads();
             let online = self.poll_online();
             let turned = self.poll_auto_turn();
-            return [feed, downloads, online, turned]
+            let covers = self.poll_covers();
+            return [feed, downloads, online, turned, covers]
                 .into_iter()
                 .flatten()
                 .max_by_key(|r| *r == Refresh::Full);
@@ -440,6 +449,7 @@ impl App {
         }
         let refresh = self.dispatch(event);
         self.pause_dwell();
+        self.request_covers();
         if self.fit_orientation() {
             // Ekran döndü: her şey yeniden çizilir.
             return Some(self.refresh(true));

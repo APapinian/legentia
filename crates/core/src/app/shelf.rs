@@ -21,8 +21,9 @@ use crate::text::Family;
 pub(super) const TOOLBAR_H: i32 = 100;
 const TOOL_H: i32 = 80;
 const TOOL_GAP: i32 = 16;
-const SEARCH_W: i32 = 170;
-const SORT_W: i32 = 290;
+const SEARCH_W: i32 = 130;
+const SORT_W: i32 = 260;
+const VIEW_W: i32 = 140;
 const TOOL_PX: f32 = 28.0;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -148,23 +149,48 @@ impl App {
         out
     }
 
-    pub(super) fn tool_rects(&self) -> (Rect, Rect, Vec<Rect>) {
+    /// Araç çubuğu: arama, sıralama, liste/kapak, süzgeçler.
+    /// Kütüphanenin (liste ya da ızgara) `page` sayfasında (x, y)'deki kitabın sırası.
+    pub(super) fn library_index_at(
+        &self,
+        page: usize,
+        len: usize,
+        x: u32,
+        y: u32,
+    ) -> Option<usize> {
+        if self.settings.library_grid {
+            super::covers::index_at(self.width, page, len, x, y)
+        } else {
+            LIBRARY.row_at(page, len, y)
+        }
+    }
+
+    pub(super) fn library_pages(&self, len: usize) -> usize {
+        if self.settings.library_grid {
+            super::covers::pages(len)
+        } else {
+            LIBRARY.pages(len)
+        }
+    }
+
+    pub(super) fn tool_rects(&self) -> (Rect, Rect, Rect, Vec<Rect>) {
         let y = HEADER_BOTTOM + (TOOLBAR_H - TOOL_H) / 2 - 10;
         let r = |x: i32, w: i32| Rect { x, y, w, h: TOOL_H };
         let search = r(MARGIN, SEARCH_W);
         let sort = r(search.x + SEARCH_W + TOOL_GAP, SORT_W);
-        let left = sort.x + SORT_W + TOOL_GAP;
+        let view = r(sort.x + SORT_W + TOOL_GAP, VIEW_W);
+        let left = view.x + VIEW_W + TOOL_GAP;
         let n = FILTERS.len() as i32;
         let fw = (self.width as i32 - MARGIN - left - (n - 1) * TOOL_GAP / 2) / n;
         let filters = (0..n)
             .map(|i| r(left + i * (fw + TOOL_GAP / 2), fw))
             .collect();
-        (search, sort, filters)
+        (search, sort, view, filters)
     }
 
     /// Araç çubuğuna dokunma; dokunulmadıysa `None`.
     pub(super) fn handle_toolbar(&mut self, x: u32, y: u32) -> Option<Refresh> {
-        let (search, sort, filters) = self.tool_rects();
+        let (search, sort, view, filters) = self.tool_rects();
         if search.contains(x, y) {
             if self.library_query.take().is_some() {
                 self.view = View::Library { page: 0 };
@@ -184,6 +210,8 @@ impl App {
                 Sort::Author => Sort::Added,
                 Sort::Added => Sort::Recent,
             };
+        } else if view.contains(x, y) {
+            next.library_grid = !next.library_grid;
         } else {
             let i = filters.iter().position(|r| r.contains(x, y))?;
             next.library_filter = FILTERS[i];
@@ -195,7 +223,7 @@ impl App {
 
     pub(super) fn draw_toolbar(&self, canvas: &mut Canvas) {
         let t = &self.text;
-        let (search, sort, filters) = self.tool_rects();
+        let (search, sort, view, filters) = self.tool_rects();
         let search_label = if self.library_query.is_some() {
             Msg::ClearLibrarySearch
         } else {
@@ -209,6 +237,12 @@ impl App {
             Sort::Added => Box::new(Msg::SortAdded),
         });
         draw_button(t, canvas, sort, &tr(&sort_label), TOOL_PX);
+        let view_label = if self.settings.library_grid {
+            Msg::ShowList
+        } else {
+            Msg::ShowCovers
+        };
+        draw_button(t, canvas, view, &tr(&view_label), TOOL_PX);
         for (f, r) in FILTERS.iter().zip(&filters) {
             let label = match f {
                 Filter::All => Msg::FilterAll,
@@ -235,9 +269,9 @@ impl App {
         }
     }
 
-    pub(super) fn open_book_actions(&mut self, page: usize, y: u32) -> Option<Refresh> {
+    pub(super) fn open_book_actions(&mut self, page: usize, x: u32, y: u32) -> Option<Refresh> {
         let books = self.visible_books();
-        let row = LIBRARY.row_at(page, books.len(), y)?;
+        let row = self.library_index_at(page, books.len(), x, y)?;
         self.view = View::BookActions { book: books[row] };
         Some(self.refresh(true))
     }

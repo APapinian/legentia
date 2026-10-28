@@ -18,6 +18,9 @@ pub(super) struct Package {
     /// İlk `dc:identifier` (ISBN, UUID…); kitabın kimliği için.
     pub identifier: Option<String>,
     pub spine: Vec<String>,
+    /// Kapak görseli (paket köküne göre yol): EPUB3'te `cover-image` özellikli
+    /// öğe, EPUB2'de `<meta name="cover">`ın gösterdiği öğe.
+    pub cover: Option<String>,
     pub manifest: HashMap<String, ManifestItem>,
     /// EPUB2: spine'ın `toc` özniteliğindeki NCX öğesinin kimliği.
     pub ncx_id: Option<String>,
@@ -58,11 +61,13 @@ pub(super) fn parse(text: &str, opf_path: &str) -> Result<Package, EpubError> {
         language: None,
         identifier: None,
         spine: Vec::new(),
+        cover: None,
         manifest: HashMap::new(),
         ncx_id: None,
         opf_path: opf_path.to_string(),
     };
     let mut spine_ids = Vec::new();
+    let mut cover_id = None;
     // Şu an metni toplanan meta veri alanı ("title", "creator", "language").
     let mut field: Option<String> = None;
     let mut buf = String::new();
@@ -78,11 +83,13 @@ pub(super) fn parse(text: &str, opf_path: &str) -> Result<Package, EpubError> {
                     }
                     "spine" => pkg.ncx_id = attr(&e, "toc"),
                     "item" => add_item(&mut pkg, &e),
+                    "meta" => cover_meta(&e, &mut cover_id),
                     _ => {}
                 }
             }
             Event::Empty(e) => match e.local_name().as_ref() {
                 "item" => add_item(&mut pkg, &e),
+                "meta" => cover_meta(&e, &mut cover_id),
                 "itemref" => {
                     if attr(&e, "linear").as_deref() != Some("no")
                         && let Some(id) = attr(&e, "idref")
@@ -124,7 +131,22 @@ pub(super) fn parse(text: &str, opf_path: &str) -> Result<Package, EpubError> {
             None => log::warn!("spine refers to unknown manifest id {id}"),
         }
     }
+    let cover = pkg
+        .manifest
+        .values()
+        .find(|i| i.properties.split_whitespace().any(|p| p == "cover-image"))
+        .or_else(|| pkg.manifest.get(cover_id.as_ref()?));
+    if let Some(item) = cover {
+        pkg.cover = resolve_href(opf_path, &item.href).ok();
+    }
     Ok(pkg)
+}
+
+/// EPUB2: `<meta name="cover" content="<öğe kimliği>"/>`.
+fn cover_meta(e: &quick_xml::events::BytesStart, cover_id: &mut Option<String>) {
+    if attr(e, "name").as_deref() == Some("cover") {
+        *cover_id = attr(e, "content");
+    }
 }
 
 fn add_item(pkg: &mut Package, e: &quick_xml::events::BytesStart) {

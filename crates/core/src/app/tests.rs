@@ -2611,7 +2611,7 @@ fn library_is_searched_sorted_and_filtered_by_reading_status() {
     assert_eq!(shown_titles(&app)[0], last);
 
     // Sıra: başlık (Türk alfabesi).
-    let (search, sort, filters) = app.tool_rects();
+    let (search, sort, _, filters) = app.tool_rects();
     tap(&mut app, sort.center());
     assert_eq!(app.settings().library_sort, super::shelf::Sort::Title);
     assert_eq!(shown_titles(&app), all);
@@ -2827,4 +2827,58 @@ fn selected_text_is_looked_up_on_wikipedia() {
             ..
         }
     ));
+}
+
+#[test]
+fn cover_grid_draws_covers_in_background_and_opens_books() {
+    let (mut app, data, root) = setup(&[
+        ("a.epub", epub3_sample()),
+        ("k.epub", epub_with_cover(true)),
+        ("z.pdf", pdf_book()),
+    ]);
+    let (_, _, view, _) = app.tool_rects();
+    tap(&mut app, view.center());
+    assert!(app.settings().library_grid);
+    let job = app
+        .cover_job
+        .take()
+        .expect("kapaklar arka planda çiziliyor");
+    let done = job.wait().unwrap();
+    assert_eq!(done.len(), 3);
+    app.covers.extend(done);
+    let has_cover = |app: &App, title: &str| {
+        let e = app
+            .library
+            .iter()
+            .find(|e| e.display_title() == title)
+            .unwrap();
+        app.covers[&e.id].is_some()
+    };
+    assert!(has_cover(&app, "Kapaklı"), "EPUB'ın kendi kapağı");
+    assert!(has_cover(&app, "z"), "PDF'in ilk sayfası");
+    assert!(!has_cover(&app, "Çalıkuşu"), "kapağı yok");
+    let mut c = Canvas::new(W, LIBRA2_HEIGHT);
+    app.draw(&mut c);
+
+    // İkinci hücre: Kapaklı (Türkçe sıra: Çalıkuşu, Kapaklı, z).
+    let titles = shown_titles(&app);
+    assert_eq!(titles[1], "Kapaklı");
+    let second = (W / 2, LIBRARY.top as u32 + 100);
+    app.handle(Event::Hold {
+        x: second.0,
+        y: second.1,
+    });
+    assert!(
+        matches!(app.view, View::BookActions { book } if app.library[book].display_title() == "Kapaklı")
+    );
+    tap(&mut app, (10, 10));
+    tap(&mut app, second);
+    assert_eq!(session(&app).name, "k");
+
+    // Yeniden açılışta kapaklar diskten gelir, yeniden çizilmez.
+    let mut app = restart(&data, &root);
+    app.start();
+    assert!(app.cover_job.is_none());
+    assert!(has_cover(&app, "Kapaklı"));
+    assert!(!has_cover(&app, "Çalıkuşu"));
 }

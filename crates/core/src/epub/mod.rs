@@ -76,6 +76,8 @@ pub struct Book {
     /// Kalan okuma süresi tahmininde metin uzunluğunun yaklaşığı.
     pub sizes: Vec<u64>,
     pub toc: Vec<TocEntry>,
+    /// Kapak görselinin paketteki yolu; bkz. [`Book::image_bytes`].
+    pub cover: Option<String>,
     /// Görseller çizim sırasında (`&self`) okunur; arşiv okuma `&mut` ister.
     archive: std::cell::RefCell<zip::ZipArchive<Box<dyn ReadSeek>>>,
 }
@@ -125,6 +127,7 @@ impl Book {
             language: package.language,
             identifier: package.identifier,
             spine: package.spine,
+            cover: package.cover,
             toc,
             archive: std::cell::RefCell::new(archive),
         })
@@ -368,6 +371,16 @@ mod tests {
             resolve_href("content.opf", "http://x.y/a"),
             Err(EpubError::UnsafePath(_))
         ));
+    }
+
+    #[test]
+    fn cover_is_found_in_epub3_and_epub2() {
+        for epub3 in [true, false] {
+            let book = open_bytes(epub_with_cover(epub3)).unwrap();
+            assert_eq!(book.cover.as_deref(), Some("OEBPS/resim/kapak.png"));
+            assert!(book.image_bytes("OEBPS/resim/kapak.png").is_some());
+        }
+        assert_eq!(open_bytes(epub3_sample()).unwrap().cover, None);
     }
 
     #[test]
