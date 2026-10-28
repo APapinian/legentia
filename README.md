@@ -1,6 +1,6 @@
 # Legentia
 
-Kobo Libra 2 için Rust ile yazılan, tamamen Türkçe arayüzlü e-kitap okuyucu. Şu an M6 tamamlandı (M5'ten yalnızca PDF'te elle kenar kırpma kaldı): simülatörde EPUB ve PDF okuma; kütüphane, içindekiler, menü, yer imleri, yazı ayarları; PDF'te otomatik kenar kırpma, genişliğe sığdırma, sütun sütun okuma, yakınlaştırma, metni yeniden akıtma ve OCR; uzun basıp sürükleyerek seçim, vurgular, Türkçe ekran klavyesiyle notlar, notları Markdown'a ve PDF açıklamalarına aktarma, yedekleme.
+Kobo Libra 2 için Rust ile yazılan, tamamen Türkçe arayüzlü e-kitap okuyucu. Şu an M7 tamamlandı (M5'ten yalnızca PDF'te elle kenar kırpma kaldı): simülatörde EPUB ve PDF okuma; kütüphane, içindekiler, menü, yer imleri, yazı ayarları; PDF'te otomatik kenar kırpma, genişliğe sığdırma, sütun sütun okuma, yakınlaştırma, metni yeniden akıtma ve OCR; uzun basıp sürükleyerek seçim, vurgular, Türkçe ekran klavyesiyle notlar, notları Markdown'a ve PDF açıklamalarına aktarma, yedekleme; Türkçe kök bulmalı sözlük (StarDict, DSL, Kobo dicthtml, MDict) ve kişisel kelime listesi.
 
 Belgeler: `kobo-rust-okuyucu-proje-aktarim.md` (vizyon), `milestone.md` (plan), `dikkat-edilmesi-gerekenler.md` (kurallar), `docs/device-compatibility.md` (cihaz bilgisi), `docs/epub-support.md` (desteklenen EPUB özellikleri), `docs/dependencies.md` (bağımlılıklar, fontlar ve lisansları).
 

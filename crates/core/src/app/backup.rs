@@ -1,5 +1,5 @@
-//! Yedekleme ve geri yükleme: ayarlar ve her kitabın okuma konumu, yer imleri,
-//! vurguları ve notları kütüphane klasörüne tek dosya olarak yazılır (USB ile
+//! Yedekleme ve geri yükleme: ayarlar, kişisel kelime listesi ve her kitabın
+//! okuma konumu, yer imleri, vurguları ve notları kütüphane klasörüne tek dosya olarak yazılır (USB ile
 //! bilgisayara alınabilir). Geri yükleme siler değil birleştirir: eski bir yedek
 //! sonradan eklenen notları kaybettirmez.
 
@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 use super::session::BookState;
 use super::settings::Settings;
 use super::ui::{HEADER_BOTTOM, MARGIN, ROW_PX, Rect, back_button, draw_button, draw_header};
+use super::words::{SavedWord, WORDS_FILE};
 use super::{App, Back, SETTINGS_FILE, View, book_file};
 use crate::canvas::Canvas;
 use crate::event::{Event, Refresh};
@@ -28,6 +29,8 @@ struct Backup {
     settings: Settings,
     /// Kitap kimliği → kitabın kaydı.
     books: BTreeMap<String, BookState>,
+    /// Kişisel kelime listesi.
+    words: Vec<SavedWord>,
 }
 
 /// Yedekteki kitap kaydını yerel kayda katar. Yer imleri ve vurgular birleşir
@@ -82,6 +85,7 @@ impl App {
             created: super::annotations::now(),
             settings: self.settings.clone(),
             books,
+            words: self.words.clone(),
         };
         match self.backup_store().try_save(BACKUP_FILE, &backup) {
             Ok(()) => Msg::BackupSaved { books: count },
@@ -111,6 +115,15 @@ impl App {
         }
         self.settings = backup.settings;
         self.store.save(SETTINGS_FILE, &self.settings);
+        for w in backup.words {
+            let k = crate::dict::key(&w.word);
+            if !self.words.iter().any(|l| crate::dict::key(&l.word) == k) {
+                self.words.push(w);
+            }
+        }
+        self.words
+            .sort_by(|a, b| crate::collate::compare(&a.word, &b.word));
+        self.store.save(WORDS_FILE, &self.words);
         Msg::RestoreDone { books: count }
     }
 

@@ -20,6 +20,9 @@ const DICT_DIRS: [&str; 3] = [".adds/koreader/data/dict", ".kobo/dict", "Sözlü
 /// Gösterilen sözlük sonucu, sayfalara dizilmiş.
 pub(super) struct Lookup {
     pub pages: Vec<Page>,
+    /// Sözlükte bulunan biçim ve metindeki biçim.
+    pub form: String,
+    pub seen: String,
 }
 
 impl App {
@@ -64,7 +67,11 @@ impl App {
             blocks.extend(render::article_blocks(dict, article));
         }
         let pages = paginate(&self.text, &self.settings, Some("tr"), width, &blocks);
-        self.lookup = Some(Lookup { pages });
+        self.lookup = Some(Lookup {
+            pages,
+            form: def.form.clone(),
+            seen: word.trim().to_string(),
+        });
         self.view = View::Lookup { page: 0 };
         Some(self.refresh(true))
     }
@@ -78,6 +85,14 @@ impl App {
 
     pub(super) fn handle_lookup(&mut self, page: usize, event: Event) -> Option<Refresh> {
         let pages = self.lookup.as_ref().map_or(0, |l| l.pages.len());
+        if let Event::Tap { x, y } = event
+            && self.word_button().contains(x, y)
+            && let Some(l) = &self.lookup
+        {
+            let (form, seen) = (l.form.clone(), l.seen.clone());
+            self.toggle_saved(&form, &seen);
+            return Some(self.refresh(false));
+        }
         let third = self.width / 3;
         let next = match event {
             Event::Key(PageKey::Forward) => page + 1,
@@ -113,6 +128,7 @@ impl App {
             pages: l.pages.len(),
         };
         draw_footer(&self.text, canvas, &footer, MARGIN);
+        self.draw_word_button(canvas, &l.form);
     }
 }
 

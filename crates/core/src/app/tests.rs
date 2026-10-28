@@ -967,6 +967,59 @@ fn a_selected_word_is_looked_up_by_its_root() {
 }
 
 #[test]
+fn looked_up_words_are_saved_listed_and_backed_up() {
+    let (mut app, data, root) = setup(&[("uzun.epub", long_book())]);
+    let dir = root.join("Sözlükler");
+    std::fs::create_dir_all(&dir).unwrap();
+    crate::dict::testutil::stardict(&dir, "deneme", &[("ağaç", "Gövdeli bitki.")], &[], false);
+    tap_row(&mut app, &LIBRARY, 0);
+    tap_row(&mut app, &CONTENTS, 0);
+    select_and(&mut app, "ağaçlar", 2);
+    assert!(matches!(app.view, View::Lookup { .. }));
+    let at = app.word_button().center();
+    tap(&mut app, at); // Listeye ekle
+    assert_eq!(app.words.len(), 1);
+    assert_eq!(
+        (app.words[0].word.as_str(), app.words[0].seen.as_str()),
+        ("ağaç", "ağaçlar")
+    );
+    assert!(matches!(app.view, View::Lookup { .. }), "tanım açık kalır");
+    let mut c = Canvas::new(W, LIBRA2_HEIGHT);
+    app.draw(&mut c);
+    tap(&mut app, (W / 2, LIBRA2_HEIGHT / 2));
+
+    menu(&mut app, MenuItem::Words);
+    assert!(matches!(app.view, View::Words { page: 0 }));
+    app.draw(&mut c);
+    tap_row(&mut app, &super::screens::WORDS, 0);
+    assert!(
+        matches!(app.view, View::Lookup { .. }),
+        "listeden yeniden bakılır"
+    );
+
+    // Yedek ve yeni kurulum.
+    tap(&mut app, (W / 2, LIBRA2_HEIGHT / 2));
+    menu(&mut app, MenuItem::Library);
+    tap(&mut app, super::ui::back_button(W).center());
+    let at = app.backup_buttons().0.center();
+    tap(&mut app, at);
+    std::fs::remove_file(data.join("words.json")).unwrap();
+    let mut app = restart(&data, &root);
+    assert!(app.words.is_empty());
+    tap(&mut app, super::ui::back_button(W).center());
+    let at = app.backup_buttons().1.center();
+    tap(&mut app, at);
+    assert_eq!(app.words.len(), 1);
+
+    // Çıkarma kalıcı.
+    tap(&mut app, (W / 2, LIBRA2_HEIGHT / 2));
+    tap_row(&mut app, &LIBRARY, 0);
+    let saved = app.words[0].clone();
+    app.toggle_saved(&saved.word, &saved.seen);
+    assert!(restart(&data, &root).words.is_empty());
+}
+
+#[test]
 fn looking_up_without_dictionaries_explains_where_to_put_them() {
     let (mut app, _, _) = setup(&[("uzun.epub", long_book())]);
     tap_row(&mut app, &LIBRARY, 0);

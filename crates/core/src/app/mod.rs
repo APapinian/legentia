@@ -16,6 +16,7 @@ mod select;
 mod session;
 mod settings;
 mod ui;
+mod words;
 
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -68,6 +69,10 @@ enum View {
     Lookup {
         page: usize,
     },
+    /// Kişisel kelime listesi.
+    Words {
+        page: usize,
+    },
     Settings {
         draft: Settings,
         page: usize,
@@ -118,6 +123,8 @@ pub struct App {
     dicts: Option<crate::dict::Dictionaries>,
     /// Gösterilen sözlük sonucu.
     lookup: Option<lookup::Lookup>,
+    /// Kişisel kelime listesi.
+    words: Vec<words::SavedWord>,
 }
 
 /// Ekrana yerleştirilmiş PDF sayfa görüntüsü.
@@ -133,6 +140,7 @@ impl App {
     /// Ayarları yükler, `library_root` altındaki kitapları tarar ve kütüphaneyle açılır.
     pub fn new(text: Text, width: u32, store: Store, library_root: &Path) -> Self {
         let settings = store.load(SETTINGS_FILE).unwrap_or_default();
+        let words = store.load(words::WORDS_FILE).unwrap_or_default();
         let library = library::scan(library_root, &store);
         let progress = library
             .iter()
@@ -159,6 +167,7 @@ impl App {
             selection: None,
             dicts: None,
             lookup: None,
+            words,
         }
     }
 
@@ -261,6 +270,7 @@ impl App {
             View::Annotations { page } => self.handle_annotations(*page, event),
             View::Backup => self.handle_backup(event),
             View::Lookup { page } => self.handle_lookup(*page, event),
+            View::Words { page } => self.handle_words(*page, event),
             View::Settings { draft, page } => {
                 let (draft, page) = (draft.clone(), *page);
                 self.handle_settings(draft, page, event)
@@ -417,6 +427,7 @@ impl App {
             View::Annotations { page } => self.draw_annotations(canvas, *page),
             View::Backup => self.draw_backup(canvas),
             View::Lookup { page } => self.draw_lookup(canvas, *page),
+            View::Words { page } => self.draw_words(canvas, *page),
             View::Settings { draft, page } => self.draw_settings(canvas, draft, *page),
             View::Selected | View::Annotation { .. } => {
                 self.draw_reading(canvas);

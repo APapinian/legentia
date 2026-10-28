@@ -25,6 +25,10 @@ pub(super) const BOOKMARKS: List = List {
     top: HEADER_BOTTOM,
     row_h: 120,
 };
+pub(super) const WORDS: List = List {
+    top: HEADER_BOTTOM,
+    row_h: 120,
+};
 pub(super) const ANNOTATIONS: List = List {
     top: HEADER_BOTTOM,
     row_h: 120,
@@ -42,6 +46,7 @@ pub(super) enum MenuItem {
     Bookmarks,
     Annotations,
     ExportNotes,
+    Words,
     Settings,
     SaveSearchable,
     Library,
@@ -57,6 +62,7 @@ impl App {
             MenuItem::Bookmarks,
             MenuItem::Annotations,
             MenuItem::ExportNotes,
+            MenuItem::Words,
             MenuItem::Settings,
         ];
         if self.session.as_ref().is_some_and(|s| s.pdf().is_some()) {
@@ -69,7 +75,7 @@ impl App {
     // --- Ortak ---
 
     /// Liste ekranlarında sayfa tuşları: listeyi çevirir; uçta `None`.
-    fn page_list(page: usize, pages: usize, event: Event) -> Option<usize> {
+    pub(super) fn page_list(page: usize, pages: usize, event: Event) -> Option<usize> {
         match event {
             Event::Key(PageKey::Forward) if page + 1 < pages => Some(page + 1),
             Event::Key(PageKey::Back) if page > 0 => Some(page - 1),
@@ -409,6 +415,7 @@ impl App {
             MenuItem::Bookmark => Msg::AddBookmark,
             MenuItem::Bookmarks => Msg::Bookmarks,
             MenuItem::Annotations => Msg::Annotations,
+            MenuItem::Words => Msg::Words,
             MenuItem::ExportNotes => Msg::ExportNotes,
             MenuItem::Settings => Msg::TextSettings,
             MenuItem::SaveSearchable => Msg::SaveSearchable,
@@ -446,6 +453,7 @@ impl App {
             }
             MenuItem::Bookmarks => self.view = View::Bookmarks { page: 0 },
             MenuItem::Annotations => self.view = View::Annotations { page: 0 },
+            MenuItem::Words => self.view = View::Words { page: 0 },
             MenuItem::ExportNotes => self.show_export_result(),
             MenuItem::Settings => {
                 self.view = View::Settings {

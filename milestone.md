@@ -241,14 +241,14 @@ Not: PDF'e not yazma, M6'daki ortak konumlandırma modeline bağlıdır; M5'te P
 - [x] Sözlük sağlayıcıları için ortak Rust arayüzü tanımla. (`dict::Dictionary`: ad, `contains`, `lookup` → maddeler (biçim etiketli metin: düz, HTML, Pango, XDXF, DSL). Ortak dizin: Türkçe küçük harf + şapkasız anahtar, madde başına 12 bayt. `Dictionaries::define`: kök bulma + bütün sözlüklerde arama. StarDict: `.ifo/.idx(.gz)/.syn/.dict(.dz)`, 32/64 bit konum, `sametypesequence`, dictzip parça parça açılır; bozuk dosya hata verir, ötekileri engellemez. DSL (Lingvo): `.dsl/.dsl.dz`, UTF-16 LE/BE ve UTF-8, `#NAME`, çok satırlı madde başı, `{…}` ve `(…)` söz dizimi; dizin açılışta akışla kurulur (57 MB, 200 bin kart: 0,22 sn, 26 MB, masaüstü; cihazda ilk aramada birkaç saniye beklenir, gerekirse dizin diske önbelleklenecek); `_abrv.dsl` atlanır. Kobo dicthtml: `dicthtml*.zip`, gzip'li ya da düz `PREFIX.html`, `<a name>` madde başı ve `<variant>` çekimli biçimler; dizin açılışta HTML taranarak kurulur (Kobo'nun önek kuralına ve marisa-trie `words` dosyasına bağımlı değil). Kobo'nun resmî sözlükleri AES ile şifreli; anahtarı belgelenmemiş ve açmak kopya korumasını aşmak olur: desteklenmez, hatayla atlanır. MDict: `.mdx` sürüm 1.2 ve 2.0, UTF-8/UTF-16, sıkıştırmasız ve zlib bloklar, "Encrypted=2" dizin karıştırması (RIPEMD-128), `@@@LINK=` yönlendirmesi; desteklenmeyen: "Encrypted=1" (kullanıcıya özel kayıt kodu, kopya koruması), LZO, GBK/Big5. MDict yalnızca kendi ürettiğimiz test dosyalarıyla denendi; gerçek bir .mdx ile doğrulanacak. Klasörler: `.adds/koreader/data/dict`, `.kobo/dict`, `Sözlükler`.)
 - [ ] İlk yerel sözlük formatını ve lisans uygunluğunu seç. (Karar, 2026-10-28: GoldenDict'in okuduğu biçimler: StarDict, DSL, MDict; ayrıca Kobo dicthtml. Uygulamayla sözlük dağıtılmaz; kullanıcının kendi dosyaları okunur. Deneme: KOReader'daki sözlükler.)
 - [x] Türkçe kök bulma: çekimli kelimeden sözlük maddesine ulaş (ör. "kitaplarımızdan" → "kitap"). (Karar, 2026-10-28: kendi kurallarımız. `dict/stem.rs`: ek kalıplarından (ünlü uyumu ve ünsüz değişimiyle açılan) sondan soyma; ünsüz yumuşaması, ünlü düşmesi, çift ünsüz ve -yor daralmasının geri alınması; fiillerde mastar. Adaylar sözlükte doğrulanır, az soyulmuş önce. 27 örnek kelimeyle testli; kelime başına 10–175 µs, masaüstü.)
-- [ ] Kelime arama, tanım, dil ve kaynak bilgisini göster; kelimeyi kişisel listeye kaydet. (Yapıldı: seçim çubuğunda "Sözlük"; kelime ya da sözlükte bulunan kökü bütün sözlüklerde aranır, "“toplumun” → toplum" gösterilir; her madde başlık + sözlük adı + içerik olarak tam ekran, okuyucunun dizgisiyle; HTML/Pango/XDXF/DSL biçimlendirmesinden kalın, italik ve paragraflar korunur (`dict/render.rs`). Sözlükler kütüphane köküne göre `.adds/koreader/data/dict` ve `Sözlükler` klasörlerinde aranır, ilk aramada açılır. Kalan: kişisel kelime listesi; sözlüğün dil bilgisi.)
+- [x] Kelime arama, tanım, dil ve kaynak bilgisini göster; kelimeyi kişisel listeye kaydet. (Yapıldı: seçim çubuğunda "Sözlük"; kelime ya da sözlükte bulunan kökü bütün sözlüklerde aranır, "“toplumun” → toplum" gösterilir; her madde başlık + sözlük adı + içerik olarak tam ekran, okuyucunun dizgisiyle; HTML/Pango/XDXF/DSL biçimlendirmesinden kalın, italik ve paragraflar korunur (`dict/render.rs`). Sözlükler kütüphane köküne göre `.adds/koreader/data/dict` ve `Sözlükler` klasörlerinde aranır, ilk aramada açılır. Kişisel kelime listesi: tanım ekranında "Listeye ekle / Listeden çıkar", menüde "Kelime listem" (Türk alfabesine göre; metindeki biçim ve kitapla), dokununca yeniden bakılır; `words.json`, yedeğe dahil. Kaynak olarak sözlük adı gösterilir; sözlüğün dil bilgisi v2'de.)
 - [ ] Diğer diller sonradan: Almanca bileşik kelimeler, Rusça çekimler ve Japonca kelime sınırları ayrı ayrı ele alınacak.
-- [ ] Çevrimiçi sağlayıcıları timeout, cache ve çevrimdışı hata davranışıyla ekle.
+- [ ] Çevrimiçi sağlayıcıları timeout, cache ve çevrimdışı hata davranışıyla ekle. (M8'e taşındı: HTTPS/TLS orada kurulacak; TDK'nın kullanım şartları doğrulanacak.)
 
 ### Kabul ölçütleri
-- En az bir Türkçe sözlük tamamen çevrimdışı çalışıyor.
-- Çekimli Türkçe kelimeler için kök bulma testleri geçiyor.
-- İnternet olmadığında uygulama kilitlenmiyor ve Türkçe açıklama gösteriyor.
+- En az bir Türkçe sözlük tamamen çevrimdışı çalışıyor. (Bütün biçimler çevrimdışı; test sözlükleriyle testli. Kullanıcının gerçek sözlükleriyle (KOReader) denenecek.)
+- Çekimli Türkçe kelimeler için kök bulma testleri geçiyor. (27 kelime)
+- İnternet olmadığında uygulama kilitlenmiyor ve Türkçe açıklama gösteriyor. (Çevrimiçi sağlayıcıyla birlikte M8'de)
 
 **Çıktı:** Yerel ve çevrimiçi sözlük sistemi.
 
@@ -319,6 +319,15 @@ Not: PDF'e not yazma, M6'daki ortak konumlandırma modeline bağlıdır; M5'te P
 **Çıktı:** Geri alınabilir cihaz kurulumu ve `docs/device-install.md`.
 
 ---
+
+## v2'ye bırakılanlar
+
+Kullanıcı kararı (2026-10-28): uygulama bittikten sonra v2 güncellemesinde ele alınacak.
+
+- Sözlük: LZO sıkıştırmalı ve GBK/Big5 kodlamalı MDict; DSL dizininin diske önbelleklenmesi; sözlüğün dil bilgisinin gösterilmesi; diğer diller için kök bulma (Almanca, Rusça, Japonca).
+- Sözlük: şifreli sözlükler (Kobo'nun resmî dicthtml'leri, kayıt kodlu MDict) kopya koruması nedeniyle desteklenmeyecek; v2'de de ancak kullanıcının yasal olarak açabildiği bir yol varsa.
+- Vurgu/not: taranmış (OCR'lı) sayfa görüntüsünde seçim; notta imleci metin ortasına taşıma.
+- PDF: sütun modunda neredeyse boş sayfaların (kapak) yanlış bölünmesi; sütunları aşan uzun başlıklı sayfalarda sütun bulma.
 
 ## Her sürüm için genel tamamlanma ölçütleri
 
