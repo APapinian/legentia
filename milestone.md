@@ -260,7 +260,7 @@ Not: PDF'e not yazma, M6'daki ortak konumlandırma modeline bağlıdır; M5'te P
 
 ### İşler
 - [x] HTTPS ve TLS sertifika doğrulaması. (Karar, 2026-10-28: rustls + ring; saf Rust sağlayıcı bakımsız alfa olduğu için bırakıldı. ureq istemcisi, gömülü Mozilla kök sertifikaları; ARMv7'de ring flake'teki clang ile derleniyor. Gerçek sunucularda denendi (masaüstü ve qemu-arm): Gutenberg OPDS açılıyor, adı tutmayan sertifika reddediliyor. `net.rs`: zaman aşımları (bağlantı 15 sn, yanıt 30 sn), Basic yetkilendirme, hatalar Türkçe (bağlantı yok, zaman aşımı, sertifika, yetki, sunucu kodu, boyut, disk); indirme geçici dosyaya, iptal ve hatada iz bırakmaz. Not: Standard Ebooks OPDS'i artık üyelik istiyor (401).)
-- [ ] OPDS katalog tarama ve kitap indirme.
+- [ ] OPDS katalog tarama ve kitap indirme. (Yapıldı: `opds.rs` OPDS 1.2 ayrıştırma: gezinme ve kitap girdileri, EPUB/PDF bağlantıları (EPUB önce; satılık ve okunamayan biçimler elenir), `next` sayfalama, OpenSearch (şablon ya da açıklama dosyası), göreli adres çözme; HTTPS katalogdan gelen düz HTTP bağlantılar HTTPS'e yükseltilir. Gerçek Gutenberg kataloğunda denendi: kök, popüler, kitap sayfası, arama. Kalan: katalog ekranları ve indirme.)
 - [ ] Calibre Content Server uyumluluğu.
 - [ ] İndirme kuyruğu, ilerleme, iptal, yeniden deneme ve disk alanı kontrolü.
 - [ ] Ağ özelliklerini ayarlardan kapatabilme.

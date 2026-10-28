@@ -18,6 +18,7 @@ pub mod i18n;
 pub mod library;
 pub mod net;
 pub mod ocr;
+pub mod opds;
 pub mod pdf;
 mod storage;
 mod text;

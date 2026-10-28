@@ -14,6 +14,7 @@ use std::io::{BufReader, Read};
 use std::path::Path;
 
 use crate::i18n::Msg;
+pub(crate) use xhtml::push_ref;
 pub use xhtml::{Block, BlockKind};
 
 /// Tek bir XML/XHTML girdisi için üst sınır (açılmış boyut).

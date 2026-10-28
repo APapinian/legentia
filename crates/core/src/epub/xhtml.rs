@@ -206,7 +206,7 @@ fn append(text: &mut String, spans: &mut Vec<Span>, c: char, style: Style) {
 }
 
 /// `&amp;`, `&#305;`, `&nbsp;` gibi başvuruları çözer; bilinmeyenleri olduğu gibi bırakır.
-pub(super) fn push_ref(buf: &mut String, r: &BytesRef) {
+pub(crate) fn push_ref(buf: &mut String, r: &BytesRef) {
     if let Ok(Some(c)) = r.resolve_char_ref() {
         buf.push(c);
     } else if let Some(s) = resolve_html5_entity(r) {
