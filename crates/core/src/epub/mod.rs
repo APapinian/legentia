@@ -72,6 +72,9 @@ pub struct Book {
     pub identifier: Option<String>,
     /// Okuma sırasındaki XHTML dosyaları (paket köküne göre yol).
     pub spine: Vec<String>,
+    /// Bölüm dosyalarının açılmış boyutu (bayt; ZIP başlığından, okunmadan).
+    /// Kalan okuma süresi tahmininde metin uzunluğunun yaklaşığı.
+    pub sizes: Vec<u64>,
     pub toc: Vec<TocEntry>,
     archive: zip::ZipArchive<Box<dyn ReadSeek>>,
 }
@@ -109,7 +112,13 @@ impl Book {
             }
         };
 
+        let sizes = package
+            .spine
+            .iter()
+            .map(|p| archive.by_name(p).map_or(0, |e| e.size()))
+            .collect();
         Ok(Book {
+            sizes,
             title: package.title,
             authors: package.authors,
             language: package.language,

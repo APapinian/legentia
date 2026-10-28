@@ -132,6 +132,17 @@ impl Session {
         }
     }
 
+    /// Dizilmiş sayfadaki karakter sayısı (PDF sayfa görüntüsünde 0).
+    pub fn page_chars(&self, page: usize) -> usize {
+        self.pages.get(page).map_or(0, |p| {
+            p.lines
+                .iter()
+                .filter_map(|l| self.blocks.get(l.block)?.text.get(l.line.start..l.line.end))
+                .map(|t| t.chars().count())
+                .sum()
+        })
+    }
+
     /// Şu an PDF sayfa görüntüsü mü gösteriliyor (yeniden akıtma kapalı ya da sayfada metin yok)?
     pub fn showing_pdf_image(&self) -> bool {
         self.pdf().is_some() && self.blocks.is_empty()

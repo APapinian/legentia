@@ -15,6 +15,7 @@ mod jobs;
 mod keyboard;
 mod lookup;
 mod note;
+mod pace;
 mod pdf_view;
 mod screens;
 mod select;
@@ -160,6 +161,11 @@ pub struct App {
     online: Option<lookup::OnlineSearch>,
     /// Çevrimiçi sözlüklerin adresleri.
     endpoints: lookup::Endpoints,
+    /// Okuma hızı (kalan süre tahmini için) ve kaydedilmemiş değişikliği var mı.
+    pace: pace::Pace,
+    pace_dirty: bool,
+    /// Okunan sayfanın ekrana geldiği an; sayfada geçen süre ölçülür.
+    page_shown: Option<std::time::Instant>,
     /// Kullanıcı "Çık"a dokundu; kayıtlar yazıldı, platform uygulamayı kapatmalı.
     exit: bool,
 }
@@ -178,6 +184,7 @@ impl App {
     pub fn new(text: Text, width: u32, store: Store, library_root: &Path) -> Self {
         let settings = store.load(SETTINGS_FILE).unwrap_or_default();
         let words = store.load(words::WORDS_FILE).unwrap_or_default();
+        let pace = store.load(pace::PACE_FILE).unwrap_or_default();
         let catalogs = store
             .load(catalog::CATALOGS_FILE)
             .unwrap_or_else(catalog::default_catalogs);
@@ -212,6 +219,9 @@ impl App {
             downloads: Vec::new(),
             online: None,
             endpoints: lookup::Endpoints::default(),
+            pace,
+            pace_dirty: false,
+            page_shown: None,
             exit: false,
         }
     }
@@ -310,6 +320,12 @@ impl App {
                 .flatten()
                 .max_by_key(|r| *r == Refresh::Full);
         }
+        let refresh = self.dispatch(event);
+        self.pause_dwell();
+        refresh
+    }
+
+    fn dispatch(&mut self, event: Event) -> Option<Refresh> {
         match &self.view {
             View::Library { page } => self.handle_library(*page, event),
             View::Message { back, .. } => {
@@ -378,6 +394,7 @@ impl App {
         match session.load_chapter(&self.text, &self.settings, self.width, spine, target) {
             Ok(()) => {
                 self.view = View::Reading;
+                self.page_shown = Some(std::time::Instant::now());
                 self.save_progress();
             }
             Err(msg) => {
@@ -411,6 +428,10 @@ impl App {
         };
         self.unsaved_turns = 0;
         session.record();
+        if self.pace_dirty {
+            self.pace_dirty = false;
+            self.store.save(pace::PACE_FILE, &self.pace);
+        }
         self.store.save(&book_file(&session.id), &session.state);
         self.progress
             .insert(session.id.clone(), session.state.percent);

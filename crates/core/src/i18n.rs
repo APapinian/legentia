@@ -48,6 +48,12 @@ pub enum Msg {
         percent: u32,
     },
     PageNumber(usize),
+    /// Alt bilgi ve kalan okuma süreleri (dakika).
+    TimeLeft {
+        footer: Box<Msg>,
+        chapter: u32,
+        book: u32,
+    },
     PdfDocument,
     // Menü
     AddBookmark,
@@ -239,6 +245,15 @@ pub enum Msg {
     Crashed,
 }
 
+/// Süre: 45 → "45 dk", 200 → "3 sa 20 dk", 120 → "2 sa".
+fn duration(minutes: u32) -> String {
+    match (minutes / 60, minutes % 60) {
+        (0, m) => format!("{m} dk"),
+        (h, 0) => format!("{h} sa"),
+        (h, m) => format!("{h} sa {m} dk"),
+    }
+}
+
 /// Ondalık sayı, Türkçe virgülle: 14 → "1,4".
 fn decimal(tenths: u32) -> String {
     format!("{},{}", tenths / 10, tenths % 10)
@@ -275,6 +290,12 @@ pub fn tr(msg: &Msg) -> String {
             format!("Sayfa {page}/{pages} ({screen}/{screens}) · %{percent}")
         }
         Msg::PageNumber(n) => format!("Sayfa {n}"),
+        Msg::TimeLeft { footer, chapter, book } => format!(
+            "{} · bölüm {} · kitap {}",
+            tr(footer),
+            duration(*chapter),
+            duration(*book)
+        ),
         Msg::PdfDocument => "PDF belgesi".into(),
         Msg::AddBookmark => "Yer imi koy".into(),
         Msg::RemoveBookmark => "Yer imini kaldır".into(),
@@ -502,6 +523,11 @@ mod tests {
                 screens: 3,
                 percent: 10,
             },
+            TimeLeft {
+                footer: Box::new(PageNumber(4)),
+                chapter: 5,
+                book: 200,
+            },
             PageNumber(4),
             PdfDocument,
             AddBookmark,
@@ -704,6 +730,12 @@ mod tests {
         assert_eq!(tr(&Msg::Percent(45)), "%45");
         assert_eq!(tr(&Msg::Decimal { tenths: 14 }), "1,4");
         assert_eq!(tr(&Msg::Points { tenths: 96 }), "9,6 punto");
+        let left = Msg::TimeLeft {
+            footer: Box::new(Msg::PageNumber(3)),
+            chapter: 45,
+            book: 200,
+        };
+        assert_eq!(tr(&left), "Sayfa 3 · bölüm 45 dk · kitap 3 sa 20 dk");
         let progress = Msg::Progress {
             done: 3 << 19,
             total: Some(6 << 20),

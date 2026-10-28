@@ -341,6 +341,7 @@ impl App {
             },
             _ => return None,
         };
+        self.note_dwell(forward);
         let s = self.session.as_mut()?;
         // EPUB'da bölüm değişimi tam yenilenir; PDF'te her sayfa bir bölüm olduğundan normal sayaç.
         let full = s.pdf().is_none();
@@ -406,7 +407,7 @@ impl App {
                     percent: s.percent(),
                 }
             };
-            draw_footer(t, canvas, &footer, MARGIN);
+            draw_footer(t, canvas, &self.with_time_left(footer), MARGIN);
             return;
         }
         for placed in &page.lines {
@@ -436,7 +437,12 @@ impl App {
                 percent: s.percent(),
             }
         };
-        draw_footer(t, canvas, &footer, self.settings.margin);
+        draw_footer(
+            t,
+            canvas,
+            &self.with_time_left(footer),
+            self.settings.margin,
+        );
     }
 
     // --- Menü ---

@@ -1859,3 +1859,36 @@ fn tap_zone_presets_turn_pages_and_open_the_menu() {
     tap(&mut app, (W / 2, 100));
     assert!(matches!(app.view, View::Menu));
 }
+
+#[test]
+fn reading_pace_is_learned_and_shows_time_left() {
+    use std::time::{Duration, Instant};
+    let (mut app, data, root) = reading_long_book();
+    let read_for = |app: &mut App, secs: u64| {
+        app.page_shown = Some(Instant::now() - Duration::from_secs(secs));
+        key(app, true);
+    };
+    assert_eq!(app.time_left(), None, "henüz ölçüm yok");
+    read_for(&mut app, 1); // atlama: sayılmaz
+    read_for(&mut app, 3600); // ara verme: sayılmaz
+    assert_eq!(app.pace.text_samples, 0);
+    for _ in 0..3 {
+        read_for(&mut app, 60);
+    }
+    let (chapter, book) = app.time_left().expect("üç ölçümden sonra tahmin var");
+    assert!(chapter >= 1 && book >= chapter, "{chapter} {book}");
+    let mut c = Canvas::new(W, LIBRA2_HEIGHT);
+    app.draw(&mut c);
+
+    // Menüde beklemek okuma sayılmaz.
+    middle(&mut app);
+    assert_eq!(app.page_shown, None);
+    tap(&mut app, (W / 2, LIBRA2_HEIGHT / 2 + 300));
+    key(&mut app, true);
+    assert_eq!(app.pace.text_samples, 3);
+
+    // Hız kitaplar arası saklanır.
+    app.shutdown();
+    let app = restart(&data, &root);
+    assert_eq!(app.pace.text_samples, 3);
+}

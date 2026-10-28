@@ -352,7 +352,7 @@ Kullanıcı isteği (2026-10-28): 50 maddelik öneri listesi milestone olarak ka
 - [ ] 5. Kitaba özel yazı ayarı (K)
 - [ ] 6. Yazı kalınlığı ayarı (K)
 - [ ] 7. Yatay mod, PDF'te iki sayfa yan yana (O)
-- [ ] 8. Bölümün ve kitabın kalan okuma süresi tahmini (K)
+- [x] 8. Bölümün ve kitabın kalan okuma süresi tahmini (K) (Alt bilgide "bölüm 12 dk · kitap 3 sa 20 dk". Hız kullanıcının ileri çevirmelerinden öğrenilir (sayfada 3 sn–10 dk kalınanlar; menü ve sözlükte geçen süre sayılmaz), kitaplar arası `okuma-hizi.json`; en az 3 ölçümden sonra gösterilir. Kitabın kalanı EPUB'da bölüm dosyası boyutlarından (açık bölümün karakter/bayt oranıyla), PDF görüntüsünde ekran başına süreden. Testli.)
 - [ ] 9. Kaydırarak sayfa çevirme, iki parmakla punto değiştirme (O)
 - [x] 10. Dokunma bölgelerini özelleştirme (K) (Ayarlara üçüncü sayfa "Okuma ve ekran"; "Dokunma düzeni": sol geri/sağ ileri, ters, tek el (sol kenar şeridi geri, üst şerit menü, gerisi ileri). Testli.)
 - [ ] 11. Sayfa tuşlarının yönünü ayardan değiştirme (K)
