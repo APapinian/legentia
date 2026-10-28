@@ -2201,3 +2201,66 @@ fn pdf_pages_are_searched_too() {
     let mut c = Canvas::new(W, LIBRA2_HEIGHT);
     app.draw(&mut c);
 }
+
+// --- Kaydırma ve iki parmak ---
+
+fn swipe(app: &mut App, from: (u32, u32), to: (u32, u32)) {
+    use crate::event::TouchPhase::*;
+    for (phase, (x, y), ms) in [(Down, from, 0), (Move, to, 100), (Up, to, 200)] {
+        app.handle(Event::Touch { phase, x, y, ms });
+    }
+}
+
+fn pinch(app: &mut App, from: u32, to: u32) {
+    use crate::event::TouchPhase::*;
+    let (cx, y) = (W / 2, LIBRA2_HEIGHT / 2);
+    app.handle(Event::Touch {
+        phase: Down,
+        x: cx - from / 2,
+        y,
+        ms: 0,
+    });
+    app.handle(Event::SecondTouch {
+        phase: Down,
+        x: cx + from / 2,
+        y,
+    });
+    app.handle(Event::Touch {
+        phase: Move,
+        x: cx - to / 2,
+        y,
+        ms: 100,
+    });
+    app.handle(Event::SecondTouch {
+        phase: Up,
+        x: cx + to / 2,
+        y,
+    });
+    app.handle(Event::Touch {
+        phase: Up,
+        x: cx - to / 2,
+        y,
+        ms: 200,
+    });
+}
+
+#[test]
+fn swipes_turn_pages_and_pinches_change_the_font_size() {
+    let (mut app, _, _) = reading_long_book();
+    swipe(&mut app, (900, 800), (300, 820));
+    assert_eq!(session(&app).page, 1, "sola kaydırma ileri");
+    swipe(&mut app, (300, 800), (900, 790));
+    assert_eq!(session(&app).page, 0, "sağa kaydırma geri");
+    swipe(&mut app, (600, 300), (620, 1200));
+    assert_eq!(session(&app).page, 0, "dikey kaydırma çevirmez");
+    assert!(matches!(app.view, View::Reading));
+
+    pinch(&mut app, 200, 400);
+    assert_eq!(app.settings().font_px, 44.0, "açılınca büyür");
+    pinch(&mut app, 400, 200);
+    pinch(&mut app, 400, 200);
+    assert_eq!(app.settings().font_px, 36.0, "kapanınca küçülür");
+    pinch(&mut app, 300, 310);
+    assert_eq!(app.settings().font_px, 36.0, "küçük oynama değiştirmez");
+    assert!(matches!(app.view, View::Reading), "iki parmak menü açmaz");
+}

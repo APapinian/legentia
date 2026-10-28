@@ -1,7 +1,7 @@
 //! Ekranlar: her biri için olay işleme ve çizim.
 
 use super::session::Target;
-use super::settings::{FIELD_PAGES, PAGE_TITLES, Settings, TapZones};
+use super::settings::{FIELD_PAGES, Field, PAGE_TITLES, Settings, TapZones};
 use super::ui::{
     BOLD, BOTTOM, HEADER_BOTTOM, List, MARGIN, PLAIN, ROW_PX, Rect, TOP, back_button, draw_button,
     draw_footer, draw_header, draw_header_until, header_button, one_line,
@@ -105,10 +105,13 @@ impl App {
     // --- Ortak ---
 
     /// Liste ekranlarında sayfa tuşları: listeyi çevirir; uçta `None`.
+    /// Liste ekranlarında sayfa tuşları ve yatay kaydırma: listeyi çevirir; uçta `None`.
     pub(super) fn page_list(page: usize, pages: usize, event: Event) -> Option<usize> {
-        match event {
-            Event::Key(PageKey::Forward) if page + 1 < pages => Some(page + 1),
-            Event::Key(PageKey::Back) if page > 0 => Some(page - 1),
+        match (event, swipe_direction(event)) {
+            (Event::Key(PageKey::Forward), _) | (_, Some(true)) if page + 1 < pages => {
+                Some(page + 1)
+            }
+            (Event::Key(PageKey::Back), _) | (_, Some(false)) if page > 0 => Some(page - 1),
             _ => None,
         }
     }
@@ -346,9 +349,13 @@ impl App {
             }
             _ => {}
         }
+        if let Event::Pinch { permille } = event {
+            return self.pinch(permille);
+        }
         let forward = match event {
             Event::Key(PageKey::Forward) => true,
             Event::Key(PageKey::Back) => false,
+            Event::Swipe { .. } => swipe_direction(event)?,
             Event::Tap { x, y } => match self.tap_zone(x, y) {
                 Some(forward) => forward,
                 None => {
@@ -957,6 +964,40 @@ impl App {
             );
             t.set_weight(self.settings.weight);
         }
+    }
+}
+
+/// Sayfa çeviren kaydırmanın en kısa yatay yolu (piksel; 300 ppi'de ~1,3 cm).
+const SWIPE_MIN: i32 = 150;
+/// İki parmağın puntoyu bir adım değiştirmesi için en az açılma/kapanma.
+const PINCH_IN: u32 = 870;
+const PINCH_OUT: u32 = 1150;
+
+/// Yatay kaydırma: sola kaydırma ileri (`true`), sağa geri. Kısa ya da dikey kaydırma `None`.
+fn swipe_direction(event: Event) -> Option<bool> {
+    let Event::Swipe { dx, dy } = event else {
+        return None;
+    };
+    (dx.abs() >= SWIPE_MIN && dx.abs() > 2 * dy.abs()).then_some(dx < 0)
+}
+
+impl App {
+    /// İki parmak: açılınca punto (PDF görüntüsünde yakınlaştırma) bir adım
+    /// büyür, kapanınca küçülür. Kitaba özel ayar olarak uygulanır.
+    fn pinch(&mut self, permille: u32) -> Option<Refresh> {
+        let up = match permille {
+            p if p >= PINCH_OUT => true,
+            p if p <= PINCH_IN => false,
+            _ => return None,
+        };
+        let image = self.session.as_ref()?.showing_pdf_image();
+        let field = if image { Field::PdfZoom } else { Field::Size };
+        let next = self.settings.step(field, up);
+        if next == self.settings {
+            return None;
+        }
+        self.apply_settings(next);
+        Some(self.refresh(true))
     }
 }
 

@@ -334,10 +334,13 @@ impl App {
     /// Bir olayı işler; ekran değişmediyse `None` döner (E Ink'e boşuna yenileme yok).
     /// Ham dokunma birden çok harekete dönüşebilir; biri tam yenileme isterse tam yenilenir.
     pub fn handle(&mut self, event: Event) -> Option<Refresh> {
-        if let Event::Touch { phase, x, y, ms } = event {
-            return self
-                .gestures
-                .feed(phase, x, y, ms)
+        let recognised = match event {
+            Event::Touch { phase, x, y, ms } => Some(self.gestures.feed(phase, x, y, ms)),
+            Event::SecondTouch { phase, x, y } => Some(self.gestures.feed_second(phase, x, y)),
+            _ => None,
+        };
+        if let Some(events) = recognised {
+            return events
                 .into_iter()
                 .filter_map(|e| self.handle(e))
                 .max_by_key(|r| *r == Refresh::Full);

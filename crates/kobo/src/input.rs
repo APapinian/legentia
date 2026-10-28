@@ -41,7 +41,17 @@ pub const EVENT_SIZE: usize = if cfg!(target_pointer_width = "64") {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Input {
-    Touch { phase: TouchPhase, x: u32, y: u32 },
+    Touch {
+        phase: TouchPhase,
+        x: u32,
+        y: u32,
+    },
+    /// İkinci parmak (iki parmak hareketi).
+    SecondTouch {
+        phase: TouchPhase,
+        x: u32,
+        y: u32,
+    },
     Page(PageKey),
     Power,
 }
@@ -85,36 +95,27 @@ pub fn to_screen(raw_x: i32, raw_y: i32, flipped: bool) -> (u32, u32) {
     }
 }
 
-/// Tek parmak izleyen dokunma durumu; yalnızca ilk temas (yuva 0) kullanılır.
+/// İki parmak izleyen dokunma durumu (yuva 0 ve 1; fazlası yok sayılır).
 /// Hem çok noktalı (B protokolü) hem tek noktalı (`ABS_X`, `BTN_TOUCH`)
-/// bildirimleri anlar.
+/// bildirimleri anlar; tek noktalıda yalnız ilk parmak vardır.
 #[derive(Debug, Default)]
 pub struct Touch {
     pub flipped: bool,
-    slot: i32,
+    slot: usize,
+    fingers: [Finger; 2],
+}
+
+#[derive(Debug, Default, Clone, Copy)]
+struct Finger {
     down: bool,
     was_down: bool,
     raw: (i32, i32),
     sent: Option<(u32, u32)>,
 }
 
-impl Touch {
-    pub fn feed(&mut self, e: RawEvent) -> Option<Input> {
-        match (e.kind, e.code) {
-            (EV_ABS, ABS_MT_SLOT) => self.slot = e.value,
-            (EV_ABS, _) if self.slot != 0 && e.code >= ABS_MT_SLOT => {}
-            (EV_ABS, ABS_MT_TRACKING_ID) => self.down = e.value >= 0,
-            (EV_KEY, BTN_TOUCH) => self.down = e.value != 0,
-            (EV_ABS, ABS_X | ABS_MT_POSITION_X) => self.raw.0 = e.value,
-            (EV_ABS, ABS_Y | ABS_MT_POSITION_Y) => self.raw.1 = e.value,
-            (EV_SYN, SYN_REPORT) => return self.report(),
-            _ => {}
-        }
-        None
-    }
-
-    fn report(&mut self) -> Option<Input> {
-        let (x, y) = to_screen(self.raw.0, self.raw.1, self.flipped);
+impl Finger {
+    fn report(&mut self, flipped: bool) -> Option<(TouchPhase, u32, u32)> {
+        let (x, y) = to_screen(self.raw.0, self.raw.1, flipped);
         let phase = match (self.was_down, self.down) {
             (false, true) => TouchPhase::Down,
             (true, true) if self.sent != Some((x, y)) => TouchPhase::Move,
@@ -123,7 +124,36 @@ impl Touch {
         };
         self.was_down = self.down;
         self.sent = self.down.then_some((x, y));
-        Some(Input::Touch { phase, x, y })
+        Some((phase, x, y))
+    }
+}
+
+impl Touch {
+    pub fn feed(&mut self, e: RawEvent) -> Vec<Input> {
+        match (e.kind, e.code) {
+            (EV_ABS, ABS_MT_SLOT) => self.slot = e.value.max(0) as usize,
+            (EV_ABS, code) if code >= ABS_MT_SLOT && self.slot > 1 => {}
+            (EV_ABS, ABS_MT_TRACKING_ID) => self.fingers[self.slot].down = e.value >= 0,
+            (EV_KEY, BTN_TOUCH) => self.fingers[0].down = e.value != 0,
+            (EV_ABS, ABS_MT_POSITION_X) => self.fingers[self.slot].raw.0 = e.value,
+            (EV_ABS, ABS_MT_POSITION_Y) => self.fingers[self.slot].raw.1 = e.value,
+            (EV_ABS, ABS_X) => self.fingers[0].raw.0 = e.value,
+            (EV_ABS, ABS_Y) => self.fingers[0].raw.1 = e.value,
+            (EV_SYN, SYN_REPORT) => return self.report(),
+            _ => {}
+        }
+        Vec::new()
+    }
+
+    fn report(&mut self) -> Vec<Input> {
+        let flipped = self.flipped;
+        let first = self.fingers[0]
+            .report(flipped)
+            .map(|(phase, x, y)| Input::Touch { phase, x, y });
+        let second = self.fingers[1]
+            .report(flipped)
+            .map(|(phase, x, y)| Input::SecondTouch { phase, x, y });
+        first.into_iter().chain(second).collect()
     }
 }
 
@@ -185,11 +215,9 @@ pub fn spawn_readers(tx: &Sender<Input>, flipped: bool) -> usize {
             let mut buf = [0u8; EVENT_SIZE];
             while file.read_exact(&mut buf).is_ok() {
                 let raw = parse(&buf);
-                let input =
-                    if touch { state.feed(raw) } else { None }.or_else(|| key(raw, flipped));
-                if let Some(input) = input
-                    && tx.send(input).is_err()
-                {
+                let mut inputs = if touch { state.feed(raw) } else { Vec::new() };
+                inputs.extend(key(raw, flipped));
+                if inputs.into_iter().any(|i| tx.send(i).is_err()) {
                     return;
                 }
             }
@@ -308,6 +336,48 @@ mod tests {
     }
 
     #[test]
+    fn a_second_finger_is_reported_separately() {
+        let mut t = Touch::default();
+        let mut out = Vec::new();
+        for e in [
+            ev(EV_ABS, ABS_MT_TRACKING_ID, 1),
+            ev(EV_ABS, ABS_MT_POSITION_X, 100),
+            ev(EV_ABS, ABS_MT_POSITION_Y, 100),
+            ev(EV_ABS, ABS_MT_SLOT, 1),
+            ev(EV_ABS, ABS_MT_TRACKING_ID, 2),
+            ev(EV_ABS, ABS_MT_POSITION_X, 500),
+            ev(EV_ABS, ABS_MT_POSITION_Y, 500),
+            ev(EV_SYN, SYN_REPORT, 0),
+            ev(EV_ABS, ABS_MT_TRACKING_ID, -1),
+            ev(EV_SYN, SYN_REPORT, 0),
+        ] {
+            out.extend(t.feed(e));
+        }
+        let (x0, y0) = to_screen(100, 100, false);
+        let (x1, y1) = to_screen(500, 500, false);
+        assert_eq!(
+            out,
+            [
+                Input::Touch {
+                    phase: TouchPhase::Down,
+                    x: x0,
+                    y: y0
+                },
+                Input::SecondTouch {
+                    phase: TouchPhase::Down,
+                    x: x1,
+                    y: y1
+                },
+                Input::SecondTouch {
+                    phase: TouchPhase::Up,
+                    x: x1,
+                    y: y1
+                },
+            ]
+        );
+    }
+
+    #[test]
     fn single_touch_protocol_works_too() {
         let mut t = Touch::default();
         let phases: Vec<_> = [
@@ -319,7 +389,7 @@ mod tests {
             ev(EV_SYN, SYN_REPORT, 0),
         ]
         .into_iter()
-        .filter_map(|e| t.feed(e))
+        .flat_map(|e| t.feed(e))
         .map(|i| match i {
             Input::Touch { phase, .. } => phase,
             _ => unreachable!(),

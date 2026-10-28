@@ -112,6 +112,9 @@ fn run() -> ExitCode {
                 y,
                 ms: clock.elapsed().as_millis() as u64,
             }),
+            Ok(Input::SecondTouch { phase, x, y }) => {
+                events.push(Event::SecondTouch { phase, x, y })
+            }
             Ok(Input::Page(key)) => events.push(Event::Key(key)),
             Err(RecvTimeoutError::Timeout) => {}
             Err(RecvTimeoutError::Disconnected) => {

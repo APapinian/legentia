@@ -23,6 +23,15 @@ pub enum Event {
         x: u32,
         y: u32,
     },
+    /// Parmak kayarak kalktı (uzun basma olmadan); başlangıçtan bitişe yer değiştirme.
+    Swipe {
+        dx: i32,
+        dy: i32,
+    },
+    /// İki parmak açıldı ya da kapandı: son aralık / ilk aralık × 1000.
+    Pinch {
+        permille: u32,
+    },
     Key(PageKey),
     /// Arka plan işi sürerken platformun düzenli gönderdiği vuruş
     /// ([`crate::App::wants_ticks`] doğruyken); iş bitince ekran güncellenir.
@@ -33,6 +42,12 @@ pub enum Event {
         x: u32,
         y: u32,
         ms: u64,
+    },
+    /// İkinci parmağın ham dokunması (iki parmak hareketi için).
+    SecondTouch {
+        phase: TouchPhase,
+        x: u32,
+        y: u32,
     },
 }
 
@@ -65,10 +80,16 @@ const SLOP: u32 = 30;
 
 /// Ham dokunmalardan hareket tanıyıcı. Zamanlayıcı yoktur: uzun basma, süre
 /// dolduktan sonraki ilk hareket ya da kaldırma olayında tanınır. Uzun basmadan
-/// önce kayan dokunma (kaydırma) şimdilik yok sayılır.
+/// önce kayan dokunma kalkınca kaydırmadır. İkinci parmak değince iki parmak
+/// hareketi başlar; parmaklardan biri kalkınca biter, ilk parmak artık
+/// dokunma ya da uzun basma üretmez.
 #[derive(Debug, Default)]
 pub(crate) struct Gestures {
     touch: Option<Touch>,
+    /// İkinci parmağın son konumu.
+    second: Option<(u32, u32)>,
+    /// İki parmak hareketinin başındaki aralık.
+    pinch_from: Option<f32>,
 }
 
 #[derive(Debug)]
@@ -78,6 +99,15 @@ struct Touch {
     ms: u64,
     holding: bool,
     slid: bool,
+    /// Son bilinen konum.
+    at: (u32, u32),
+    /// İki parmak hareketinin parçası: dokunma/uzun basma/kaydırma üretmez.
+    pinching: bool,
+}
+
+fn distance(a: (u32, u32), b: (u32, u32)) -> f32 {
+    let (dx, dy) = (a.0 as f32 - b.0 as f32, a.1 as f32 - b.1 as f32);
+    (dx * dx + dy * dy).sqrt()
 }
 
 impl Gestures {
@@ -90,10 +120,21 @@ impl Gestures {
                     ms,
                     holding: false,
                     slid: false,
+                    at: (x, y),
+                    pinching: false,
                 });
             }
             return Vec::new();
         };
+        t.at = (x, y);
+        if t.pinching {
+            if phase == TouchPhase::Up {
+                let pinch = self.end_pinch();
+                self.touch = None;
+                return pinch.into_iter().collect();
+            }
+            return Vec::new();
+        }
         let held = ms.saturating_sub(t.ms) >= HOLD_MS;
         let far = x.abs_diff(t.x) > SLOP || y.abs_diff(t.y) > SLOP;
         let mut out = Vec::new();
@@ -111,6 +152,8 @@ impl Gestures {
                     ms,
                     holding: false,
                     slid: false,
+                    at: (x, y),
+                    pinching: false,
                 };
                 out.clear();
             }
@@ -121,11 +164,50 @@ impl Gestures {
                     out.push(Event::HoldEnd { x, y });
                 } else if !t.slid && !far {
                     out.push(Event::Tap { x: t.x, y: t.y });
+                } else {
+                    out.push(Event::Swipe {
+                        dx: x as i32 - t.x as i32,
+                        dy: y as i32 - t.y as i32,
+                    });
                 }
                 self.touch = None;
             }
         }
         out
+    }
+
+    /// İkinci parmak. İlk parmak dokunurken değerse iki parmak hareketi başlar.
+    pub fn feed_second(&mut self, phase: TouchPhase, x: u32, y: u32) -> Vec<Event> {
+        match phase {
+            TouchPhase::Down => {
+                self.second = Some((x, y));
+                if let Some(t) = self.touch.as_mut()
+                    && !t.holding
+                {
+                    t.pinching = true;
+                    self.pinch_from = Some(distance(t.at, (x, y)));
+                }
+                Vec::new()
+            }
+            TouchPhase::Move => {
+                self.second = Some((x, y));
+                Vec::new()
+            }
+            TouchPhase::Up => {
+                self.second = Some((x, y));
+                let pinch = self.end_pinch();
+                self.second = None;
+                pinch.into_iter().collect()
+            }
+        }
+    }
+
+    fn end_pinch(&mut self) -> Option<Event> {
+        let from = self.pinch_from.take()?;
+        let to = distance(self.touch.as_ref()?.at, self.second?);
+        (from > 0.0).then(|| Event::Pinch {
+            permille: (to / from * 1000.0).round() as u32,
+        })
     }
 }
 
@@ -179,15 +261,28 @@ mod tests {
     }
 
     #[test]
-    fn a_quick_slide_is_neither_tap_nor_hold() {
-        assert!(
+    fn a_quick_slide_is_a_swipe() {
+        assert_eq!(
             run(&[
-                (Down, 100, 100, 0),
+                (Down, 600, 100, 0),
                 (Move, 400, 100, 100),
-                (Up, 600, 100, 900)
-            ])
-            .is_empty()
+                (Up, 200, 120, 900)
+            ]),
+            vec![Event::Swipe { dx: -400, dy: 20 }]
         );
+    }
+
+    #[test]
+    fn two_fingers_spreading_make_a_pinch() {
+        let mut g = Gestures::default();
+        let mut out = g.feed(Down, 500, 800, 0);
+        out.extend(g.feed_second(Down, 700, 800));
+        out.extend(g.feed(Move, 400, 800, 100));
+        out.extend(g.feed_second(Move, 800, 800));
+        out.extend(g.feed_second(Up, 800, 800));
+        out.extend(g.feed(Up, 400, 800, 900));
+        // 200 px aralık 400 px oldu; ilk parmağın kalkması dokunma sayılmaz.
+        assert_eq!(out, vec![Event::Pinch { permille: 2000 }]);
     }
 
     #[test]

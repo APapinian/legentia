@@ -5,7 +5,7 @@
 //! tutmak uzun basma, basılıyken sürüklemek sürükleme. Okurken sol üçte bir
 //! önceki sayfa, sağ üçte bir sonraki sayfa, orta menü.
 //! PageUp / Sol ok = üst sayfa tuşu (geri), PageDown / Sağ ok / Boşluk = alt tuş (ileri).
-//! Esc ya da kütüphanedeki "Çık" = çıkış. Tam yenileme, ekranın bir an ters renkte gösterilmesiyle işaretlenir.
+//! + / - = iki parmakla büyütme/küçültme (punto). Esc ya da kütüphanedeki "Çık" = çıkış. Tam yenileme, ekranın bir an ters renkte gösterilmesiyle işaretlenir.
 //!
 //! LEGENTIA_SIM_SCALE: pencere küçültme katsayısı (tam sayı, varsayılan 2).
 //! LEGENTIA_DATA: ayar ve okuma kayıtlarının klasörü (varsayılan ~/.local/share/legentia).
@@ -118,6 +118,9 @@ fn run() -> ExitCode {
                 Key::PageDown | Key::Right | Key::Space => {
                     events.push(Event::Key(PageKey::Forward))
                 }
+                // Fareyle iki parmak yapılamaz: + / - iki parmak açma/kapama yerine.
+                Key::Equal | Key::NumPadPlus => events.push(Event::Pinch { permille: 1300 }),
+                Key::Minus | Key::NumPadMinus => events.push(Event::Pinch { permille: 750 }),
                 _ => {}
             }
         }
