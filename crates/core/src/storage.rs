@@ -89,7 +89,24 @@ impl Store {
         }
     }
 
-    fn try_save<T: Serialize>(&self, name: &str, data: &T) -> std::io::Result<()> {
+    /// `dir` alt klasöründeki kayıtların adları (`.json` uzantısız), sıralı.
+    pub(crate) fn names(&self, dir: &str) -> Vec<String> {
+        let mut names: Vec<String> = std::fs::read_dir(self.path(dir))
+            .into_iter()
+            .flatten()
+            .flatten()
+            .filter_map(|e| {
+                e.file_name()
+                    .to_str()?
+                    .strip_suffix(".json")
+                    .map(str::to_string)
+            })
+            .collect();
+        names.sort();
+        names
+    }
+
+    pub(crate) fn try_save<T: Serialize>(&self, name: &str, data: &T) -> std::io::Result<()> {
         use std::io::Write;
         let path = self.path(name);
         if let Some(parent) = path.parent() {
@@ -167,6 +184,17 @@ mod tests {
         std::fs::write(store.dir().join("s.json"), future).unwrap();
         assert_eq!(store.load::<Sample>("s.json"), None);
         assert!(store.dir().join("s.json.bozuk").exists());
+    }
+
+    #[test]
+    fn names_lists_saved_records_only() {
+        let store = temp_store("names");
+        let s = Sample { word: "x".into() };
+        store.save("books/b.json", &s);
+        store.save("books/a.json", &s);
+        std::fs::write(store.dir().join("books/c.json.tmp"), b"").unwrap();
+        assert_eq!(store.names("books"), vec!["a", "b"]);
+        assert!(store.names("yok").is_empty());
     }
 
     #[test]

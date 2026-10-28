@@ -5,6 +5,7 @@
 //! PDF'ler aynı ekranlarla okunur; sayfa görüntüsü çizilip önbellekte tutulur.
 
 mod annotations;
+mod backup;
 mod export;
 mod keyboard;
 mod note;
@@ -17,7 +18,7 @@ mod ui;
 
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use crate::canvas::Canvas;
 use crate::epub::Book;
@@ -60,6 +61,8 @@ enum View {
     Annotations {
         page: usize,
     },
+    /// Yedekleme ve geri yükleme (kütüphaneden).
+    Backup,
     Settings {
         draft: Settings,
         page: usize,
@@ -90,6 +93,8 @@ pub struct App {
     text: Text,
     width: u32,
     store: Store,
+    /// Kütüphane klasörü; yedek dosyası buraya yazılır.
+    root: PathBuf,
     settings: Settings,
     library: Vec<Entry>,
     /// Kitap kimliği → okunma yüzdesi (kütüphanede gösterilir).
@@ -132,6 +137,7 @@ impl App {
             text,
             width,
             store,
+            root: library_root.to_path_buf(),
             settings,
             library,
             progress,
@@ -242,6 +248,7 @@ impl App {
             View::Menu => self.handle_menu(event),
             View::Bookmarks { page } => self.handle_bookmarks(*page, event),
             View::Annotations { page } => self.handle_annotations(*page, event),
+            View::Backup => self.handle_backup(event),
             View::Settings { draft, page } => {
                 let (draft, page) = (draft.clone(), *page);
                 self.handle_settings(draft, page, event)
@@ -396,6 +403,7 @@ impl App {
             }
             View::Bookmarks { page } => self.draw_bookmarks(canvas, *page),
             View::Annotations { page } => self.draw_annotations(canvas, *page),
+            View::Backup => self.draw_backup(canvas),
             View::Settings { draft, page } => self.draw_settings(canvas, draft, *page),
             View::Selected | View::Annotation { .. } => {
                 self.draw_reading(canvas);

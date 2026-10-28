@@ -836,6 +836,81 @@ fn pdf_notes_export_as_standard_annotations() {
 }
 
 #[test]
+fn backup_restores_notes_and_settings_on_a_fresh_install() {
+    let (mut app, data, root) = setup(&[("uzun.epub", long_book())]);
+    tap_row(&mut app, &LIBRARY, 0);
+    tap_row(&mut app, &CONTENTS, 0);
+    let s = app.session.as_mut().unwrap();
+    let i = s
+        .add_annotation(
+            Position {
+                block: 1,
+                offset: 0,
+            },
+            Position {
+                block: 1,
+                offset: 4,
+            },
+        )
+        .unwrap();
+    s.set_note(i, Some("yedeklenecek".into()));
+    change_setting(&mut app, Field::Size, 2);
+    let size = app.settings().font_px;
+    menu(&mut app, MenuItem::Library);
+
+    tap(&mut app, super::ui::back_button(W).center()); // Yedek
+    assert!(matches!(app.view, View::Backup));
+    let at = app.backup_buttons().0.center();
+    tap(&mut app, at);
+    assert!(matches!(
+        app.view,
+        View::Message {
+            msg: Msg::BackupSaved { books: 1 },
+            ..
+        }
+    ));
+    assert!(root.join(super::backup::BACKUP_FILE).exists());
+
+    // Yeni kurulum: veri klasörü boş, kütüphane aynı.
+    std::fs::remove_dir_all(data.join("books")).unwrap();
+    std::fs::remove_file(data.join("settings.json")).unwrap();
+    let mut app = restart(&data, &root);
+    assert_eq!(app.settings().font_px, Settings::default().font_px);
+    tap(&mut app, super::ui::back_button(W).center());
+    let at = app.backup_buttons().1.center();
+    tap(&mut app, at);
+    assert!(matches!(
+        app.view,
+        View::Message {
+            msg: Msg::RestoreDone { books: 1 },
+            ..
+        }
+    ));
+    assert_eq!(app.settings().font_px, size);
+    tap(&mut app, (W / 2, LIBRA2_HEIGHT / 2)); // mesajdan kütüphaneye
+    tap_row(&mut app, &LIBRARY, 0);
+    let a = &session(&app).state.annotations;
+    assert_eq!(a.len(), 1);
+    assert_eq!(a[0].note.as_deref(), Some("yedeklenecek"));
+    assert_eq!(a[0].quote, "Uzun");
+}
+
+#[test]
+fn restoring_without_a_backup_says_so() {
+    let (mut app, _, _) = setup(&[("uzun.epub", long_book())]);
+    tap(&mut app, super::ui::back_button(W).center());
+    let at = app.backup_buttons().1.center();
+    tap(&mut app, at);
+    assert!(matches!(
+        app.view,
+        View::Message {
+            msg: Msg::NoBackup,
+            ..
+        }
+    ));
+}
+
+#[test]
 fn broken_pdf_shows_turkish_error() {
     let (mut app, _, _) = setup(&[("bozuk.pdf", b"%PDF-1.4 bozuk".to_vec())]);
     tap_row(&mut app, &LIBRARY, 0);

@@ -91,7 +91,11 @@ impl App {
     // --- Kütüphane ---
 
     pub(super) fn handle_library(&mut self, page: usize, event: Event) -> Option<Refresh> {
-        if let Event::Tap { y, .. } = event {
+        if let Event::Tap { x, y } = event {
+            if back_button(self.width).contains(x, y) {
+                self.view = View::Backup;
+                return Some(self.refresh(true));
+            }
             let index = LIBRARY.row_at(page, self.library.len(), y)?;
             let path = self.library[index].path.clone();
             self.open_book(&path);
@@ -110,6 +114,14 @@ impl App {
             &tr(&Msg::Library),
             &tr(&Msg::BookCount(self.library.len())),
             false,
+        );
+        // Başlıktaki "Geri" düğmesinin yerinde yedekleme ekranı düğmesi.
+        draw_button(
+            t,
+            canvas,
+            back_button(canvas.width()),
+            &tr(&Msg::BackupButton),
+            ROW_PX,
         );
         if self.library.is_empty() {
             self.draw_message_lines(canvas, &Msg::LibraryEmpty, HEADER_BOTTOM + 80);
@@ -142,7 +154,7 @@ impl App {
         draw_footer(t, canvas, &footer, MARGIN);
     }
 
-    fn draw_message_lines(&self, canvas: &mut Canvas, msg: &Msg, top: i32) {
+    pub(super) fn draw_message_lines(&self, canvas: &mut Canvas, msg: &Msg, top: i32) {
         let t = &self.text;
         let max_w = (canvas.width() as i32 - 2 * MARGIN) as f32;
         for (i, line) in t

@@ -1,6 +1,6 @@
 # Legentia
 
-Kobo Libra 2 için Rust ile yazılan, tamamen Türkçe arayüzlü e-kitap okuyucu. Şu an M4 tamamlandı, M5 (PDF) sürüyor: simülatörde EPUB ve PDF okuma; kütüphane, içindekiler, menü, yer imleri, yazı ayarları; PDF'te otomatik kenar kırpma, genişliğe sığdırma, sütun sütun okuma, yakınlaştırma ve metni yeniden akıtma.
+Kobo Libra 2 için Rust ile yazılan, tamamen Türkçe arayüzlü e-kitap okuyucu. Şu an M6 tamamlandı (M5'ten yalnızca PDF'te elle kenar kırpma kaldı): simülatörde EPUB ve PDF okuma; kütüphane, içindekiler, menü, yer imleri, yazı ayarları; PDF'te otomatik kenar kırpma, genişliğe sığdırma, sütun sütun okuma, yakınlaştırma, metni yeniden akıtma ve OCR; uzun basıp sürükleyerek seçim, vurgular, Türkçe ekran klavyesiyle notlar, notları Markdown'a ve PDF açıklamalarına aktarma, yedekleme.
 
 Belgeler: `kobo-rust-okuyucu-proje-aktarim.md` (vizyon), `milestone.md` (plan), `dikkat-edilmesi-gerekenler.md` (kurallar), `docs/device-compatibility.md` (cihaz bilgisi), `docs/epub-support.md` (desteklenen EPUB özellikleri), `docs/dependencies.md` (bağımlılıklar, fontlar ve lisansları).
 
@@ -52,7 +52,7 @@ cargo test  -p legentia-core --target armv7-unknown-linux-musleabihf
 | PageDown, Sağ ok, Boşluk | Alt sayfa tuşu (ileri) |
 | Esc | Çıkış |
 
-Okurken ekranın ortasına dokunmak menüyü açar: içindekiler, yer imi koy/kaldır, yer imleri, yazı ayarları, kütüphane.
+Okurken ekranın ortasına dokunmak menüyü açar: içindekiler, yer imi koy/kaldır, yer imleri, vurgular ve notlar, notları dışa aktar, yazı ayarları, kütüphane. Metne yarım saniye basılı tutup sürüklemek seçer; çıkan çubukta Vurgula / Not ekle. Vurguya dokunmak notu gösterir, düzenletir ya da vurguyu siler. Kütüphanedeki "Yedek" düğmesi tüm kayıtları kütüphane klasörüne yedekler ya da geri yükler.
 
 Klasör verilirse kütüphane ekranı açılır; kitap verilirse bulunduğu klasör kütüphane olur ve kitap açılır. Ayarlar ve okuma kayıtları `~/.local/share/legentia` altına yazılır (`LEGENTIA_DATA` ile değiştirilebilir).
 
