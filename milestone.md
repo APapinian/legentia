@@ -404,7 +404,7 @@ Kullanıcı isteği (2026-10-28): 50 maddelik öneri listesi milestone olarak ka
 ### Sistem
 - [ ] 48. Uygulama içinden güncelleme (O)
 - [ ] 49. İngilizce arayüz (K)
-- [ ] 50. Tek komutla kurma ve kaldırma betiği (K)
+- [x] 50. Tek komutla kurma ve kaldırma betiği (K) (`tools/kobo/kur.sh`: aygıtın Kobo olduğunu denetler (Libra 2 değilse sorar), paketler, yalnızca Legentia dosyalarını kopyalar ve doğrular; güncellemede `veri/` korunur. `--kaldir` (veri/ kalır), `--verileri-de-sil`. Sahte Kobo klasöründe denendi; diğer eklentilerin dosyalarına dokunmadığı doğrulandı.)
 
 ---
 

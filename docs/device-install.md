@@ -19,6 +19,8 @@ Program çalışırken kendisi şunları oluşturur: `.adds/legentia/veri/` (aya
 
 ## Kurulum
 
+**Kısa yol:** Kobo'yu USB ile bağlayıp (nix develop içinde) `tools/kobo/kur.sh /run/media/$USER/KOBOeReader`. Betik aygıtın Kobo olduğunu (`.kobo/version`; Libra 2 değilse sorar) denetler, paketi kurar, yalnızca Legentia'nın dosyalarını kopyalar ve her birini doğrular; güncellemede `veri/` korunur. Elle kurulum adımları:
+
 1. Bilgisayarda (nix develop içinde): `tools/kobo/paketle.sh target/kobo-paket`
 2. Kobo'yu USB ile bağlayın, bağlantıyı onaylayın.
 3. Paketteki `.adds` klasörünün içeriğini Kobo'nun `.adds` klasörüne kopyalayın. Bu yalnızca yukarıdaki yeni yolları ekler; aynı adlı bir dosya varsa durup bakın.
@@ -45,7 +47,7 @@ Legentia açılışta kendiliğinden çalışmaz; yalnızca menüden seçilince 
 
 ## Kaldırma
 
-USB ile bağlayıp şunları silin:
+Kısa yol: `tools/kobo/kur.sh --kaldir <Kobo klasörü>` (okuma konumu ve notlar `veri/`'de kalır; onları da silmek için `--verileri-de-sil`). Elle: USB ile bağlayıp şunları silin:
 - `.adds/legentia/` (programla birlikte `veri/` da gider; önce kütüphanedeki "Yedekle" ile yedek alabilirsiniz)
 - `.adds/nm/legentia`
 
