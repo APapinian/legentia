@@ -212,7 +212,7 @@ impl App {
         }
         let page = s.pages.get(s.page)?;
         let (text, screen) = (s.pdf_text.as_ref()?, page.screen?);
-        let (px, py) = pdf_view::to_page(&screen, (self.width, self.height), x, y);
+        let (px, py) = pdf_view::to_page(&screen, s.pdf_size((self.width, self.height)), x, y);
         let (block, offset) = char_at(text, px, py)?;
         let (a, b) = word_bounds(&text.blocks[block].text, offset);
         Some((Position { block, offset: a }, Position { block, offset: b }))
@@ -241,7 +241,7 @@ impl App {
         match (s.pdf_text.as_ref(), page.screen) {
             (Some(text), Some(screen)) => box_areas(text, start, end)
                 .into_iter()
-                .map(|a| pdf_view::to_screen(&screen, (self.width, self.height), a))
+                .map(|a| pdf_view::to_screen(&screen, s.pdf_size((self.width, self.height)), a))
                 .collect(),
             _ => Vec::new(),
         }

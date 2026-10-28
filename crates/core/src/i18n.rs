@@ -43,6 +43,12 @@ pub enum Msg {
         pages: usize,
         percent: u32,
     },
+    /// Yatayda yan yana iki PDF sayfası: `page` ve `page + 1`.
+    PdfSpreadFooter {
+        page: usize,
+        pages: usize,
+        percent: u32,
+    },
     PdfScreenFooter {
         page: usize,
         pages: usize,
@@ -310,6 +316,9 @@ pub fn tr(msg: &Msg) -> String {
             format!("Bölüm {chapter}/{chapters} · Sayfa {page}/{pages} · %{percent}")
         }
         Msg::PdfFooter { page, pages, percent } => format!("Sayfa {page}/{pages} · %{percent}"),
+        Msg::PdfSpreadFooter { page, pages, percent } => {
+            format!("Sayfa {page}–{}/{pages} · %{percent}", page + 1)
+        }
         Msg::PdfScreenFooter { page, pages, screen, screens, percent } => {
             format!("Sayfa {page}/{pages} ({screen}/{screens}) · %{percent}")
         }
@@ -563,6 +572,11 @@ mod tests {
                 page: 1,
                 pages: 2,
                 percent: 50,
+            },
+            PdfSpreadFooter {
+                page: 3,
+                pages: 10,
+                percent: 30,
             },
             PdfScreenFooter {
                 page: 1,

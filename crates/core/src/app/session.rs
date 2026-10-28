@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 
 use super::annotations::{self, Annotation, Flat};
 use super::pdf_view::{Screen, page_screens};
-use super::settings::Settings;
+use super::settings::{PdfView, Settings};
 use super::ui::TOP;
 use crate::epub::{Block, BlockKind, Book, TocEntry};
 use crate::i18n::{Msg, tr};
@@ -116,6 +116,10 @@ pub(super) struct Session {
     /// Ekranda yan yana sütun sayısı: yatayda iki sütun açıksa 2 (her
     /// sayfa bir sütundur, `page` hep sütun sayısının katıdır), değilse 1.
     pub columns: usize,
+    /// PDF yatayda iki sayfa yan yana: sol sayfa `spine` (çift), sağdaki
+    /// `spine + 1` ve onun ekranı (son tek sayfada yok). Her sayfa ekranın yarısına sığar.
+    pub spread: bool,
+    pub right: Option<Screen>,
 }
 
 impl Session {
@@ -137,6 +141,8 @@ impl Session {
             images: Default::default(),
             laid_out: (0, 0),
             columns: 1,
+            spread: false,
+            right: None,
         }
     }
 
@@ -223,14 +229,29 @@ impl Session {
             }
             Doc::Pdf(_) => Vec::new(),
         };
+        // Yatayda sayfaya sığdırılan PDF görüntüsü: iki sayfa yan yana (1–2, 3–4…).
+        let spread = matches!(self.doc, Doc::Pdf(_))
+            && blocks.is_empty()
+            && size.0 > size.1
+            && settings.pdf_view == PdfView::Page;
+        let spine = if spread { spine - spine % 2 } else { spine };
+        let half = if spread { (size.0 / 2, size.1) } else { size };
+        let mut right = None;
         let image = match &self.doc {
-            Doc::Pdf(pdf) if blocks.is_empty() => Some(page_screens(
-                pdf,
-                &mut self.pdf_layouts,
-                settings,
-                size,
-                spine,
-            )),
+            Doc::Pdf(pdf) if blocks.is_empty() => {
+                if spread && spine + 1 < pdf.page_count() {
+                    right = page_screens(pdf, &mut self.pdf_layouts, settings, half, spine + 1)
+                        .first()
+                        .copied();
+                }
+                Some(page_screens(
+                    pdf,
+                    &mut self.pdf_layouts,
+                    settings,
+                    half,
+                    spine,
+                ))
+            }
             _ => None,
         };
         let mut columns = 1;
@@ -278,6 +299,8 @@ impl Session {
         };
         self.page = page / columns * columns;
         self.columns = columns;
+        self.spread = spread;
+        self.right = right;
         self.spine = spine;
         self.blocks = blocks;
         self.pages = pages;
@@ -317,6 +340,15 @@ impl Session {
             })
             .filter(|(p, _)| *p < self.pages.len())
             .collect()
+    }
+
+    /// PDF sayfa görüntüsünün yerleştiği alan: yan yana iki sayfada ekranın yarısı.
+    pub fn pdf_size(&self, size: (u32, u32)) -> (u32, u32) {
+        if self.spread {
+            (size.0 / 2, size.1)
+        } else {
+            size
+        }
     }
 
     /// Bir sütunun metin genişliği.

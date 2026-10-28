@@ -385,12 +385,12 @@ impl App {
             s.page += step;
         } else if !forward && s.page >= step {
             s.page -= step;
-        } else if forward && s.spine + 1 < s.chapter_count() {
-            let next = s.spine + 1;
+        } else if forward && s.spine + spines(s) < s.chapter_count() {
+            let next = s.spine + spines(s);
             self.open_chapter(next, Target::Start);
             return Some(self.refresh(full));
         } else if !forward && s.spine > 0 {
-            let prev = s.spine - 1;
+            let prev = s.spine.saturating_sub(spines(s));
             self.open_chapter(prev, Target::End);
             return Some(self.refresh(full));
         } else {
@@ -428,7 +428,13 @@ impl App {
             if s.bookmark_here().is_some() {
                 draw_dog_ear(canvas);
             }
-            let footer = if s.pages.len() > 1 {
+            let footer = if s.right.is_some() {
+                Msg::PdfSpreadFooter {
+                    page: s.spine + 1,
+                    pages: s.chapter_count(),
+                    percent: s.percent(),
+                }
+            } else if s.pages.len() > 1 {
                 Msg::PdfScreenFooter {
                     page: s.spine + 1,
                     pages: s.chapter_count(),
@@ -979,6 +985,11 @@ impl App {
             t.set_weight(self.settings.weight);
         }
     }
+}
+
+/// Bir çevirmede geçilen bölüm sayısı: yatayda yan yana iki PDF sayfası 2.
+fn spines(s: &super::session::Session) -> usize {
+    if s.spread { 2 } else { 1 }
 }
 
 /// Sayfa çeviren kaydırmanın en kısa yatay yolu (piksel; 300 ppi'de ~1,3 cm).

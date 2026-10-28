@@ -2493,3 +2493,42 @@ fn landscape_epub_reads_in_two_columns() {
     app.apply_settings(one);
     assert_eq!(session(&app).columns, 1);
 }
+
+#[test]
+fn landscape_pdf_shows_two_pages_side_by_side() {
+    let page = |t: &str| format!("BT /F1 40 Tf 72 700 Td ({t}) Tj ET 0 0 0 rg 72 100 450 500 re f");
+    let pages = [page("Bir"), page("Iki"), page("Uc")];
+    let pdf = crate::pdf::testutil::pdf_with_content(
+        &pages.iter().map(String::as_str).collect::<Vec<_>>(),
+    );
+    let (mut app, _, _) = setup(&[("uc.pdf", pdf)]);
+    tap_row(&mut app, &LIBRARY, 0);
+    assert_eq!(session(&app).spine, 0);
+    app.handle(Event::Tilt { landscape: true });
+    let (w, h) = app.screen_size();
+    let s = session(&app);
+    assert!(s.spread && s.right.is_some(), "1. ve 2. sayfa yan yana");
+
+    let mut c = Canvas::new(w, h);
+    app.draw(&mut c);
+    let ink_in = |c: &Canvas, x0: u32, x1: u32| {
+        (0..h)
+            .flat_map(|y| (x0..x1).map(move |x| (x, y)))
+            .filter(|&(x, y)| c.pixels()[(y * w + x) as usize] < 100)
+            .count()
+    };
+    assert!(ink_in(&c, 0, w / 2) > 10_000, "sol sayfa");
+    assert!(ink_in(&c, w / 2, w) > 10_000, "sağ sayfa");
+
+    key(&mut app, true);
+    let s = session(&app);
+    assert_eq!(s.spine, 2, "iki sayfa atlandı");
+    assert!(s.right.is_none(), "son tek sayfa");
+    app.draw(&mut c);
+    key(&mut app, false);
+    assert_eq!(session(&app).spine, 0);
+
+    // Dikeye dönünce tek sayfa.
+    app.handle(Event::Tilt { landscape: false });
+    assert!(!session(&app).spread);
+}

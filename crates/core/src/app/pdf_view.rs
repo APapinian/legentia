@@ -143,6 +143,50 @@ fn spans(start: f32, len: f32, size: f32, overlap: f32) -> Vec<(f32, f32)> {
     (0..n).map(|i| (start + i as f32 * step, size)).collect()
 }
 
+/// Sayfa ekranının görüntüsü: önbellekte aynısı varsa o, yoksa çizilir.
+fn render_frame<'a>(
+    cache: &'a std::cell::RefCell<Option<PdfFrame>>,
+    doc: &PdfDoc,
+    page: usize,
+    screen: Screen,
+    area: (u32, u32),
+    shift: i32,
+) -> std::cell::RefMut<'a, Option<PdfFrame>> {
+    let mut frame = cache.borrow_mut();
+    if !frame
+        .as_ref()
+        .is_some_and(|f| f.page == page && f.screen == screen)
+    {
+        *frame = match doc.render_area(page, screen.area, screen.scale) {
+            Ok(image) => {
+                let (x, y) = screen_origin(&screen, area);
+                Some(PdfFrame {
+                    page,
+                    screen,
+                    x: x + shift,
+                    y,
+                    image,
+                })
+            }
+            Err(e) => {
+                log::error!("cannot render pdf page {page}: {e:?}");
+                None
+            }
+        };
+    }
+    frame
+}
+
+fn blit_frame(canvas: &mut Canvas, frame: &Option<PdfFrame>) -> bool {
+    match frame {
+        Some(f) => {
+            canvas.blit(&f.image.pixels, f.image.width, f.image.height, f.x, f.y);
+            true
+        }
+        None => false,
+    }
+}
+
 impl App {
     /// Okunan PDF ekranını çizer; aynı ekran için önbellekteki görüntüyü kullanır.
     pub(super) fn draw_pdf_page(&self, canvas: &mut Canvas, s: &Session) {
@@ -153,31 +197,22 @@ impl App {
             self.draw_page_failed(canvas);
             return;
         };
-        let mut frame = self.pdf_frame.borrow_mut();
-        if !frame
-            .as_ref()
-            .is_some_and(|f| f.page == s.spine && f.screen == screen)
-        {
-            *frame = match doc.render_area(s.spine, screen.area, screen.scale) {
-                Ok(image) => {
-                    let (x, y) = screen_origin(&screen, (canvas.width(), canvas.height()));
-                    Some(PdfFrame {
-                        page: s.spine,
-                        screen,
-                        x,
-                        y,
-                        image,
-                    })
-                }
-                Err(e) => {
-                    log::error!("cannot render pdf page {}: {e:?}", s.spine);
-                    None
-                }
-            };
+        let area = s.pdf_size((canvas.width(), canvas.height()));
+        let left = render_frame(&self.pdf_frame, doc, s.spine, screen, area, 0);
+        if !blit_frame(canvas, &left) {
+            self.draw_page_failed(canvas);
         }
-        match frame.as_ref() {
-            Some(f) => canvas.blit(&f.image.pixels, f.image.width, f.image.height, f.x, f.y),
-            None => self.draw_page_failed(canvas),
+        // Yatayda sağdaki sayfa, ekranın sağ yarısında.
+        if let Some(right) = s.right {
+            let frame = render_frame(
+                &self.pdf_right,
+                doc,
+                s.spine + 1,
+                right,
+                area,
+                area.0 as i32,
+            );
+            blit_frame(canvas, &frame);
         }
     }
 

@@ -49,6 +49,7 @@ impl App {
         if resized {
             (self.width, self.height) = size;
             self.pdf_frame.replace(None);
+            self.pdf_right.replace(None);
         }
         if self.reading_view()
             && let Some(s) = self.session.as_mut()

@@ -168,6 +168,8 @@ pub struct App {
     unsaved_turns: u32,
     /// Son çizilen PDF ekranı; menü açılıp kapanınca yeniden çizilmez.
     pdf_frame: RefCell<Option<PdfFrame>>,
+    /// Yatayda yan yana gösterilen sağ PDF sayfası.
+    pdf_right: RefCell<Option<PdfFrame>>,
     gestures: Gestures,
     /// Okurken uzun basmayla başlayan seçim.
     selection: Option<select::Selection>,
@@ -246,6 +248,7 @@ impl App {
             since_full: 0,
             unsaved_turns: 0,
             pdf_frame: RefCell::new(None),
+            pdf_right: RefCell::new(None),
             gestures: Gestures::default(),
             selection: None,
             dicts: None,
@@ -339,6 +342,7 @@ impl App {
         }
         self.session = Some(session);
         self.pdf_frame.replace(None);
+        self.pdf_right.replace(None);
         self.view = View::Contents { page: 0 };
         match last {
             Some((spine, at)) => self.open_chapter(spine, Target::At(at)),
