@@ -41,6 +41,9 @@ fn merge(local: &mut BookState, saved: BookState) {
         local.last = saved.last;
         local.percent = saved.percent;
     }
+    if local.layout.is_none() {
+        local.layout = saved.layout;
+    }
     for b in saved.bookmarks {
         if !local
             .bookmarks
@@ -83,7 +86,7 @@ impl App {
         let count = books.len();
         let backup = Backup {
             created: super::annotations::now(),
-            settings: self.settings.clone(),
+            settings: self.defaults.clone(),
             books,
             words: self.words.clone(),
         };
@@ -113,9 +116,15 @@ impl App {
             self.store.save(&file, &local);
             self.progress.insert(id, local.percent);
         }
-        self.settings = backup.settings;
-        self.text.set_weight(self.settings.weight);
-        self.store.save(SETTINGS_FILE, &self.settings);
+        self.defaults = backup.settings;
+        self.store.save(SETTINGS_FILE, &self.defaults);
+        let current = match &self.session {
+            Some(s) => self
+                .defaults
+                .with_book_fields(s.state.layout.as_ref().unwrap_or(&self.defaults)),
+            None => self.defaults.clone(),
+        };
+        self.use_settings(current);
         for w in backup.words {
             let k = crate::dict::key(&w.word);
             if !self.words.iter().any(|l| crate::dict::key(&l.word) == k) {
@@ -197,6 +206,7 @@ mod tests {
             percent: 40,
             bookmarks: vec![],
             annotations: vec![ann(0, Some("yeni not")), ann(10, None)],
+            layout: None,
         };
         let saved = BookState {
             last: Some((1, Position::default())),
@@ -211,6 +221,7 @@ mod tests {
                 ann(10, Some("yedekteki")),
                 ann(20, None),
             ],
+            layout: None,
         };
         merge(&mut local, saved);
         assert_eq!(

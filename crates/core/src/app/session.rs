@@ -53,6 +53,9 @@ pub struct BookState {
     pub bookmarks: Vec<Bookmark>,
     /// Vurgular ve notlar, oluşturulma sırasıyla.
     pub annotations: Vec<Annotation>,
+    /// Bu kitapta değiştirilmiş yazı ayarları; yalnızca kitaba özel alanları
+    /// kullanılır (`Settings::with_book_fields`). Yoksa varsayılanlar geçerli.
+    pub layout: Option<Settings>,
 }
 
 pub(super) struct PlacedLine {

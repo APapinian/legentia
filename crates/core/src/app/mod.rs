@@ -131,6 +131,9 @@ pub struct App {
     text: Text,
     width: u32,
     store: Store,
+    /// Bütün kitapların varsayılan ayarları (`settings.json`). `settings` bunun
+    /// açık kitabın kendi yazı ayarlarıyla birleşmiş hâlidir.
+    defaults: Settings,
     /// Kütüphane klasörü; yedek dosyası buraya yazılır.
     root: PathBuf,
     settings: Settings,
@@ -202,6 +205,7 @@ impl App {
             text,
             width,
             store,
+            defaults: settings.clone(),
             root: library_root.to_path_buf(),
             settings,
             library,
@@ -282,6 +286,10 @@ impl App {
         let is_pdf = matches!(doc, Doc::Pdf(_));
         let state: BookState = self.store.load(&book_file(&id)).unwrap_or_default();
         let last = state.last;
+        self.use_settings(
+            self.defaults
+                .with_book_fields(state.layout.as_ref().unwrap_or(&self.defaults)),
+        );
         let name = path
             .file_stem()
             .map(|n| n.to_string_lossy().into_owned())
@@ -494,13 +502,42 @@ impl App {
         }
     }
 
+    /// Geçerli ayarları değiştirir (dizilmiş bölüme dokunmaz).
+    fn use_settings(&mut self, settings: Settings) {
+        self.settings = settings;
+        self.text.set_weight(self.settings.weight);
+    }
+
+    /// Ayarlar ekranında "Tamam": kitap açıksa yazı ayarları yalnız bu kitaba
+    /// uygulanır, genel ayarlar (gece modu, dokunma…) varsayılana yazılır.
     fn apply_settings(&mut self, settings: Settings) {
         if settings == self.settings {
             return;
         }
-        self.settings = settings;
-        self.text.set_weight(self.settings.weight);
-        self.store.save(SETTINGS_FILE, &self.settings);
+        match self.session.as_mut() {
+            Some(s) => {
+                s.state.layout = Some(settings.clone());
+                self.defaults = settings.with_book_fields(&self.defaults);
+            }
+            None => self.defaults = settings.clone(),
+        }
+        self.store.save(SETTINGS_FILE, &self.defaults);
+        self.relayout_with(settings);
+    }
+
+    /// Ayarlar ekranında "Varsayılan yap": bu ayarlar bütün kitapların
+    /// varsayılanı olur, kitabın kendi ayarı silinir.
+    fn make_default(&mut self, settings: Settings) {
+        if let Some(s) = self.session.as_mut() {
+            s.state.layout = None;
+        }
+        self.defaults = settings.clone();
+        self.store.save(SETTINGS_FILE, &self.defaults);
+        self.relayout_with(settings);
+    }
+
+    fn relayout_with(&mut self, settings: Settings) {
+        self.use_settings(settings);
         if let Some(session) = self.session.as_mut() {
             session.relayout(&self.text, &self.settings, self.width);
         }

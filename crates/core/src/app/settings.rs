@@ -170,6 +170,26 @@ impl Field {
 }
 
 impl Settings {
+    /// Kitaba özel alanları (yazı ve PDF görünümü) `book`'tan, genel alanları
+    /// (gece modu, dokunma düzeni, internet…) `self`'ten alır.
+    pub fn with_book_fields(&self, book: &Settings) -> Settings {
+        Settings {
+            family: book.family,
+            font_px: book.font_px,
+            line_spacing: book.line_spacing,
+            margin: book.margin,
+            justify: book.justify,
+            hyphenate: book.hyphenate,
+            weight: book.weight,
+            pdf_crop: book.pdf_crop,
+            pdf_view: book.pdf_view,
+            pdf_zoom: book.pdf_zoom,
+            pdf_reflow: book.pdf_reflow,
+            ocr: book.ocr,
+            ..self.clone()
+        }
+    }
+
     /// Bir alanı bir adım ileri (`up`) ya da geri alır. Açık/kapalı alanlarda iki yön de değiştirir.
     pub fn step(&self, field: Field, up: bool) -> Settings {
         let mut s = self.clone();

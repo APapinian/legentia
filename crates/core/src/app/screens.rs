@@ -587,6 +587,7 @@ impl App {
             }
             MenuItem::Library => {
                 self.session = None;
+                self.use_settings(self.defaults.clone());
                 self.view = View::Library { page: 0 };
             }
         }
@@ -810,6 +811,10 @@ impl App {
             self.apply_settings(draft);
             return self.back_to_reading();
         }
+        if self.session.is_some() && self.settings_default_button().contains(x, y) {
+            self.make_default(draft);
+            return self.back_to_reading();
+        }
         if self.settings_cancel().contains(x, y) {
             return self.back_to_reading();
         }
@@ -831,15 +836,38 @@ impl App {
         None
     }
 
+    /// Başlıkta "Varsayılan yap": bu ayarlar bütün kitaplara.
+    pub(super) fn settings_default_button(&self) -> Rect {
+        Rect {
+            x: self.width as i32 - MARGIN - 300,
+            y: TOP,
+            w: 300,
+            h: 72,
+        }
+    }
+
     pub(super) fn draw_settings(&self, canvas: &mut Canvas, draft: &Settings, page: usize) {
         let t = &self.text;
-        draw_header(
-            t,
-            canvas,
-            &tr(&PAGE_TITLES[page]),
-            &tr(&Msg::SettingsHint),
-            false,
-        );
+        if self.session.is_some() {
+            // Kitap açık: yazı ayarları yalnız bu kitaba uygulanır.
+            let make_default = self.settings_default_button();
+            draw_header_until(
+                t,
+                canvas,
+                &tr(&PAGE_TITLES[page]),
+                &tr(&Msg::SettingsHintBook),
+                make_default.x - 30,
+            );
+            draw_button(t, canvas, make_default, &tr(&Msg::MakeDefault), ROW_PX);
+        } else {
+            draw_header(
+                t,
+                canvas,
+                &tr(&PAGE_TITLES[page]),
+                &tr(&Msg::SettingsHint),
+                false,
+            );
+        }
         for (row, field) in FIELD_PAGES[page].iter().enumerate() {
             let top = HEADER_BOTTOM + row as i32 * SETTINGS_ROW;
             t.draw_msg(canvas, &field.label(), MARGIN, top + 52, ROW_PX);

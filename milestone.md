@@ -349,7 +349,7 @@ Kullanıcı isteği (2026-10-28): 50 maddelik öneri listesi milestone olarak ka
 - [ ] 2. Dipnotlar sayfadan çıkmadan açılır pencerede (O)
 - [ ] 3. Kitap içi bağlantılar ve "geri dön" (O)
 - [ ] 4. EPUB görselleri ve tabloları, dokununca büyütme (B)
-- [ ] 5. Kitaba özel yazı ayarı (K)
+- [x] 5. Kitaba özel yazı ayarı (K) (Kullanıcı kararı: her değişiklik kitaba özel. Kitap açıkken ayarlar ekranındaki yazı ve PDF görünüm ayarları yalnız o kitaba yazılır (`BookState.layout`, yedeğe girer); gece modu, dokunma düzeni, internet ve çevrimiçi sözlük genel kalır. Başlıktaki "Varsayılan yap" ayarları bütün kitapların varsayılanı yapar ve kitabın kendi ayarını siler. Testli.)
 - [x] 6. Yazı kalınlığı ayarı (K) (Yazı ayarlarında Normal / Biraz kalın / Kalın / Çok kalın; yalnızca kitap metni. Çizilmiş glifin kenarları koyulaştırılır (gamma), en üst düzeyde bir piksel genişletilir. swash'ın kontur kalınlaştırması denendi, bileşik gliflerde (Literata'nın "i"si) bileşenleri atladığı için bırakıldı. "Gece modu" üçüncü sayfaya taşındı (yazı sayfasında önizleme düğmelere biniyordu). Testli; E Ink'te görünüşü cihazda değerlendirilecek.)
 - [ ] 7. Yatay mod, PDF'te iki sayfa yan yana (O)
 - [x] 8. Bölümün ve kitabın kalan okuma süresi tahmini (K) (Alt bilgide "bölüm 12 dk · kitap 3 sa 20 dk". Hız kullanıcının ileri çevirmelerinden öğrenilir (sayfada 3 sn–10 dk kalınanlar; menü ve sözlükte geçen süre sayılmaz), kitaplar arası `okuma-hizi.json`; en az 3 ölçümden sonra gösterilir. Kitabın kalanı EPUB'da bölüm dosyası boyutlarından (açık bölümün karakter/bayt oranıyla), PDF görüntüsünde ekran başına süreden. Testli.)

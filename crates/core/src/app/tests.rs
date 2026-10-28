@@ -29,8 +29,10 @@ fn setup(books: &[(&str, Vec<u8>)]) -> (App, PathBuf, PathBuf) {
 /// Testler internete çıkmaz: çevrimiçi sözlük kapalı, adresleri kapalı bir porta
 /// yönlenmiş. Çevrimiçi sözlük testleri kendi taklit sunucusunu verir.
 fn no_online_dictionaries(app: &mut App) {
-    app.settings.online_tdk = false;
-    app.settings.online_wiktionary = false;
+    for s in [&mut app.settings, &mut app.defaults] {
+        s.online_tdk = false;
+        s.online_wiktionary = false;
+    }
     app.endpoints = super::lookup::Endpoints {
         tdk: "http://127.0.0.1:1/gts".into(),
         wiktionary: "http://127.0.0.1:1/api.php".into(),
@@ -232,7 +234,10 @@ fn settings_apply_on_ok_keep_position_and_persist() {
         "konum yeni sayfada değil"
     );
 
-    let app = restart(&data, &root);
+    // Ayar bu kitaba özel: kütüphanede varsayılan, kitapta değişmiş boyut.
+    let mut app = restart(&data, &root);
+    assert_eq!(app.settings().font_px, 40.0);
+    tap_row(&mut app, &LIBRARY, 0);
     assert_eq!(app.settings().font_px, 48.0);
 }
 
@@ -910,9 +915,13 @@ fn backup_restores_notes_and_settings_on_a_fresh_install() {
             ..
         }
     ));
-    assert_eq!(app.settings().font_px, size);
     tap(&mut app, (W / 2, LIBRA2_HEIGHT / 2)); // mesajdan kütüphaneye
     tap_row(&mut app, &LIBRARY, 0);
+    assert_eq!(
+        app.settings().font_px,
+        size,
+        "kitabın yazı ayarı yedekten geldi"
+    );
     let a = &session(&app).state.annotations;
     assert_eq!(a.len(), 1);
     assert_eq!(a[0].note.as_deref(), Some("yedeklenecek"));
@@ -1734,8 +1743,8 @@ fn words_missing_locally_are_looked_up_online_and_cached() {
     use std::sync::atomic::Ordering;
     let (url, requests) = online_dictionary_server();
     let (mut app, data, _) = setup(&[("uzun.epub", long_book())]);
-    app.settings.online_tdk = true;
-    app.settings.online_wiktionary = true;
+    app.defaults.online_tdk = true;
+    app.defaults.online_wiktionary = true;
     app.endpoints = super::lookup::Endpoints {
         tdk: format!("{url}/gts"),
         wiktionary: format!("{url}/api.php"),
@@ -1914,4 +1923,59 @@ fn font_weight_darkens_book_text_but_not_the_interface() {
     normal.weight = 0;
     app.apply_settings(normal);
     assert_eq!(ink_of(&mut app, &mut c), ui_bold, "arayüz yazısı değişmez");
+}
+
+#[test]
+fn text_settings_belong_to_each_book_until_made_default() {
+    let (mut app, data, root) = setup(&[("a.epub", long_book()), ("b.epub", epub3_sample())]);
+    let open = |app: &mut App, row: usize| {
+        if app.session.is_some() {
+            menu(app, MenuItem::Library);
+        }
+        tap_row(app, &LIBRARY, row);
+        if matches!(app.view, View::Contents { .. }) {
+            tap_row(app, &CONTENTS, 0);
+        }
+        assert!(matches!(app.view, View::Reading));
+    };
+    let a_row = app
+        .library
+        .iter()
+        .position(|e| e.path.ends_with("a.epub"))
+        .unwrap();
+    let b_row = 1 - a_row;
+
+    // A'da büyük yazı ve gece modu.
+    open(&mut app, a_row);
+    change_setting(&mut app, Field::Size, 2);
+    menu(&mut app, MenuItem::Settings);
+    press_plus(&mut app, Field::Night);
+    let at = app.settings_ok().center();
+    tap(&mut app, at);
+    assert_eq!(app.settings().font_px, 48.0);
+
+    // B varsayılan boyutta; gece modu genel ayar olduğundan onda da açık.
+    open(&mut app, b_row);
+    assert_eq!(app.settings().font_px, 40.0);
+    assert!(app.settings().night);
+
+    // B'de küçük yazıyı varsayılan yap: yeni kitaplar onu alır, A kendi boyutunu korur.
+    menu(&mut app, MenuItem::Settings);
+    let size_row = FIELD_PAGES[0]
+        .iter()
+        .position(|f| *f == Field::Size)
+        .unwrap();
+    let minus = app.settings_buttons(size_row).0.center();
+    tap(&mut app, minus);
+    let at = app.settings_default_button().center();
+    tap(&mut app, at);
+    assert_eq!(app.settings().font_px, 36.0);
+    assert!(session(&app).state.layout.is_none());
+
+    let mut app = restart(&data, &root);
+    assert_eq!(app.settings().font_px, 36.0, "varsayılan kalıcı");
+    open(&mut app, a_row);
+    assert_eq!(app.settings().font_px, 48.0, "A kendi ayarını korur");
+    open(&mut app, b_row);
+    assert_eq!(app.settings().font_px, 36.0);
 }
