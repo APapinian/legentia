@@ -13,6 +13,7 @@ Yeni bir eksik bulununca bu dosyaya eklenir; giderilen madde silinir ve ne yapı
   - dönüş 3'te dokunma ve sayfa tuşları;
   - 8 bit ekran ve yalnızca değişen satırları yazma (hız);
   - `reboot`.
+  2. denemede doğrulananlar (2026-10-28): `reboot` çalışıyor, 8 bit geçişi başarılı. Ekrana yazma tam ekranda 1,6–2,3 sn'den 360 ms'ye indi; yarım ekran ~210 ms. Hâlâ yavaş: framebuffer'a dosya yazma ~6 MB/sn. Sonraki adım mmap olabilir (`unsafe` gerektirir, kullanıcı kararı).
   Hâlâ bakılacaklar:
   - Kısmi yenilemede GL16'nın mı REAGL'in mi daha az iz bıraktığı.
   - Uygulama açıkken cihaz döndürülürse dokunmanın ters düşmesi (ivmeölçer okunmuyor).
