@@ -114,6 +114,7 @@ impl App {
             self.progress.insert(id, local.percent);
         }
         self.settings = backup.settings;
+        self.text.set_weight(self.settings.weight);
         self.store.save(SETTINGS_FILE, &self.settings);
         for w in backup.words {
             let k = crate::dict::key(&w.word);

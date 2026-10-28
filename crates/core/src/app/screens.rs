@@ -878,6 +878,8 @@ impl App {
             max_w,
         );
         if let Some(line) = sample.first() {
+            // Önizleme taslağın kalınlığıyla; sonra uygulanmış ayara dönülür.
+            t.set_weight(draft.weight);
             t.draw_plain(
                 canvas,
                 line,
@@ -887,6 +889,7 @@ impl App {
                 preview_y,
                 draft.font_px,
             );
+            t.set_weight(self.settings.weight);
         }
     }
 }

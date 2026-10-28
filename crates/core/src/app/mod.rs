@@ -182,7 +182,7 @@ struct PdfFrame {
 impl App {
     /// Ayarları yükler, `library_root` altındaki kitapları tarar ve kütüphaneyle açılır.
     pub fn new(text: Text, width: u32, store: Store, library_root: &Path) -> Self {
-        let settings = store.load(SETTINGS_FILE).unwrap_or_default();
+        let settings: Settings = store.load(SETTINGS_FILE).unwrap_or_default();
         let words = store.load(words::WORDS_FILE).unwrap_or_default();
         let pace = store.load(pace::PACE_FILE).unwrap_or_default();
         let catalogs = store
@@ -197,6 +197,7 @@ impl App {
                     .map(|s| (e.id.clone(), s.percent))
             })
             .collect();
+        text.set_weight(settings.weight);
         Self {
             text,
             width,
@@ -498,6 +499,7 @@ impl App {
             return;
         }
         self.settings = settings;
+        self.text.set_weight(self.settings.weight);
         self.store.save(SETTINGS_FILE, &self.settings);
         if let Some(session) = self.session.as_mut() {
             session.relayout(&self.text, &self.settings, self.width);

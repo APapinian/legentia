@@ -76,6 +76,13 @@ pub fn book_family_name(index: usize) -> &'static str {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) struct FaceId(u16);
 
+impl FaceId {
+    /// Arayüz yüzü mü (kitap yüzü değil)?
+    pub fn is_ui(self) -> bool {
+        (self.0 as usize) < 4
+    }
+}
+
 #[derive(Debug)]
 pub enum FontError {
     /// Arayüz ya da varsayılan kitap fontu bulunamadı veya okunamadı.

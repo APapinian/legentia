@@ -1892,3 +1892,26 @@ fn reading_pace_is_learned_and_shows_time_left() {
     let app = restart(&data, &root);
     assert_eq!(app.pace.text_samples, 3);
 }
+
+#[test]
+fn font_weight_darkens_book_text_but_not_the_interface() {
+    let (mut app, _, _) = reading_long_book();
+    let mut c = Canvas::new(W, LIBRA2_HEIGHT);
+    let ink_of = |app: &mut App, c: &mut Canvas| {
+        app.draw(c);
+        ink(c)
+    };
+    let thin = ink_of(&mut app, &mut c);
+    let mut bold = app.settings.clone();
+    bold.weight = 3;
+    app.apply_settings(bold);
+    let thick = ink_of(&mut app, &mut c);
+    assert!(thick > thin + thin / 20, "{thin} → {thick}");
+
+    menu(&mut app, MenuItem::Library);
+    let ui_bold = ink_of(&mut app, &mut c);
+    let mut normal = app.settings.clone();
+    normal.weight = 0;
+    app.apply_settings(normal);
+    assert_eq!(ink_of(&mut app, &mut c), ui_bold, "arayüz yazısı değişmez");
+}

@@ -67,6 +67,8 @@ pub struct Settings {
     /// Kelime cihazdaki sözlüklerde yoksa Vikisözlük'e sor.
     pub online_wiktionary: bool,
     pub tap_zones: TapZones,
+    /// Kitap metninin kalınlaştırılması: 0 (yok) – 3.
+    pub weight: u8,
 }
 
 impl Default for Settings {
@@ -88,6 +90,7 @@ impl Default for Settings {
             online_tdk: true,
             online_wiktionary: false,
             tap_zones: TapZones::Standard,
+            weight: 0,
         }
     }
 }
@@ -111,6 +114,7 @@ pub enum Field {
     OnlineTdk,
     OnlineWiktionary,
     TapZones,
+    Weight,
 }
 
 /// Ayarlar ekranının sayfaları: yazı; PDF ve internet; okuma ve ekran. Hepsi
@@ -119,11 +123,11 @@ pub const FIELD_PAGES: [&[Field]; 3] = [
     &[
         Field::Family,
         Field::Size,
+        Field::Weight,
         Field::LineSpacing,
         Field::Margin,
         Field::Align,
         Field::Hyphenate,
-        Field::Night,
     ],
     &[
         Field::PdfView,
@@ -135,7 +139,7 @@ pub const FIELD_PAGES: [&[Field]; 3] = [
         Field::OnlineTdk,
         Field::OnlineWiktionary,
     ],
-    &[Field::TapZones],
+    &[Field::TapZones, Field::Night],
 ];
 
 /// Ayar sayfalarının başlıkları ve bir sonrakine geçiş düğmesinin etiketi.
@@ -160,6 +164,7 @@ impl Field {
             Field::OnlineTdk => Msg::SettingTdk,
             Field::OnlineWiktionary => Msg::SettingWiktionary,
             Field::TapZones => Msg::SettingTapZones,
+            Field::Weight => Msg::SettingWeight,
         }
     }
 }
@@ -213,6 +218,13 @@ impl Settings {
             Field::Network => s.network = !s.network,
             Field::OnlineTdk => s.online_tdk = !s.online_tdk,
             Field::OnlineWiktionary => s.online_wiktionary = !s.online_wiktionary,
+            Field::Weight => {
+                s.weight = if up {
+                    (s.weight + 1).min(3)
+                } else {
+                    s.weight.saturating_sub(1)
+                }
+            }
             Field::TapZones => {
                 const ZONES: [TapZones; 3] =
                     [TapZones::Standard, TapZones::Reversed, TapZones::OneHand];
@@ -259,6 +271,7 @@ impl Settings {
             } else {
                 &Msg::Off
             }),
+            Field::Weight => tr(&Msg::Weight(self.weight)),
             Field::TapZones => tr(match self.tap_zones {
                 TapZones::Standard => &Msg::TapStandard,
                 TapZones::Reversed => &Msg::TapReversed,

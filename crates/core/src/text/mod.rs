@@ -9,7 +9,7 @@ mod fonts;
 mod hyphen;
 mod layout;
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 
 use swash::scale::{Render, ScaleContext, Source};
@@ -54,6 +54,42 @@ struct Cache {
 pub struct Text {
     fonts: Fonts,
     cache: RefCell<Cache>,
+    /// Kitap metninin kalınlaştırma düzeyi (0 = yok); arayüz yazısına uygulanmaz.
+    weight: Cell<u8>,
+}
+
+/// Kalınlaştırma düzeylerinin gamma değerleri: yarı saydam kenarlar koyulaşır,
+/// ince çizgiler E Ink'te daha belirgin görünür. 3. düzey ayrıca bir piksel
+/// yatay genişletir. Çizilmiş glife uygulanır; bileşik gliflerde (Literata'nın
+/// "i"si gibi) kontur kalınlaştırması bileşenleri atladığı için o kullanılmaz.
+const WEIGHT_GAMMA: [f32; 4] = [1.0, 0.75, 0.55, 0.55];
+
+/// Glif bitmap'ini `level` düzeyinde koyulaştırır; yeni genişliği döner.
+fn thicken(data: &mut Vec<u8>, width: u32, height: u32, level: u8) -> u32 {
+    let level = (level as usize).min(3);
+    if level == 0 || width == 0 {
+        return width;
+    }
+    let g = WEIGHT_GAMMA[level];
+    for a in data.iter_mut() {
+        *a = (255.0 * (*a as f32 / 255.0).powf(g)).round() as u8;
+    }
+    if level < 3 {
+        return width;
+    }
+    let w = width as usize;
+    let mut wide = vec![0u8; (w + 1) * height as usize];
+    for row in 0..height as usize {
+        let src = &data[row * w..][..w];
+        let dst = &mut wide[row * (w + 1)..][..w + 1];
+        for x in 0..=w {
+            let here = src.get(x).copied().unwrap_or(0);
+            let left = if x > 0 { src[x - 1] } else { 0 };
+            dst[x] = here.max(left);
+        }
+    }
+    *data = wide;
+    width + 1
 }
 
 impl Text {
@@ -64,6 +100,14 @@ impl Text {
                 ctx: ScaleContext::new(),
                 glyphs: HashMap::new(),
             }),
+            weight: Cell::new(0),
+        }
+    }
+
+    /// Kitap metninin kalınlığı (0–3). Değişince glif önbelleği boşaltılır.
+    pub(crate) fn set_weight(&self, level: u8) {
+        if self.weight.replace(level) != level {
+            self.cache.borrow_mut().glyphs.clear();
         }
     }
 
@@ -124,17 +168,20 @@ impl Text {
         }
         let Cache { ctx, glyphs } = &mut *cache;
         let key = (g.face, g.id, (g.px * 64.0) as u32);
+        let level = if g.face.is_ui() { 0 } else { self.weight.get() };
         let bitmap = glyphs.entry(key).or_insert_with(|| {
             let font = swash::FontRef::from_index(self.fonts.data(g.face), 0)?;
             let mut scaler = ctx.builder(font).size(g.px).hint(true).build();
-            let image = Render::new(&[Source::Outline])
+            let mut image = Render::new(&[Source::Outline])
                 .format(Format::Alpha)
                 .render(&mut scaler, g.id)?;
+            let (w, h) = (image.placement.width, image.placement.height);
+            let width = thicken(&mut image.data, w, h, level);
             Some(Bitmap {
                 left: image.placement.left,
                 top: image.placement.top,
-                width: image.placement.width,
-                height: image.placement.height,
+                width,
+                height: h,
                 data: image.data,
             })
         });
@@ -286,6 +333,18 @@ pub(crate) fn test_text() -> Text {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn thickening_darkens_edges_and_widens_at_the_top_level() {
+        let mut d = vec![0, 64, 255];
+        assert_eq!(thicken(&mut d, 3, 1, 0), 3);
+        assert_eq!(d, [0, 64, 255], "0: değişmez");
+        assert_eq!(thicken(&mut d, 3, 1, 2), 3);
+        assert!(d[1] > 64 && d[2] == 255 && d[0] == 0, "{d:?}");
+        let mut d = vec![0, 255, 0, 0, 0, 255];
+        assert_eq!(thicken(&mut d, 3, 2, 3), 4);
+        assert_eq!(d, [0, 255, 255, 0, 0, 0, 255, 255]);
+    }
 
     fn ink(c: &Canvas) -> usize {
         c.pixels().iter().filter(|&&p| p < 128).count()
