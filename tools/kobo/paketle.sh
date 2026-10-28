@@ -5,6 +5,7 @@
 #   <çıktı>/.adds/legentia/legentia-kobo   program
 #   <çıktı>/.adds/legentia/legentia.sh     başlatma betiği
 #   <çıktı>/.adds/legentia/fonts/          fontlar ve OFL lisans metinleri
+#   <çıktı>/.adds/legentia/heceleme-lisanslari.md  gömülü heceleme desenlerinin lisansları
 #   <çıktı>/.adds/nm/legentia              NickelMenu satırı
 #
 # Kullanım (nix develop içinde): tools/kobo/paketle.sh <çıktı klasörü>
@@ -32,6 +33,8 @@ cp "target/$target/release/legentia-kobo" "$app/"
 install -m 755 "$here/legentia.sh" "$app/legentia.sh"
 install -m 644 "$LEGENTIA_FONTS"/* "$app/fonts/"
 install -m 644 "$here"/font-lisanslari/* "$app/fonts/"
+# Programa gömülü heceleme desenlerinin telif ve lisans notları.
+install -m 644 "$root/crates/core/hyph/LISANSLAR.md" "$app/heceleme-lisanslari.md"
 install -m 644 "$here/nm-legentia" "$out/.adds/nm/legentia"
 
 echo "Paket hazır: $out"
