@@ -110,6 +110,8 @@ enum View {
     Loading,
     /// Kelime çevrimiçi sözlükte aranıyor.
     Searching,
+    /// Dipnot altta açılır pencerede (`footnote`).
+    Footnote,
     /// İndirme kuyruğu; `back` katalog listesi ya da katalog sayfası.
     Downloads {
         page: usize,
@@ -172,6 +174,8 @@ pub struct App {
     page_shown: Option<std::time::Instant>,
     /// Bağlantı izlenmeden önceki yerler (bölüm, konum); "← Geri" ile dönülür.
     link_back: Vec<(usize, Position)>,
+    /// Açılır penceredeki dipnot.
+    footnote: Option<links::Footnote>,
     /// Kullanıcı "Çık"a dokundu; kayıtlar yazıldı, platform uygulamayı kapatmalı.
     exit: bool,
 }
@@ -231,6 +235,7 @@ impl App {
             pace_dirty: false,
             page_shown: None,
             link_back: Vec::new(),
+            footnote: None,
             exit: false,
         }
     }
@@ -383,6 +388,7 @@ impl App {
             View::Downloads { page, back } => self.handle_downloads(*page, *back, event),
             View::Loading => self.handle_loading(event),
             View::Searching => self.handle_searching(event),
+            View::Footnote => self.handle_footnote(event),
             View::Form(form) => {
                 let form = (**form).clone();
                 self.handle_form(form, event)
@@ -580,6 +586,10 @@ impl App {
             View::Entry { index } => self.draw_entry(canvas, *index),
             View::Loading => self.draw_loading(canvas),
             View::Searching => self.draw_searching(canvas),
+            View::Footnote => {
+                self.draw_reading(canvas);
+                self.draw_footnote(canvas);
+            }
             View::Downloads { page, .. } => self.draw_downloads(canvas, *page),
             View::Form(form) => self.draw_form(canvas, form),
         }

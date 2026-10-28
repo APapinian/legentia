@@ -23,7 +23,7 @@ Bu belge, okuyucunun EPUB'ın neyini gösterdiğini ve neyini (henüz) gösterme
 | CSS (yazı tipi, girinti, hizalama, sınıfla italik) | Yok sayılır; okuyucunun kendi düzeni kullanılır | Seçilmiş birkaç özellik (text-indent, text-align, font-style) sonra |
 | Görseller (`<img>`, `<svg>`) | Gösterilmez; yalnızca görsel içeren bölümde "gösterilecek metin yok" yazar | M4 sonrası |
 | Tablolar | Her hücre ayrı paragraf olarak akar | Sonra |
-| Dipnotlar | Bağlantı gibi izlenir (dipnot sayfasına gidilir, "← Geri" ile dönülür) | Açılır pencere: M11 madde 2 |
+| Dipnotlar | `epub:type="noteref"` / `role="doc-noteref"` ya da en çok 5 karakterlik bağlantı metni ("1", "[12]", "*") dipnot sayılır; not altta açılır pencerede kitabın yazı tipiyle gösterilir (hedef blok + ardından gelen kimliksiz bloklar, en çok 6 blok / 2000 karakter). "Notun yerine git" nota gider. Kısa metinli ama dipnot olmayan bağlantı da pencerede açılır; pencerede "Notun yerine git" var. | |
 | Üst/alt simge (`<sup>`, `<sub>`) | Normal metin gibi | Sonra |
 | `<pre>` (önceden biçimlenmiş) | Boşluklar birleştirilir | Sonra |
 | Sağdan sola yazı (Arapça harfli Osmanlıca) | Soldan sağa dizilir (yanlış) | Mimari hazır (glifler kaynak konumu taşıyor); bidi M7 öncesi |

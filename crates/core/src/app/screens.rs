@@ -327,8 +327,8 @@ impl App {
                     self.view = View::Annotation { index };
                     return Some(self.refresh(false));
                 }
-                if let Some(href) = self.link_at(x, y)
-                    && let Some(refresh) = self.follow_link(&href)
+                if let Some((link, text)) = self.link_at(x, y)
+                    && let Some(refresh) = self.open_link(&link, &text)
                 {
                     return Some(refresh);
                 }

@@ -2048,3 +2048,58 @@ fn links_jump_to_their_targets_and_back() {
     assert_eq!(session(&app).spine, 0);
     assert!(app.link_back_button().is_none());
 }
+
+fn book_with_notes() -> Vec<u8> {
+    let one = r##"<html><body><p>Metin<a href="notlar.xhtml#n1" epub:type="noteref">1</a> ve ikinci gönderme <a href="notlar.xhtml#n2">[2]</a>; ayrıca <a href="notlar.xhtml#n3">notların hepsi</a>.</p></body></html>"##;
+    let notes = r#"<html><body><aside id="n1"><p>Birinci not.</p><p>Devamı.</p></aside><p id="n2">İkinci not.</p><p id="n3">Üçüncü.</p></body></html>"#;
+    let opf = opf_doc(
+        r#"<item id="a" href="c1.xhtml" media-type="application/xhtml+xml"/><item id="b" href="notlar.xhtml" media-type="application/xhtml+xml"/>"#,
+        r#"<itemref idref="a"/><itemref idref="b"/>"#,
+    );
+    zip_of(&[
+        ("mimetype", "application/epub+zip"),
+        ("META-INF/container.xml", &container("OEBPS/content.opf")),
+        ("OEBPS/content.opf", &opf),
+        ("OEBPS/c1.xhtml", one),
+        ("OEBPS/notlar.xhtml", notes),
+    ])
+}
+
+#[test]
+fn footnotes_open_in_a_popup_without_leaving_the_page() {
+    let (mut app, _, _) = setup(&[("notlu.epub", book_with_notes())]);
+    tap_row(&mut app, &LIBRARY, 0);
+    tap_row(&mut app, &CONTENTS, 0);
+    let mut c = Canvas::new(W, LIBRA2_HEIGHT);
+
+    // İşaretli dipnot: <aside> içindeki iki paragraf.
+    let at = word_point(&app, "1");
+    tap(&mut app, at);
+    assert!(matches!(app.view, View::Footnote));
+    assert_eq!(app.footnote.as_ref().unwrap().text, "Birinci not.\nDevamı.");
+    app.draw(&mut c);
+    tap(&mut app, (W / 2, 200)); // pencerenin dışı
+    assert!(matches!(app.view, View::Reading));
+    assert_eq!(
+        (session(&app).spine, session(&app).page),
+        (0, 0),
+        "sayfa değişmedi"
+    );
+
+    // İşaretsiz ama kısa metin de dipnot; "Notun yerine git" nota gider.
+    let at = word_point(&app, "[2]");
+    tap(&mut app, at);
+    assert_eq!(app.footnote.as_ref().unwrap().text, "İkinci not.");
+    let (_, _, go) = app.footnote_layout().unwrap();
+    tap(&mut app, go.center());
+    assert_eq!(session(&app).spine, 1);
+    assert!(app.link_back_button().is_some());
+    let back = app.link_back_button().unwrap().center();
+    tap(&mut app, back);
+
+    // Uzun metinli bağlantı dipnot sayılmaz, izlenir.
+    let at = word_point(&app, "notların");
+    tap(&mut app, at);
+    assert!(matches!(app.view, View::Reading));
+    assert_eq!(session(&app).spine, 1);
+}

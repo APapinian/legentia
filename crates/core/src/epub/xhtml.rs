@@ -33,6 +33,9 @@ pub struct Link {
     pub start: usize,
     pub end: usize,
     pub href: String,
+    /// Dipnot göndermesi olarak işaretli (`epub:type="noteref"`, `role="doc-noteref"`).
+    #[serde(default)]
+    pub note: bool,
 }
 
 /// Blok başlatan/bitiren öğeler. Diğerleri (span, b, i, a…) satır içidir.
@@ -80,8 +83,8 @@ fn heading_level(name: &str) -> Option<u8> {
 struct Open {
     bold: u32,
     italic: u32,
-    /// Her açık `<a>` için `href`'i (yoksa `None`).
-    links: Vec<Option<String>>,
+    /// Her açık `<a>` için `href`'i ve dipnot göndermesi mi (yoksa `None`).
+    links: Vec<Option<(String, bool)>>,
 }
 
 impl Open {
@@ -93,14 +96,21 @@ impl Open {
         }
     }
 
-    /// En içteki açık bağlantının hedefi.
-    fn href(&self) -> Option<&str> {
-        self.links.iter().rev().find_map(|l| l.as_deref())
+    /// En içteki açık bağlantı.
+    fn href(&self) -> Option<&(String, bool)> {
+        self.links.iter().rev().find_map(|l| l.as_ref())
     }
 }
 
-/// Biçimi ve varsa bağlantı hedefi aynı olan ardışık metin.
-type Piece = (String, Style, Option<String>);
+/// Biçimi ve varsa bağlantısı aynı olan ardışık metin.
+type Piece = (String, Style, Option<(String, bool)>);
+
+fn is_noteref(e: &quick_xml::events::BytesStart) -> bool {
+    let has = |name: &str, word: &str| {
+        attr(e, name).is_some_and(|v| v.split_whitespace().any(|w| w == word))
+    };
+    has("type", "noteref") || has("role", "doc-noteref")
+}
 
 /// Öğenin kimliği: `id`, eski EPUB'larda `<a name>`.
 fn element_id(e: &quick_xml::events::BytesStart, name: &str) -> Option<String> {
@@ -141,7 +151,8 @@ pub(super) fn blocks(text: &str, path: &str) -> Result<Vec<Block>, EpubError> {
                 } else if ITALIC_TAGS.contains(&name) {
                     open.italic += 1;
                 } else if name == "a" {
-                    open.links.push(attr(&e, "href"));
+                    open.links
+                        .push(attr(&e, "href").map(|h| (h, is_noteref(&e))));
                 }
                 if skip == 0
                     && let Some(id) = element_id(&e, name)
@@ -196,8 +207,8 @@ pub(super) fn blocks(text: &str, path: &str) -> Result<Vec<Block>, EpubError> {
 fn push(pieces: &mut Vec<Piece>, text: &str, open: &Open) {
     let (style, href) = (open.style(), open.href());
     match pieces.last_mut() {
-        Some((s, st, h)) if *st == style && h.as_deref() == href => s.push_str(text),
-        _ => pieces.push((text.to_string(), style, href.map(str::to_string))),
+        Some((s, st, h)) if *st == style && h.as_ref() == href => s.push_str(text),
+        _ => pieces.push((text.to_string(), style, href.cloned())),
     }
 }
 
@@ -233,7 +244,7 @@ fn flush(
             first.get_or_insert(text.len());
             append(&mut text, &mut spans, c, style);
         }
-        if let (Some(href), Some(start)) = (href, first) {
+        if let (Some((href, note)), Some(start)) = (href, first) {
             match links.last_mut() {
                 // Aynı bağlantının farklı biçimli parçaları birleşir.
                 Some(last) if last.href == href && start <= last.end + 1 => last.end = text.len(),
@@ -241,6 +252,7 @@ fn flush(
                     start,
                     end: text.len(),
                     href,
+                    note,
                 }),
             }
         }
@@ -346,7 +358,7 @@ mod tests {
     fn links_keep_their_targets_and_ids_mark_blocks() {
         let html = r##"<html><body>
             <h2 id="b3">Bölüm</h2>
-            <p>Metin<a href="notlar.xhtml#n1" id="r1"><sup>1</sup></a> ve
+            <p>Metin<a href="notlar.xhtml#n1" id="r1" epub:type="noteref"><sup>1</sup></a> ve
                <a href="#yer"><i>iç</i> bağlantı</a> burada.</p>
             <p><a name="eski"></a>Eski çapa.</p>
             <div id="bos"></div>
@@ -362,6 +374,7 @@ mod tests {
             .map(|l| (&p.text[l.start..l.end], l.href.as_str()))
             .collect();
         assert_eq!(texts, [("1", "notlar.xhtml#n1"), ("iç bağlantı", "#yer")]);
+        assert!(p.links[0].note && !p.links[1].note);
         assert_eq!(b[2].anchors, ["eski"]);
         assert_eq!(
             b[3].anchors,
