@@ -239,8 +239,8 @@ Not: PDF'e not yazma, M6'daki ortak konumlandırma modeline bağlıdır; M5'te P
 
 ### İşler
 - [ ] Sözlük sağlayıcıları için ortak Rust arayüzü tanımla.
-- [ ] İlk yerel sözlük formatını ve lisans uygunluğunu seç.
-- [ ] Türkçe kök bulma: çekimli kelimeden sözlük maddesine ulaş (ör. "kitaplarımızdan" → "kitap").
+- [ ] İlk yerel sözlük formatını ve lisans uygunluğunu seç. (Karar, 2026-10-28: GoldenDict'in okuduğu biçimler: StarDict, DSL, MDict; ayrıca Kobo dicthtml. Uygulamayla sözlük dağıtılmaz; kullanıcının kendi dosyaları okunur. Deneme: KOReader'daki sözlükler.)
+- [x] Türkçe kök bulma: çekimli kelimeden sözlük maddesine ulaş (ör. "kitaplarımızdan" → "kitap"). (Karar, 2026-10-28: kendi kurallarımız. `dict/stem.rs`: ek kalıplarından (ünlü uyumu ve ünsüz değişimiyle açılan) sondan soyma; ünsüz yumuşaması, ünlü düşmesi, çift ünsüz ve -yor daralmasının geri alınması; fiillerde mastar. Adaylar sözlükte doğrulanır, az soyulmuş önce. 27 örnek kelimeyle testli; kelime başına 10–175 µs, masaüstü.)
 - [ ] Kelime arama, tanım, dil ve kaynak bilgisini göster; kelimeyi kişisel listeye kaydet.
 - [ ] Diğer diller sonradan: Almanca bileşik kelimeler, Rusça çekimler ve Japonca kelime sınırları ayrı ayrı ele alınacak.
 - [ ] Çevrimiçi sağlayıcıları timeout, cache ve çevrimdışı hata davranışıyla ekle.

@@ -11,6 +11,7 @@
 mod app;
 mod canvas;
 mod collate;
+pub mod dict;
 pub mod epub;
 mod event;
 pub mod i18n;
