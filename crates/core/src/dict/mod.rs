@@ -10,6 +10,7 @@ use std::path::{Path, PathBuf};
 pub(crate) mod dictzip;
 pub mod dsl;
 mod index;
+pub mod kobo;
 pub mod render;
 pub mod stardict;
 pub mod stem;
@@ -100,6 +101,8 @@ impl Dictionaries {
         for path in files {
             let opened: Result<Box<dyn Dictionary>, DictError> = if is_dsl(&path) {
                 dsl::Dsl::open(&path).map(|d| Box::new(d) as _)
+            } else if is_kobo(&path) {
+                kobo::Kobo::open(&path).map(|d| Box::new(d) as _)
             } else {
                 stardict::StarDict::open(&path).map(|d| Box::new(d) as _)
             };
@@ -151,7 +154,14 @@ fn is_dsl(path: &Path) -> bool {
         && !name.trim_end_matches(".dz").ends_with("_abrv.dsl")
 }
 
-/// Sözlük dosyalarını (StarDict .ifo, DSL) toplar; gizli klasörler dahil, derinlik sınırlı.
+/// Kobo sözlüğü mü (`dicthtml*.zip`)?
+fn is_kobo(path: &Path) -> bool {
+    path.file_name()
+        .map(|n| n.to_string_lossy().to_lowercase())
+        .is_some_and(|n| n.starts_with("dicthtml") && n.ends_with(".zip"))
+}
+
+/// Sözlük dosyalarını (StarDict .ifo, DSL, Kobo dicthtml) toplar; gizli klasörler dahil, derinlik sınırlı.
 fn collect(dir: &Path, depth: usize, out: &mut Vec<PathBuf>) {
     if depth > 4 {
         return;
@@ -163,7 +173,7 @@ fn collect(dir: &Path, depth: usize, out: &mut Vec<PathBuf>) {
         let path = e.path();
         if path.is_dir() {
             collect(&path, depth + 1, out);
-        } else if path.extension().is_some_and(|x| x == "ifo") || is_dsl(&path) {
+        } else if path.extension().is_some_and(|x| x == "ifo") || is_dsl(&path) || is_kobo(&path) {
             out.push(path);
         }
     }

@@ -92,3 +92,25 @@ pub fn dsl(dir: &Path, name: &str, source: &str, utf8: bool, be: bool, dictzip: 
         path
     }
 }
+
+/// Kobo dicthtml zip'i: (önek, HTML) dosyaları; `gz` ise dosyalar gzip'li.
+pub fn kobo(dir: &Path, name: &str, files: &[(&str, &str)], gz: bool) -> PathBuf {
+    use std::io::Write;
+    let path = dir.join(name);
+    let mut z = zip::ZipWriter::new(std::fs::File::create(&path).unwrap());
+    let opts =
+        zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
+    for (prefix, html) in files {
+        z.start_file(format!("{prefix}.html"), opts).unwrap();
+        if gz {
+            let mut e = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+            e.write_all(html.as_bytes()).unwrap();
+            z.write_all(&e.finish().unwrap()).unwrap();
+        } else {
+            z.write_all(html.as_bytes()).unwrap();
+        }
+    }
+    z.start_file("words", opts).unwrap();
+    z.finish().unwrap();
+    path
+}

@@ -13,8 +13,9 @@ use crate::event::{Event, PageKey, Refresh};
 use crate::i18n::{Msg, tr};
 use crate::text::{Span, Style};
 
-/// Kütüphane köküne göre sözlük klasörleri: KOReader'ın sözlükleri ve bizimki.
-const DICT_DIRS: [&str; 2] = [".adds/koreader/data/dict", "Sözlükler"];
+/// Kütüphane köküne göre sözlük klasörleri: KOReader'ın sözlükleri, Kobo'nun
+/// (yalnızca şifresiz olanlar açılır) ve bizimki.
+const DICT_DIRS: [&str; 3] = [".adds/koreader/data/dict", ".kobo/dict", "Sözlükler"];
 
 /// Gösterilen sözlük sonucu, sayfalara dizilmiş.
 pub(super) struct Lookup {

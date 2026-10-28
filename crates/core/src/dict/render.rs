@@ -167,7 +167,7 @@ fn toggle(depth: &mut u32, closing: bool) {
 }
 
 /// HTML varlıkları: adlı olanların sık kullanılanları ve sayısal olanlar.
-fn entities(s: &str) -> String {
+pub(crate) fn entities(s: &str) -> String {
     if !s.contains('&') {
         return s.to_string();
     }
