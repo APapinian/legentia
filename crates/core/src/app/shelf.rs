@@ -81,7 +81,7 @@ pub(super) struct Shelved {
 }
 
 /// Arama için katlama: Türkçe küçük harf, şapkasız, noktalı/noktasız i aynı.
-fn fold(s: &str) -> String {
+pub(super) fn fold(s: &str) -> String {
     s.chars()
         .map(|c| match collate::turkish_lower(c) {
             'â' => 'a',

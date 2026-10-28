@@ -170,6 +170,8 @@ pub struct App {
     shelf: HashMap<String, shelf::Shelved>,
     /// Kütüphanede arama (başlık/yazar); yoksa hepsi.
     library_query: Option<String>,
+    /// Vurgular ve notlar listesinde arama.
+    annotation_query: Option<String>,
     /// Otomatik sayfa çevirme açıksa son çevirmenin anı.
     auto_turn: Option<std::time::Instant>,
     store: Store,
@@ -271,6 +273,7 @@ impl App {
             auto_turn: None,
             shelf,
             library_query: None,
+            annotation_query: None,
             store,
             defaults: settings.clone(),
             root: library_root.to_path_buf(),

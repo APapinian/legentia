@@ -42,6 +42,7 @@ pub enum Msg {
     StatusFinishedShort,
     StatusToReadShort,
     SearchLibrary,
+    SearchAnnotations,
     NoMatchingBooks,
     SortBy(Box<Msg>),
     BookCountShown {
@@ -367,6 +368,7 @@ pub fn tr(msg: &Msg) -> String {
         Msg::TapElsewhereToClose => "Kapatmak için başka bir yere dokunun.".into(),
         Msg::StatusFinishedShort => "bitti".into(),
         Msg::StatusToReadShort => "okunacak".into(),
+        Msg::SearchAnnotations => "Notlarda ara".into(),
         Msg::SearchLibrary => "Kütüphanede ara".into(),
         Msg::NoMatchingBooks => "Aramaya ya da süzgece uyan kitap yok.".into(),
         Msg::SortBy(m) => format!("Sıra: {}", tr(m)),
@@ -660,6 +662,7 @@ mod tests {
             TapElsewhereToClose,
             StatusFinishedShort,
             StatusToReadShort,
+            SearchAnnotations,
             SearchLibrary,
             NoMatchingBooks,
             LibraryEmpty,

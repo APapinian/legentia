@@ -27,6 +27,8 @@ pub(super) enum FormKind {
     BookSearch,
     /// Kütüphanede başlık/yazar araması.
     LibrarySearch,
+    /// Vurgu ve notlarda arama.
+    AnnotationSearch,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -83,6 +85,7 @@ impl Form {
             FormKind::Search(_) => Msg::SearchCatalog,
             FormKind::BookSearch => Msg::SearchBook,
             FormKind::LibrarySearch => Msg::SearchLibrary,
+            FormKind::AnnotationSearch => Msg::SearchAnnotations,
         }
     }
 
@@ -99,7 +102,10 @@ impl Form {
             (Button::Delete, _) => Msg::Delete,
             (
                 Button::Submit,
-                FormKind::Search(_) | FormKind::BookSearch | FormKind::LibrarySearch,
+                FormKind::Search(_)
+                | FormKind::BookSearch
+                | FormKind::LibrarySearch
+                | FormKind::AnnotationSearch,
             ) => Msg::Search,
             (Button::Submit, _) => Msg::Save,
         }

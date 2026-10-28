@@ -2742,3 +2742,44 @@ fn word_list_exports_anki_cards_with_definitions() {
         "noktalı virgüllü alan tırnaklanır"
     );
 }
+
+#[test]
+fn annotations_are_searched_in_quotes_and_notes() {
+    let (mut app, _, _) = reading_long_book();
+    select_and(&mut app, "ağaçlar", 0); // Vurgula
+    select_and(&mut app, "gölgeler", 0);
+    let s = app.session.as_mut().unwrap();
+    assert_eq!(s.state.annotations.len(), 2);
+    let i = s
+        .state
+        .annotations
+        .iter()
+        .position(|a| a.quote == "gölgeler")
+        .unwrap();
+    s.set_note(i, Some("Işıkla karşıtlık".into()));
+    menu(&mut app, MenuItem::Annotations);
+    let rows = |app: &App| app.annotation_rows().len();
+    assert_eq!(rows(&app), 2);
+
+    let search = |app: &mut App, q: &str| {
+        let at = app.annotation_search_button().center();
+        tap(app, at);
+        type_text(app, q);
+        form_button(app, form::Button::Submit);
+        assert!(matches!(app.view, View::Annotations { .. }));
+    };
+    search(&mut app, "ağaç");
+    assert_eq!(rows(&app), 1, "alıntıda");
+    let clear = app.annotation_search_button().center();
+    tap(&mut app, clear);
+    search(&mut app, "ışık");
+    assert_eq!(rows(&app), 1, "notta");
+    let mut c = Canvas::new(W, LIBRA2_HEIGHT);
+    app.draw(&mut c);
+    tap(&mut app, clear);
+    search(&mut app, "yok");
+    assert_eq!(rows(&app), 0);
+    app.draw(&mut c);
+    tap(&mut app, clear);
+    assert_eq!(rows(&app), 2, "arama kaldırıldı");
+}

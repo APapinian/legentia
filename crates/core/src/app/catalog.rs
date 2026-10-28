@@ -401,6 +401,14 @@ impl App {
             (Button::Cancel, FormKind::Search(_)) => self.view = View::Feed,
             (Button::Cancel, FormKind::BookSearch) => self.view = View::Reading,
             (Button::Cancel, FormKind::LibrarySearch) => self.view = View::Library { page: 0 },
+            (Button::Cancel, FormKind::AnnotationSearch) => {
+                self.view = View::Annotations { page: 0 }
+            }
+            (Button::Submit, FormKind::AnnotationSearch) => {
+                let query = form.fields[0].value.trim().to_string();
+                self.annotation_query = (!query.is_empty()).then_some(query);
+                self.view = View::Annotations { page: 0 };
+            }
             (Button::Submit, FormKind::LibrarySearch) => {
                 let query = form.fields[0].value.trim().to_string();
                 self.library_query = (!query.is_empty()).then_some(query);

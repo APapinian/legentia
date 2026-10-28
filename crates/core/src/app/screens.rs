@@ -785,25 +785,57 @@ impl App {
 
     // --- Vurgular ve notlar ---
 
-    fn annotation_count(&self) -> usize {
-        self.session
-            .as_ref()
-            .map_or(0, |s| s.state.annotations.len())
+    /// Listede görünen vurgular (`state.annotations` sırası), kitaptaki sırayla;
+    /// arama varsa alıntısında ya da notunda geçenler.
+    pub(super) fn annotation_rows(&self) -> Vec<usize> {
+        let Some(s) = &self.session else {
+            return Vec::new();
+        };
+        let query = self.annotation_query.as_deref().map(super::shelf::fold);
+        s.annotations_in_order()
+            .into_iter()
+            .filter(|&i| {
+                let a = &s.state.annotations[i];
+                query.as_ref().is_none_or(|q| {
+                    super::shelf::fold(&a.quote).contains(q.as_str())
+                        || a.note
+                            .as_deref()
+                            .is_some_and(|n| super::shelf::fold(n).contains(q.as_str()))
+                })
+            })
+            .collect()
+    }
+
+    /// Vurgular ekranının başlığındaki "Ara" / "× Arama".
+    pub(super) fn annotation_search_button(&self) -> Rect {
+        header_button(self.width, 200)
     }
 
     pub(super) fn handle_annotations(&mut self, page: usize, event: Event) -> Option<Refresh> {
         if let Event::Tap { x, y } = event {
             if back_button(self.width).contains(x, y) {
+                self.annotation_query = None;
                 return self.back_to_reading();
             }
-            let row = ANNOTATIONS.row_at(page, self.annotation_count(), y)?;
+            if self.annotation_search_button().contains(x, y) {
+                if self.annotation_query.take().is_some() {
+                    self.view = View::Annotations { page: 0 };
+                    return Some(self.refresh(false));
+                }
+                let field = super::form::Field::new(Msg::FieldQuery, "");
+                let form =
+                    super::form::Form::new(super::form::FormKind::AnnotationSearch, vec![field]);
+                return self.open_form(form);
+            }
+            let rows = self.annotation_rows();
+            let row = ANNOTATIONS.row_at(page, rows.len(), y)?;
             let s = self.session.as_ref()?;
-            let a = &s.state.annotations[s.annotations_in_order()[row]];
+            let a = &s.state.annotations[rows[row]];
             let (spine, at) = (a.spine, a.start);
             self.open_chapter(spine, Target::At(at));
             return Some(self.refresh(true));
         }
-        let page = Self::page_list(page, ANNOTATIONS.pages(self.annotation_count()), event)?;
+        let page = Self::page_list(page, ANNOTATIONS.pages(self.annotation_rows().len()), event)?;
         self.view = View::Annotations { page };
         Some(self.refresh(false))
     }
@@ -813,11 +845,37 @@ impl App {
             return;
         };
         let t = &self.text;
-        draw_header(t, canvas, &s.title(), &tr(&Msg::Annotations), true);
+        let order = self.annotation_rows();
+        let subtitle = match &self.annotation_query {
+            Some(q) => format!(
+                "{} · {}",
+                tr(&Msg::Annotations),
+                tr(&Msg::SearchTitle(q.clone()))
+            ),
+            None => tr(&Msg::Annotations),
+        };
+        let search = self.annotation_search_button();
+        draw_header_until(t, canvas, &s.title(), &subtitle, search.x - 30);
+        if !s.state.annotations.is_empty() {
+            let label = if self.annotation_query.is_some() {
+                Msg::ClearLibrarySearch
+            } else {
+                Msg::Search
+            };
+            draw_button(t, canvas, search, &tr(&label), ROW_PX);
+        }
+        draw_button(
+            t,
+            canvas,
+            back_button(canvas.width()),
+            &tr(&Msg::Back),
+            ROW_PX,
+        );
         if s.state.annotations.is_empty() {
             self.draw_message_lines(canvas, &Msg::NoAnnotations, HEADER_BOTTOM + 80);
+        } else if order.is_empty() {
+            self.draw_message_lines(canvas, &Msg::NoSearchHits, HEADER_BOTTOM + 80);
         }
-        let order = s.annotations_in_order();
         let max_w = (canvas.width() as i32 - 2 * MARGIN) as f32;
         for (index, row) in ANNOTATIONS.visible(page, order.len()) {
             let a = &s.state.annotations[order[index]];
