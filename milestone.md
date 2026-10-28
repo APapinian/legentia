@@ -355,7 +355,7 @@ Kullanıcı isteği (2026-10-28): 50 maddelik öneri listesi milestone olarak ka
 - [x] 8. Bölümün ve kitabın kalan okuma süresi tahmini (K) (Alt bilgide "bölüm 12 dk · kitap 3 sa 20 dk". Hız kullanıcının ileri çevirmelerinden öğrenilir (sayfada 3 sn–10 dk kalınanlar; menü ve sözlükte geçen süre sayılmaz), kitaplar arası `okuma-hizi.json`; en az 3 ölçümden sonra gösterilir. Kitabın kalanı EPUB'da bölüm dosyası boyutlarından (açık bölümün karakter/bayt oranıyla), PDF görüntüsünde ekran başına süreden. Testli.)
 - [x] 9. Kaydırarak sayfa çevirme, iki parmakla punto değiştirme (O) (Okurken yatay kaydırma (en az 150 px, dikeyin iki katından fazla) sola ileri, sağa geri; liste ekranlarında sayfa değiştirir. İki parmak 1,15 kattan fazla açılınca punto bir adım büyür, 0,87'den fazla kapanınca küçülür (PDF görüntüsünde yakınlaştırma); kitaba özel ayar olarak. Kobo girdisi ilk iki yuvayı izler. Simülatörde + / - tuşları. Testli; Libra 2'nin iki parmağı bildirdiği cihazda doğrulanmadı.)
 - [x] 10. Dokunma bölgelerini özelleştirme (K) (Ayarlara üçüncü sayfa "Okuma ve ekran"; "Dokunma düzeni": sol geri/sağ ileri, ters, tek el (sol kenar şeridi geri, üst şerit menü, gerisi ileri). Testli.)
-- [ ] 11. Sayfa tuşlarının yönünü ayardan değiştirme (K)
+- [x] 11. Sayfa tuşlarının yönünü ayardan değiştirme (K) ("Okuma ve ekran" sayfasında "Sayfa tuşları": üst geri / üst ileri; bütün ekranlarda geçerli. Testli.)
 - [ ] 12. Otomatik sayfa çevirme zamanlayıcısı (K)
 - [ ] 13. Sağdan sola yazı (Osmanlıca, Arapça) (B)
 - [ ] 14. Japonca dikey yazı ve furigana (B)

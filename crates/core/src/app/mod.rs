@@ -34,7 +34,7 @@ use std::path::{Path, PathBuf};
 
 use crate::canvas::Canvas;
 use crate::epub::Book;
-use crate::event::{Event, Gestures, Refresh};
+use crate::event::{Event, Gestures, PageKey, Refresh};
 use crate::i18n::Msg;
 use crate::library::{self, Entry, Format};
 use crate::pdf::{GrayImage, PdfDoc, PdfEdit};
@@ -374,6 +374,14 @@ impl App {
                 .flatten()
                 .max_by_key(|r| *r == Refresh::Full);
         }
+        // Ayara göre sayfa tuşlarının anlamı ters çevrilir (her ekranda).
+        let event = match event {
+            Event::Key(k) if self.settings.swap_keys => Event::Key(match k {
+                PageKey::Forward => PageKey::Back,
+                PageKey::Back => PageKey::Forward,
+            }),
+            e => e,
+        };
         if let Event::Tilt { landscape } = event {
             self.tilted = landscape;
             return self.fit_orientation().then(|| self.refresh(true));

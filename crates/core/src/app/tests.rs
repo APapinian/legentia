@@ -2532,3 +2532,15 @@ fn landscape_pdf_shows_two_pages_side_by_side() {
     app.handle(Event::Tilt { landscape: false });
     assert!(!session(&app).spread);
 }
+
+#[test]
+fn page_keys_can_be_swapped() {
+    let (mut app, _, _) = reading_long_book();
+    key(&mut app, true);
+    assert_eq!(session(&app).page, 1);
+    app.settings.swap_keys = true;
+    key(&mut app, true);
+    assert_eq!(session(&app).page, 0, "üst tuş (ileri olayı) artık geri");
+    key(&mut app, false);
+    assert_eq!(session(&app).page, 1);
+}

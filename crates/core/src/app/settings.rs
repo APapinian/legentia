@@ -83,6 +83,8 @@ pub struct Settings {
     pub orientation: Orientation,
     /// Yatayda EPUB iki sütun (açık kitap gibi); değilse tek geniş sütun.
     pub two_columns: bool,
+    /// Sayfa tuşlarının anlamı ters: üst tuş ileri, alt tuş geri.
+    pub swap_keys: bool,
 }
 
 impl Default for Settings {
@@ -107,6 +109,7 @@ impl Default for Settings {
             weight: 0,
             orientation: Orientation::Auto,
             two_columns: true,
+            swap_keys: false,
         }
     }
 }
@@ -133,6 +136,7 @@ pub enum Field {
     Weight,
     Orientation,
     TwoColumns,
+    PageKeys,
 }
 
 /// Ayarlar ekranının sayfaları: yazı; PDF ve internet; okuma ve ekran. Hepsi
@@ -159,6 +163,7 @@ pub const FIELD_PAGES: [&[Field]; 3] = [
     ],
     &[
         Field::TapZones,
+        Field::PageKeys,
         Field::Night,
         Field::Orientation,
         Field::TwoColumns,
@@ -190,6 +195,7 @@ impl Field {
             Field::Weight => Msg::SettingWeight,
             Field::Orientation => Msg::SettingOrientation,
             Field::TwoColumns => Msg::SettingTwoColumns,
+            Field::PageKeys => Msg::SettingPageKeys,
         }
     }
 }
@@ -280,6 +286,7 @@ impl Settings {
                 s.orientation = ALL[if up { (i + 1) % 3 } else { (i + 2) % 3 }];
             }
             Field::TwoColumns => s.two_columns = !s.two_columns,
+            Field::PageKeys => s.swap_keys = !s.swap_keys,
             Field::TapZones => {
                 const ZONES: [TapZones; 3] =
                     [TapZones::Standard, TapZones::Reversed, TapZones::OneHand];
@@ -331,6 +338,11 @@ impl Settings {
                 Orientation::Auto => &Msg::OrientationAuto,
                 Orientation::Portrait => &Msg::OrientationPortrait,
                 Orientation::Landscape => &Msg::OrientationLandscape,
+            }),
+            Field::PageKeys => tr(if self.swap_keys {
+                &Msg::KeysUpForward
+            } else {
+                &Msg::KeysUpBack
             }),
             Field::TwoColumns => tr(if self.two_columns {
                 &Msg::ColumnsTwo
