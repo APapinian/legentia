@@ -1529,3 +1529,140 @@ fn catalogs_are_closed_when_the_network_is_off() {
     tap(&mut app, (10, 10));
     assert!(matches!(app.view, View::Library { .. }));
 }
+
+// --- İndirme ---
+
+const BOOKS_FEED: &str = r#"<feed xmlns="http://www.w3.org/2005/Atom"><title>Kitaplar</title>
+  <entry><title>Çalıkuşu</title><author><name>Reşat Nuri</name></author>
+    <link rel="http://opds-spec.org/acquisition" type="application/epub+zip" href="/kitap.epub"/></entry>
+  <entry><title>Kayıp</title>
+    <link rel="http://opds-spec.org/acquisition" type="application/epub+zip" href="/yok.epub"/></entry>
+  <entry><title>Yavaş</title>
+    <link rel="http://opds-spec.org/acquisition" type="application/epub+zip" href="/yavas.epub"/></entry>
+</feed>"#;
+
+/// Kitap sunan taklit katalogu açar; katalog sayfasında bırakır.
+fn books_catalog(app: &mut App) {
+    let book = epub3_sample();
+    let url = crate::net::testserver::serve(move |path, _| match path {
+        "/opds" => (200, BOOKS_FEED.as_bytes().to_vec()),
+        "/kitap.epub" => (200, book.clone()),
+        "/yavas.epub" => {
+            std::thread::sleep(std::time::Duration::from_millis(800));
+            (200, book.clone())
+        }
+        _ => (404, Vec::new()),
+    });
+    app.browser.catalogs = vec![local_catalog(format!("{url}/opds"))];
+    open_catalogs(app);
+    tap_row(app, &catalog::CATALOGS, 0);
+    settle(app);
+    assert!(matches!(app.view, View::Feed));
+}
+
+fn entry_action(app: &App, index: usize) -> downloads::Action {
+    app.entry_action(index).unwrap().0
+}
+
+/// Kitabın ayrıntısını açıp düğmesine basar ve katalog sayfasına döner.
+fn press_entry(app: &mut App, index: usize) {
+    tap_row(app, &catalog::FEED, index);
+    assert!(matches!(app.view, View::Entry { .. }));
+    tap(app, app.entry_button().center());
+    tap(app, super::ui::back_button(W).center());
+    assert!(matches!(app.view, View::Feed));
+}
+
+/// `cond` sağlanana kadar `Tick` gönderir.
+fn tick_until(app: &mut App, cond: impl Fn(&App) -> bool) {
+    for _ in 0..2000 {
+        if cond(app) {
+            return;
+        }
+        app.handle(Event::Tick);
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    panic!("beklenen duruma gelinmedi");
+}
+
+#[test]
+fn a_book_is_downloaded_added_to_the_library_and_opened() {
+    let (mut app, _, root) = setup(&[]);
+    books_catalog(&mut app);
+    assert_eq!(entry_action(&app, 0), downloads::Action::Download);
+    press_entry(&mut app, 0);
+    assert_eq!(app.downloads.len(), 1);
+    assert!(app.wants_ticks());
+    let mut c = Canvas::new(W, LIBRA2_HEIGHT);
+    app.draw(&mut c);
+    settle(&mut app);
+
+    let dest = root.join("İndirilenler").join("Reşat Nuri - Çalıkuşu.epub");
+    assert_eq!(std::fs::read(&dest).unwrap(), epub3_sample());
+    assert!(
+        app.library.iter().any(|e| e.path == dest),
+        "kütüphane yeniden tarandı"
+    );
+    assert!(matches!(app.downloads[0].state, downloads::State::Done));
+
+    // Aynı kitap yeniden indirilmez; "Aç" ile okunur.
+    assert_eq!(entry_action(&app, 0), downloads::Action::Open);
+    tap_row(&mut app, &catalog::FEED, 0);
+    app.draw(&mut c);
+    let open = app.entry_button().center();
+    tap(&mut app, open);
+    assert!(matches!(app.view, View::Contents { .. }));
+    assert_eq!(app.downloads.len(), 1);
+}
+
+#[test]
+fn downloads_queue_fail_retry_and_cancel_without_leftovers() {
+    let (mut app, _, root) = setup(&[]);
+    books_catalog(&mut app);
+    press_entry(&mut app, 1);
+    press_entry(&mut app, 2);
+    let running = |app: &App| {
+        app.downloads
+            .iter()
+            .filter(|d| matches!(d.state, downloads::State::Running { .. }))
+            .count()
+    };
+    assert_eq!(running(&app), 1, "birer birer iner");
+
+    tick_until(&mut app, |a| {
+        matches!(a.downloads[0].state, downloads::State::Failed(_))
+    });
+    let (action, _, error) = app.entry_action(1).unwrap();
+    assert_eq!(action, downloads::Action::Retry);
+    assert_eq!(error, Some(Msg::NetStatus(404)));
+    assert_eq!(running(&app), 1, "sıradaki başladı");
+
+    // İndirmeler ekranı: katalog başlığındaki düğmeden.
+    let button = app.downloads_button(super::ui::back_button(W)).unwrap();
+    tap(&mut app, button.center());
+    assert!(matches!(app.view, View::Downloads { .. }));
+    let mut c = Canvas::new(W, LIBRA2_HEIGHT);
+    app.draw(&mut c);
+
+    // Yavaş indirme iptal edilir: listeden çıkar, yarım dosya kalmaz.
+    let cancel = app.row_button(1).center();
+    tap(&mut app, cancel);
+    assert_eq!(app.downloads.len(), 1);
+    std::thread::sleep(std::time::Duration::from_millis(1500));
+    let dir = root.join("İndirilenler");
+    let left: Vec<_> = std::fs::read_dir(&dir).unwrap().flatten().collect();
+    assert!(left.is_empty(), "kalan dosyalar: {left:?}");
+
+    // Hatalı olan yeniden denenir (yine 404).
+    let retry = app.row_button(0).center();
+    tap(&mut app, retry);
+    assert!(app.wants_ticks());
+    settle(&mut app);
+    assert!(matches!(
+        app.downloads[0].state,
+        downloads::State::Failed(_)
+    ));
+    app.draw(&mut c);
+    tap(&mut app, super::ui::back_button(W).center());
+    assert!(matches!(app.view, View::Feed));
+}

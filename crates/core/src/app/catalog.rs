@@ -1,5 +1,5 @@
 //! OPDS katalogları: katalog listesi (`catalogs.json`), katalog sayfalarında
-//! gezinme, arama ve kitap ayrıntısı. Ağ isteği arka planda (`Job`) yürür;
+//! gezinme, arama ve kitap ayrıntısı (indirme: `downloads`). Ağ isteği arka planda (`Job`) yürür;
 //! sonuç `Event::Tick` geldikçe yoklanır, beklerken "Vazgeç" ile bırakılabilir.
 
 use serde::{Deserialize, Serialize};
@@ -100,6 +100,10 @@ impl Browser {
         }
     }
 
+    pub fn net(&mut self) -> Net {
+        self.net.get_or_insert_with(Net::default).clone()
+    }
+
     fn feed(&self) -> Option<&FeedPage> {
         self.feeds.last()
     }
@@ -185,11 +189,6 @@ fn catalog_from(form: &Form, members_only: bool) -> Result<Catalog, Msg> {
 }
 
 impl App {
-    /// Arka plan işi sürüyor: platform `Event::Tick` göndermeli.
-    pub fn wants_ticks(&self) -> bool {
-        self.browser.job.is_some()
-    }
-
     fn save_catalogs(&mut self) {
         self.store.save(CATALOGS_FILE, &self.browser.catalogs);
     }
@@ -210,7 +209,7 @@ impl App {
     /// İsteği arka planda başlatır; bekleme ekranına geçer.
     fn load(&mut self, request: Request) -> Option<Refresh> {
         let catalog = self.browser.catalogs.get(self.browser.current)?.clone();
-        let net = self.browser.net.get_or_insert_with(Net::default).clone();
+        let net = self.browser.net();
         self.browser.job = Some(Job::spawn(move |_| fetch(&net, &catalog, request)));
         self.view = View::Loading;
         Some(self.refresh(true))
@@ -317,6 +316,17 @@ impl App {
                     self.view = View::Library { page: 0 };
                     return Some(self.refresh(true));
                 }
+                if self
+                    .header_buttons(true)
+                    .1
+                    .is_some_and(|r| r.contains(x, y))
+                {
+                    self.view = View::Downloads {
+                        page: 0,
+                        back: Back::Catalogs,
+                    };
+                    return Some(self.refresh(true));
+                }
                 if header_button(self.width, HEADER_BUTTON_W).contains(x, y) {
                     return self.open_form(self.catalog_form(FormKind::NewCatalog));
                 }
@@ -341,15 +351,12 @@ impl App {
     pub(super) fn draw_catalogs(&self, canvas: &mut Canvas, page: usize) {
         let t = &self.text;
         let catalogs = &self.browser.catalogs;
-        draw_header(
-            t,
+        self.draw_browse_header(
             canvas,
             &tr(&Msg::Catalogs),
             &tr(&Msg::CatalogCount(catalogs.len())),
-            true,
+            Some(Msg::AddCatalog),
         );
-        let add = header_button(canvas.width(), HEADER_BUTTON_W);
-        draw_button(t, canvas, add, &tr(&Msg::AddCatalog), ROW_PX);
         if catalogs.is_empty() {
             self.draw_message_lines(canvas, &Msg::NoCatalogs, HEADER_BOTTOM + 80);
         }
@@ -430,6 +437,35 @@ impl App {
         Some(header_button(self.width, HEADER_BUTTON_W))
     }
 
+    /// Başlıktaki ek düğme ("Ekle" ya da "Ara", `extra` ise) ve varsa "İndirmeler".
+    fn header_buttons(&self, extra: bool) -> (Option<Rect>, Option<Rect>) {
+        let extra = extra.then(|| header_button(self.width, HEADER_BUTTON_W));
+        let downloads = self.downloads_button(extra.unwrap_or(back_button(self.width)));
+        (extra, downloads)
+    }
+
+    /// Başlık; sağda (sağdan sola) "Geri", `extra` düğmesi ve varsa "İndirmeler".
+    fn draw_browse_header(
+        &self,
+        canvas: &mut Canvas,
+        title: &str,
+        subtitle: &str,
+        extra: Option<Msg>,
+    ) {
+        let t = &self.text;
+        let back = back_button(canvas.width());
+        let (extra_rect, downloads) = self.header_buttons(extra.is_some());
+        let left = downloads.or(extra_rect).unwrap_or(back);
+        draw_header_until(t, canvas, title, subtitle, left.x - 30);
+        draw_button(t, canvas, back, &tr(&Msg::Back), ROW_PX);
+        if let (Some(r), Some(label)) = (extra_rect, extra) {
+            draw_button(t, canvas, r, &tr(&label), ROW_PX);
+        }
+        if let Some(r) = downloads {
+            self.draw_downloads_button(canvas, r);
+        }
+    }
+
     pub(super) fn handle_feed(&mut self, event: Event) -> Option<Refresh> {
         let rows = self.browser.rows();
         let page = self.browser.feed()?.page;
@@ -441,6 +477,18 @@ impl App {
         if back_button(self.width).contains(x, y) {
             self.browser.feeds.pop();
             self.view = self.browse_view();
+            return Some(self.refresh(true));
+        }
+        let searchable = self.search_button().is_some();
+        if self
+            .header_buttons(searchable)
+            .1
+            .is_some_and(|r| r.contains(x, y))
+        {
+            self.view = View::Downloads {
+                page: 0,
+                back: Back::Feed,
+            };
             return Some(self.refresh(true));
         }
         if self.search_button().is_some_and(|r| r.contains(x, y)) {
@@ -493,20 +541,8 @@ impl App {
             f.feed.title.trim().to_string()
         };
         let subtitle = format!("{catalog} · {}", tr(&Msg::EntryCount(f.feed.entries.len())));
-        match self.search_button() {
-            Some(r) => {
-                draw_header_until(t, canvas, &title, &subtitle, r.x - 30);
-                draw_button(t, canvas, r, &tr(&Msg::Search), ROW_PX);
-                draw_button(
-                    t,
-                    canvas,
-                    back_button(canvas.width()),
-                    &tr(&Msg::Back),
-                    ROW_PX,
-                );
-            }
-            None => draw_header(t, canvas, &title, &subtitle, true),
-        }
+        let search = self.search_button().map(|_| Msg::Search);
+        self.draw_browse_header(canvas, &title, &subtitle, search);
         if f.feed.entries.is_empty() {
             self.draw_message_lines(canvas, &Msg::FeedEmpty, HEADER_BOTTOM + 80);
         }
@@ -537,10 +573,23 @@ impl App {
 
     // --- Kitap ayrıntısı ---
 
-    pub(super) fn handle_entry(&mut self, event: Event) -> Option<Refresh> {
+    /// Ayrıntı ekranındaki İndir / İptal / Yeniden dene / Aç düğmesi.
+    pub(super) fn entry_button(&self) -> Rect {
+        Rect {
+            x: MARGIN,
+            y: HEADER_BOTTOM + 30,
+            w: self.width as i32 - 2 * MARGIN,
+            h: 110,
+        }
+    }
+
+    pub(super) fn handle_entry(&mut self, index: usize, event: Event) -> Option<Refresh> {
         let Event::Tap { x, y } = event else {
             return None;
         };
+        if self.entry_button().contains(x, y) {
+            return self.entry_pressed(index);
+        }
         if !back_button(self.width).contains(x, y) {
             return None;
         }
@@ -559,7 +608,19 @@ impl App {
             e.authors.join(", ")
         };
         draw_header(t, canvas, &e.title, &authors, true);
-        let mut y = HEADER_BOTTOM + 60;
+        let button = self.entry_button();
+        let mut y = button.y + button.h + 70;
+        let max_w = (canvas.width() as i32 - 2 * MARGIN) as f32;
+        if let Some((_, label, error)) = self.entry_action(index) {
+            draw_button(t, canvas, button, &tr(&label), ROW_PX);
+            for line in error.map_or(Vec::new(), |m| {
+                t.wrap_plain(&tr(&m), Family::Ui, BOLD, ROW_PX, max_w)
+            }) {
+                t.draw_plain(canvas, &line, Family::Ui, BOLD, MARGIN, y, ROW_PX);
+                y += 52;
+            }
+            y += 20;
+        }
         if let EntryKind::Book(links) = &e.kind {
             let formats: Vec<&str> = links
                 .iter()
@@ -571,7 +632,6 @@ impl App {
             t.draw_msg(canvas, &Msg::Formats(formats.join(", ")), MARGIN, y, ROW_PX);
             y += 80;
         }
-        let max_w = (canvas.width() as i32 - 2 * MARGIN) as f32;
         let bottom = crate::LIBRA2_HEIGHT as i32 - 120;
         for line in t.wrap_plain(&e.summary, Family::Ui, PLAIN, ROW_PX, max_w) {
             if y > bottom {

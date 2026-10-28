@@ -8,6 +8,7 @@
 mod annotations;
 mod backup;
 mod catalog;
+mod downloads;
 mod export;
 mod form;
 mod jobs;
@@ -105,6 +106,11 @@ enum View {
     },
     /// Ağ isteği bekleniyor.
     Loading,
+    /// İndirme kuyruğu; `back` katalog listesi ya da katalog sayfası.
+    Downloads {
+        page: usize,
+        back: Back,
+    },
     Form(Box<form::Form>),
 }
 
@@ -146,6 +152,8 @@ pub struct App {
     words: Vec<words::SavedWord>,
     /// OPDS katalogları ve gezinme.
     browser: catalog::Browser,
+    /// İndirme kuyruğu (yalnızca uygulama açıkken).
+    downloads: Vec<downloads::Download>,
 }
 
 /// Ekrana yerleştirilmiş PDF sayfa görüntüsü.
@@ -193,6 +201,7 @@ impl App {
             lookup: None,
             words,
             browser: catalog::Browser::new(catalogs),
+            downloads: Vec::new(),
         }
     }
 
@@ -276,7 +285,12 @@ impl App {
                 .max_by_key(|r| *r == Refresh::Full);
         }
         if event == Event::Tick {
-            return self.poll_job();
+            let feed = self.poll_job();
+            let downloads = self.poll_downloads();
+            return feed
+                .into_iter()
+                .chain(downloads)
+                .max_by_key(|r| *r == Refresh::Full);
         }
         match &self.view {
             View::Library { page } => self.handle_library(*page, event),
@@ -317,7 +331,8 @@ impl App {
             }
             View::Catalogs { page } => self.handle_catalogs(*page, event),
             View::Feed => self.handle_feed(event),
-            View::Entry { .. } => self.handle_entry(event),
+            View::Entry { index } => self.handle_entry(*index, event),
+            View::Downloads { page, back } => self.handle_downloads(*page, *back, event),
             View::Loading => self.handle_loading(event),
             View::Form(form) => {
                 let form = (**form).clone();
@@ -480,6 +495,7 @@ impl App {
             View::Feed => self.draw_feed(canvas),
             View::Entry { index } => self.draw_entry(canvas, *index),
             View::Loading => self.draw_loading(canvas),
+            View::Downloads { page, .. } => self.draw_downloads(canvas, *page),
             View::Form(form) => self.draw_form(canvas, form),
         }
         if self.settings.night {

@@ -124,6 +124,12 @@ impl Store {
     }
 }
 
+/// `dir`'in bulunduğu dosya sisteminde boş alan (bayt); ölçülemezse `None`.
+pub(crate) fn free_space(dir: &Path) -> Option<u64> {
+    let st = nix::sys::statvfs::statvfs(dir).ok()?;
+    Some(st.blocks_available() as u64 * st.fragment_size() as u64)
+}
+
 #[cfg(test)]
 pub(crate) fn temp_store(tag: &str) -> Store {
     use std::sync::atomic::{AtomicU32, Ordering};

@@ -916,6 +916,7 @@ dependencies = [
  "hayro",
  "log",
  "lopdf",
+ "nix",
  "quick-xml",
  "ripemd",
  "rustybuzz",

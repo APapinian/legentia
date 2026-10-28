@@ -103,11 +103,15 @@ pub(super) fn back_button(width: u32) -> Rect {
 
 /// Başlıkta "Geri" düğmesinin solundaki `w` genişliğinde düğme.
 pub(super) fn header_button(width: u32, w: i32) -> Rect {
-    let back = back_button(width);
+    left_of(back_button(width), w)
+}
+
+/// Başlıkta `r` düğmesinin solundaki `w` genişliğinde düğme.
+pub(super) fn left_of(r: Rect, w: i32) -> Rect {
     Rect {
-        x: back.x - 30 - w,
+        x: r.x - 30 - w,
         w,
-        ..back
+        ..r
     }
 }
 
@@ -125,7 +129,8 @@ pub(super) fn draw_header(t: &Text, canvas: &mut Canvas, title: &str, subtitle: 
     }
 }
 
-/// Başlık ve alt başlık `right`'a kadar (sağında düğmeler olan ekranlar için).
+/// Başlık `right`'a kadar (sağında düğmeler olan ekranlar için); alt başlık
+/// düğmelerin altında kalır, tam genişliği kullanır.
 pub(super) fn draw_header_until(
     t: &Text,
     canvas: &mut Canvas,
@@ -136,7 +141,13 @@ pub(super) fn draw_header_until(
     let width = canvas.width();
     let title = one_line(t, title, BOLD, TITLE_PX, (right - MARGIN) as f32);
     t.draw_plain(canvas, &title, Family::Ui, BOLD, MARGIN, TOP + 55, TITLE_PX);
-    let subtitle = one_line(t, subtitle, PLAIN, ROW_PX, (right - MARGIN) as f32);
+    let subtitle = one_line(
+        t,
+        subtitle,
+        PLAIN,
+        ROW_PX,
+        (width as i32 - 2 * MARGIN) as f32,
+    );
     t.draw_plain(
         canvas,
         &subtitle,

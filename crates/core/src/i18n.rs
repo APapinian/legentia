@@ -153,6 +153,25 @@ pub enum Msg {
     NotOpds,
     SearchUnsupported,
     NetworkOff,
+    // İndirme
+    Downloads,
+    DownloadsButton(usize),
+    DownloadCount(usize),
+    NoDownloads,
+    Download,
+    OpenBook,
+    Retry,
+    Queued,
+    CancelQueued,
+    CancelDownload,
+    CancelDownloading(Option<u32>),
+    Downloaded,
+    Progress {
+        done: u64,
+        total: Option<u64>,
+    },
+    NoSpace,
+    UntitledBook,
     // Yazı ayarları
     SettingsHint,
     SettingFont,
@@ -203,6 +222,11 @@ pub enum Msg {
 /// Ondalık sayı, Türkçe virgülle: 14 → "1,4".
 fn decimal(tenths: u32) -> String {
     format!("{},{}", tenths / 10, tenths % 10)
+}
+
+/// Bayt → megabayt, bir ondalıkla: 1 572 864 → "1,5".
+fn megabytes(bytes: u64) -> String {
+    decimal((bytes * 10 / (1 << 20)) as u32)
 }
 
 /// Türkçe metin.
@@ -322,6 +346,26 @@ pub fn tr(msg: &Msg) -> String {
         Msg::NetworkOff => "İnternet kapalı. Bir kitabı açıp menüden “Yazı ayarları” → “PDF ve internet” sayfasından açabilirsiniz.".into(),
         Msg::EntryCount(n) => format!("{n} girdi"),
         Msg::Formats(f) => format!("Biçim: {f}"),
+        Msg::Downloads => "İndirmeler".into(),
+        Msg::NoDownloads => "İndirme listesi boş.".into(),
+        Msg::Download => "İndir".into(),
+        Msg::OpenBook => "Aç".into(),
+        Msg::Retry => "Yeniden dene".into(),
+        Msg::Queued => "Sırada".into(),
+        Msg::CancelQueued => "Sırada · İptal".into(),
+        Msg::CancelDownload => "İptal".into(),
+        Msg::Downloaded => "İndirildi; kütüphanede.".into(),
+        Msg::NoSpace => "Diskte yeterli boş yer yok; indirme durduruldu.".into(),
+        Msg::UntitledBook => "Adsız kitap".into(),
+        Msg::DownloadsButton(0) => "İndirmeler".into(),
+        Msg::DownloadsButton(n) => format!("İndirmeler ({n})"),
+        Msg::DownloadCount(n) => format!("{n} indirme"),
+        Msg::CancelDownloading(Some(p)) => format!("İndiriliyor %{p} · İptal"),
+        Msg::CancelDownloading(None) => "İndiriliyor · İptal".into(),
+        Msg::Progress { done, total: Some(total) } => {
+            format!("%{} · {} / {} MB", done * 100 / (*total).max(1), megabytes(*done), megabytes(*total))
+        }
+        Msg::Progress { done, total: None } => format!("{} MB", megabytes(*done)),
         Msg::SettingsHint => "Değişiklikler “Tamam”a dokununca uygulanır.".into(),
         Msg::SettingFont => "Yazı tipi".into(),
         Msg::SettingSize => "Yazı boyutu".into(),
@@ -485,6 +529,19 @@ mod tests {
             NetUnauthorized,
             NetStatus(500),
             CatalogCount(2),
+            DownloadsButton(0),
+            DownloadsButton(2),
+            DownloadCount(3),
+            CancelDownloading(Some(40)),
+            CancelDownloading(None),
+            Progress {
+                done: 1 << 20,
+                total: Some(3 << 20),
+            },
+            Progress {
+                done: 1 << 20,
+                total: None,
+            },
             EntryCount(25),
             Formats("EPUB, PDF".into()),
             NetTooLarge,
@@ -517,6 +574,17 @@ mod tests {
             NotOpds,
             SearchUnsupported,
             NetworkOff,
+            Downloads,
+            NoDownloads,
+            Download,
+            OpenBook,
+            Retry,
+            Queued,
+            CancelQueued,
+            CancelDownload,
+            Downloaded,
+            NoSpace,
+            UntitledBook,
             SettingsHint,
             SettingFont,
             SettingSize,
@@ -579,5 +647,10 @@ mod tests {
         assert_eq!(tr(&Msg::Percent(45)), "%45");
         assert_eq!(tr(&Msg::Decimal { tenths: 14 }), "1,4");
         assert_eq!(tr(&Msg::Points { tenths: 96 }), "9,6 punto");
+        let progress = Msg::Progress {
+            done: 3 << 19,
+            total: Some(6 << 20),
+        };
+        assert_eq!(tr(&progress), "%25 · 1,5 / 6,0 MB");
     }
 }
