@@ -106,6 +106,8 @@ enum View {
     },
     /// Ağ isteği bekleniyor.
     Loading,
+    /// Kelime çevrimiçi sözlükte aranıyor.
+    Searching,
     /// İndirme kuyruğu; `back` katalog listesi ya da katalog sayfası.
     Downloads {
         page: usize,
@@ -154,6 +156,10 @@ pub struct App {
     browser: catalog::Browser,
     /// İndirme kuyruğu (yalnızca uygulama açıkken).
     downloads: Vec<downloads::Download>,
+    /// Sürmekte olan çevrimiçi sözlük araması: kelime ve iş.
+    online: Option<lookup::OnlineSearch>,
+    /// Çevrimiçi sözlüklerin adresleri.
+    endpoints: lookup::Endpoints,
 }
 
 /// Ekrana yerleştirilmiş PDF sayfa görüntüsü.
@@ -202,6 +208,8 @@ impl App {
             words,
             browser: catalog::Browser::new(catalogs),
             downloads: Vec::new(),
+            online: None,
+            endpoints: lookup::Endpoints::default(),
         }
     }
 
@@ -287,9 +295,10 @@ impl App {
         if event == Event::Tick {
             let feed = self.poll_job();
             let downloads = self.poll_downloads();
-            return feed
+            let online = self.poll_online();
+            return [feed, downloads, online]
                 .into_iter()
-                .chain(downloads)
+                .flatten()
                 .max_by_key(|r| *r == Refresh::Full);
         }
         match &self.view {
@@ -334,6 +343,7 @@ impl App {
             View::Entry { index } => self.handle_entry(*index, event),
             View::Downloads { page, back } => self.handle_downloads(*page, *back, event),
             View::Loading => self.handle_loading(event),
+            View::Searching => self.handle_searching(event),
             View::Form(form) => {
                 let form = (**form).clone();
                 self.handle_form(form, event)
@@ -495,6 +505,7 @@ impl App {
             View::Feed => self.draw_feed(canvas),
             View::Entry { index } => self.draw_entry(canvas, *index),
             View::Loading => self.draw_loading(canvas),
+            View::Searching => self.draw_searching(canvas),
             View::Downloads { page, .. } => self.draw_downloads(canvas, *page),
             View::Form(form) => self.draw_form(canvas, form),
         }

@@ -50,6 +50,10 @@ pub struct Settings {
     pub ocr: bool,
     /// İnternet özellikleri (kataloglar, indirme). Kapalıyken hiç bağlantı kurulmaz.
     pub network: bool,
+    /// Kelime cihazdaki sözlüklerde yoksa TDK'ya sor.
+    pub online_tdk: bool,
+    /// Kelime cihazdaki sözlüklerde yoksa Vikisözlük'e sor.
+    pub online_wiktionary: bool,
 }
 
 impl Default for Settings {
@@ -68,6 +72,8 @@ impl Default for Settings {
             pdf_reflow: false,
             ocr: false,
             network: true,
+            online_tdk: true,
+            online_wiktionary: false,
         }
     }
 }
@@ -88,6 +94,8 @@ pub enum Field {
     PdfReflow,
     Ocr,
     Network,
+    OnlineTdk,
+    OnlineWiktionary,
 }
 
 /// Ayarlar ekranının sayfaları: önce yazı, sonra PDF ayarları. Hepsi tek
@@ -109,6 +117,8 @@ pub const FIELD_PAGES: [&[Field]; 2] = [
         Field::PdfReflow,
         Field::Ocr,
         Field::Network,
+        Field::OnlineTdk,
+        Field::OnlineWiktionary,
     ],
 ];
 
@@ -128,6 +138,8 @@ impl Field {
             Field::PdfReflow => Msg::SettingPdfReflow,
             Field::Ocr => Msg::SettingOcr,
             Field::Network => Msg::SettingNetwork,
+            Field::OnlineTdk => Msg::SettingTdk,
+            Field::OnlineWiktionary => Msg::SettingWiktionary,
         }
     }
 }
@@ -179,6 +191,8 @@ impl Settings {
             Field::PdfReflow => s.pdf_reflow = !s.pdf_reflow,
             Field::Ocr => s.ocr = !s.ocr,
             Field::Network => s.network = !s.network,
+            Field::OnlineTdk => s.online_tdk = !s.online_tdk,
+            Field::OnlineWiktionary => s.online_wiktionary = !s.online_wiktionary,
         }
         s
     }
@@ -213,6 +227,12 @@ impl Settings {
             Field::PdfReflow => tr(if self.pdf_reflow { &Msg::On } else { &Msg::Off }),
             Field::Ocr => tr(if self.ocr { &Msg::On } else { &Msg::Off }),
             Field::Network => tr(if self.network { &Msg::On } else { &Msg::Off }),
+            Field::OnlineTdk => tr(if self.online_tdk { &Msg::On } else { &Msg::Off }),
+            Field::OnlineWiktionary => tr(if self.online_wiktionary {
+                &Msg::On
+            } else {
+                &Msg::Off
+            }),
         }
     }
 }

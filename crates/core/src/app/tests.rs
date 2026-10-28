@@ -21,11 +21,26 @@ fn setup(books: &[(&str, Vec<u8>)]) -> (App, PathBuf, PathBuf) {
     for (name, bytes) in books {
         std::fs::write(root.join(name), bytes).unwrap();
     }
-    (App::new(test_text(), W, store, &root), data, root)
+    let mut app = App::new(test_text(), W, store, &root);
+    no_online_dictionaries(&mut app);
+    (app, data, root)
+}
+
+/// Testler internete çıkmaz: çevrimiçi sözlük kapalı, adresleri kapalı bir porta
+/// yönlenmiş. Çevrimiçi sözlük testleri kendi taklit sunucusunu verir.
+fn no_online_dictionaries(app: &mut App) {
+    app.settings.online_tdk = false;
+    app.settings.online_wiktionary = false;
+    app.endpoints = super::lookup::Endpoints {
+        tdk: "http://127.0.0.1:1/gts".into(),
+        wiktionary: "http://127.0.0.1:1/api.php".into(),
+    };
 }
 
 fn restart(data: &Path, root: &Path) -> App {
-    App::new(test_text(), W, Store::new(data), root)
+    let mut app = App::new(test_text(), W, Store::new(data), root);
+    no_online_dictionaries(&mut app);
+    app
 }
 
 fn long_book() -> Vec<u8> {
@@ -224,12 +239,13 @@ fn settings_apply_on_ok_keep_position_and_persist() {
 #[test]
 fn settings_cancel_discards_changes() {
     let (mut app, _, _) = reading_long_book();
+    let before = app.settings().clone();
     menu(&mut app, MenuItem::Settings);
     let (_, plus) = app.settings_buttons(0);
     tap(&mut app, plus.center());
     let at = app.settings_cancel().center();
     tap(&mut app, at);
-    assert_eq!(app.settings(), &Settings::default());
+    assert_eq!(app.settings(), &before);
     assert!(matches!(app.view, View::Reading));
 }
 
@@ -1668,4 +1684,129 @@ fn downloads_queue_fail_retry_and_cancel_without_leftovers() {
     app.draw(&mut c);
     tap(&mut app, super::ui::back_button(W).center());
     assert!(matches!(app.view, View::Feed));
+}
+
+// --- Çevrimiçi sözlük ---
+
+/// Taklit TDK ve Vikisözlük: yalnızca "ağaç" var; "gölge" içeren sorgu geç yanıtlanır.
+/// Gelen istekleri sayar.
+fn online_dictionary_server() -> (String, std::sync::Arc<std::sync::atomic::AtomicUsize>) {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    let count = std::sync::Arc::new(AtomicUsize::new(0));
+    let seen = count.clone();
+    let agac = "a%C4%9Fa%C3%A7";
+    let url = crate::net::testserver::serve(move |path, _| {
+        seen.fetch_add(1, Ordering::SeqCst);
+        if path.contains("g%C3%B6lge") {
+            std::thread::sleep(std::time::Duration::from_millis(800));
+        }
+        let body = if let Some(q) = path.strip_prefix("/gts?ara=") {
+            if q == agac {
+                r#"[{"madde":"ağaç","anlamlarListe":[{"anlam_sira":"1","anlam":"Gövdeli bitki"}]}]"#
+                    .to_string()
+            } else {
+                r#"{"error":"Sonuç bulunamadı"}"#.to_string()
+            }
+        } else if path.contains("prop=categories") {
+            if path.contains(agac) {
+                r#"{"query":{"pages":[{"title":"ağaçlar"},{"title":"ağaç","categories":[{"title":"Kategori:Türkçe sözcükler"}]}]}}"#.to_string()
+            } else {
+                r#"{"query":{"pages":[]}}"#.to_string()
+            }
+        } else {
+            r#"{"query":{"pages":[{"title":"ağaç","extract":"== Türkçe ==\n=== Ad ===\nKökü toprakta olan bitki.\n"}]}}"#.to_string()
+        };
+        (200, body.into_bytes())
+    });
+    (url, count)
+}
+
+#[test]
+fn words_missing_locally_are_looked_up_online_and_cached() {
+    use std::sync::atomic::Ordering;
+    let (url, requests) = online_dictionary_server();
+    let (mut app, data, _) = setup(&[("uzun.epub", long_book())]);
+    app.settings.online_tdk = true;
+    app.settings.online_wiktionary = true;
+    app.endpoints = super::lookup::Endpoints {
+        tdk: format!("{url}/gts"),
+        wiktionary: format!("{url}/api.php"),
+    };
+    tap_row(&mut app, &LIBRARY, 0);
+    tap_row(&mut app, &CONTENTS, 0);
+
+    select_and(&mut app, "ağaçlar", 2);
+    assert!(matches!(app.view, View::Searching) && app.wants_ticks());
+    let mut c = Canvas::new(W, LIBRA2_HEIGHT);
+    app.draw(&mut c);
+    settle(&mut app);
+    assert!(matches!(app.view, View::Lookup { .. }));
+    assert_eq!(app.lookup.as_ref().unwrap().form, "ağaç", "kök bulundu");
+    assert!(!app.lookup.as_ref().unwrap().pages[0].lines.is_empty());
+    let cache = data.join("cevrimici-sozluk");
+    let tdk = std::fs::read_to_string(cache.join("tdk/ağaçlar.json")).unwrap();
+    assert!(tdk.contains("Gövdeli bitki"), "{tdk}");
+    let wiki = std::fs::read_to_string(cache.join("vikisozluk/ağaçlar.json")).unwrap();
+    assert!(wiki.contains("Kökü toprakta olan bitki."), "{wiki}");
+    // Önce Vikisözlük (kategori + madde); bulduğu kök "ağaç" TDK'da ilk denenir.
+    assert_eq!(requests.load(Ordering::SeqCst), 3);
+
+    // İkinci bakış önbellekten: istek gitmez.
+    tap(&mut app, (W / 2, LIBRA2_HEIGHT / 2));
+    select_and(&mut app, "ağaçlar", 2);
+    settle(&mut app);
+    assert!(matches!(app.view, View::Lookup { .. }));
+    assert_eq!(requests.load(Ordering::SeqCst), 3);
+
+    // Yalnızca TDK açıkken kökler sırayla denenir ("gölgeler" yok, sonra "gölge"...).
+    app.settings.online_wiktionary = false;
+    tap(&mut app, (W / 2, LIBRA2_HEIGHT / 2));
+    select_and(&mut app, "çay", 2);
+    settle(&mut app);
+    assert!(matches!(&app.view, View::Message { msg: Msg::NotInDictionary(w), .. } if w == "çay"));
+    assert_eq!(requests.load(Ordering::SeqCst), 4, "tek aday: çay");
+    tap(&mut app, (10, 10));
+    app.settings.online_wiktionary = true;
+
+    // Hiçbir yerde olmayan kelime.
+    select_and(&mut app, "paragraf", 2);
+    settle(&mut app);
+    assert!(matches!(
+        &app.view,
+        View::Message { msg: Msg::NotInDictionary(w), .. } if w == "paragraf"
+    ));
+    tap(&mut app, (10, 10));
+
+    // Beklerken vazgeçilir.
+    select_and(&mut app, "gölgeler", 2);
+    assert!(matches!(app.view, View::Searching));
+    let cancel = app.loading_cancel().center();
+    tap(&mut app, cancel);
+    assert!(matches!(app.view, View::Reading) && !app.wants_ticks());
+
+    // Sunucuya ulaşılamıyor: neden açıklanır.
+    app.endpoints.tdk = "http://127.0.0.1:1/gts".into();
+    app.endpoints.wiktionary = "http://127.0.0.1:1/api.php".into();
+    select_and(&mut app, "ışık", 2);
+    settle(&mut app);
+    let View::Message { msg, .. } = &app.view else {
+        panic!("mesaj bekleniyordu");
+    };
+    assert!(
+        matches!(msg, Msg::OnlineFailed { word, .. } if word == "ışık"),
+        "{msg:?}"
+    );
+    app.draw(&mut c);
+    tap(&mut app, (10, 10));
+
+    // İnternet kapalıyken çevrimiçi sözlüğe gidilmez.
+    app.settings.network = false;
+    select_and(&mut app, "ışık", 2);
+    assert!(matches!(
+        app.view,
+        View::Message {
+            msg: Msg::NoDictionaries,
+            ..
+        }
+    ));
 }

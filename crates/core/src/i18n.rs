@@ -172,6 +172,18 @@ pub enum Msg {
     },
     NoSpace,
     UntitledBook,
+    // Çevrimiçi sözlük
+    CompoundWords,
+    Idioms,
+    SourceTdk,
+    SourceWiktionary,
+    SearchingDictionary,
+    OnlineFailed {
+        word: String,
+        reason: String,
+    },
+    SettingTdk,
+    SettingWiktionary,
     // Yazı ayarları
     SettingsHint,
     SettingFont,
@@ -366,6 +378,16 @@ pub fn tr(msg: &Msg) -> String {
             format!("%{} · {} / {} MB", done * 100 / (*total).max(1), megabytes(*done), megabytes(*total))
         }
         Msg::Progress { done, total: None } => format!("{} MB", megabytes(*done)),
+        Msg::CompoundWords => "Birleşik kelimeler".into(),
+        Msg::Idioms => "Atasözleri, deyimler ve birleşik fiiller".into(),
+        Msg::SourceTdk => "TDK Güncel Türkçe Sözlük (çevrimiçi)".into(),
+        Msg::SourceWiktionary => "Vikisözlük (çevrimiçi, CC BY-SA)".into(),
+        Msg::SearchingDictionary => "Çevrimiçi sözlükte aranıyor…".into(),
+        Msg::OnlineFailed { word, reason } => {
+            format!("“{word}” cihazdaki sözlüklerde yok; çevrimiçi sözlüğe de ulaşılamadı. {reason}")
+        }
+        Msg::SettingTdk => "Çevrimiçi sözlük: TDK".into(),
+        Msg::SettingWiktionary => "Çevrimiçi sözlük: Vikisözlük".into(),
         Msg::SettingsHint => "Değişiklikler “Tamam”a dokununca uygulanır.".into(),
         Msg::SettingFont => "Yazı tipi".into(),
         Msg::SettingSize => "Yazı boyutu".into(),
@@ -585,6 +607,17 @@ mod tests {
             Downloaded,
             NoSpace,
             UntitledBook,
+            CompoundWords,
+            Idioms,
+            SourceTdk,
+            SourceWiktionary,
+            SearchingDictionary,
+            OnlineFailed {
+                word: "çay".into(),
+                reason: "Bağlantı yok.".into(),
+            },
+            SettingTdk,
+            SettingWiktionary,
             SettingsHint,
             SettingFont,
             SettingSize,

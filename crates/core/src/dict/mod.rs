@@ -12,6 +12,7 @@ pub mod dsl;
 mod index;
 pub mod kobo;
 pub mod mdict;
+pub mod online;
 pub mod render;
 pub mod stardict;
 pub mod stem;
@@ -36,7 +37,7 @@ impl From<std::io::Error> for DictError {
 }
 
 /// Madde metninin biçimi; ekranda düz metne ve basit vurgulara çevrilir.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Markup {
     Plain,
     Html,
@@ -47,7 +48,7 @@ pub enum Markup {
     Dsl,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Article {
     /// Sözlükte yazıldığı biçimiyle madde başı.
     pub headword: String,

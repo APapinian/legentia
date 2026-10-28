@@ -1,21 +1,193 @@
 //! Sözlükte arama ekranı: seçilen kelime (ya da kökü) bütün sözlüklerde
-//! aranır, maddeler okuyucunun dizgisiyle tam ekran gösterilir.
+//! aranır, maddeler okuyucunun dizgisiyle tam ekran gösterilir. Kelime
+//! cihazdaki sözlüklerde yoksa ve ayarlarda açıksa çevrimiçi sözlüklere
+//! (TDK, Vikisözlük) arka planda sorulur; bulunan sonuçlar diske
+//! önbelleklenir, sonra çevrimdışı da açılır.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
+use serde::{Deserialize, Serialize};
+
+use super::jobs::Job;
 use super::session::{Page, paginate};
-use super::ui::{MARGIN, draw_footer};
+use super::ui::{MARGIN, ROW_PX, draw_button, draw_footer, draw_header};
 use super::{App, Back, View};
 use crate::canvas::Canvas;
-use crate::dict::{Dictionaries, render};
+use crate::dict::{Article, Definition, Dictionaries, online, render, stem};
 use crate::epub::{Block, BlockKind};
 use crate::event::{Event, PageKey, Refresh};
 use crate::i18n::{Msg, tr};
+use crate::net::Net;
+use crate::storage::Store;
 use crate::text::{Span, Style};
 
 /// Kütüphane köküne göre sözlük klasörleri: KOReader'ın sözlükleri, Kobo'nun
 /// (yalnızca şifresiz olanlar açılır) ve bizimki.
 const DICT_DIRS: [&str; 3] = [".adds/koreader/data/dict", ".kobo/dict", "Sözlükler"];
+
+/// Çevrimiçi yanıtın en büyük boyutu.
+const ONLINE_LIMIT: u64 = 2 << 20;
+/// Veri klasöründe çevrimiçi sonuçların önbelleği.
+const ONLINE_CACHE: &str = "cevrimici-sozluk";
+
+/// Çevrimiçi sözlüklerin adresleri (testlerde yerel sunucu).
+#[derive(Debug, Clone)]
+pub(super) struct Endpoints {
+    pub tdk: String,
+    pub wiktionary: String,
+}
+
+impl Default for Endpoints {
+    fn default() -> Self {
+        Endpoints {
+            tdk: online::TDK.into(),
+            wiktionary: online::WIKTIONARY.into(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum Provider {
+    Tdk,
+    Wiktionary,
+}
+
+impl Provider {
+    fn source(self) -> Msg {
+        match self {
+            Provider::Tdk => Msg::SourceTdk,
+            Provider::Wiktionary => Msg::SourceWiktionary,
+        }
+    }
+
+    /// Önbellekteki kaydın adı: sağlayıcı ve kelimenin anahtarı (dosya adına
+    /// uymayan karakterler `_`).
+    fn cache_file(self, word: &str) -> String {
+        let dir = match self {
+            Provider::Tdk => "tdk",
+            Provider::Wiktionary => "vikisozluk",
+        };
+        let name: String = crate::dict::key(word)
+            .chars()
+            .map(|c| if c.is_alphanumeric() { c } else { '_' })
+            .collect();
+        format!("{ONLINE_CACHE}/{dir}/{name}.json")
+    }
+
+    /// Ayrı iş parçacığında: bulunan biçim ve maddeler.
+    /// Ayrı iş parçacığında: bulunan biçim ve maddeler. `hint` (başka
+    /// sözlüğün bulduğu kök) TDK'da ilk aday olarak denenir.
+    fn fetch(
+        self,
+        net: &Net,
+        at: &Endpoints,
+        word: &str,
+        hint: Option<&str>,
+    ) -> Result<Option<Cached>, Msg> {
+        let get = |url: &str| {
+            net.get(url, None, ONLINE_LIMIT).map_err(|e| {
+                log::warn!("online dictionary {url}: {e:?}");
+                e.message()
+            })
+        };
+        let invalid = |e: crate::dict::DictError| {
+            log::warn!("online dictionary answer: {e:?}");
+            Msg::NetInvalid
+        };
+        let candidates = stem::candidates(word);
+        match self {
+            Provider::Tdk => {
+                let hinted = hint.map(str::to_string).into_iter();
+                let mut tried = std::collections::HashSet::new();
+                let ordered = hinted.chain(candidates).filter(|c| tried.insert(c.clone()));
+                for c in ordered.take(online::TDK_TRIES) {
+                    let articles =
+                        online::parse_tdk(&get(&online::tdk_url(&at.tdk, &c))?).map_err(invalid)?;
+                    if !articles.is_empty() {
+                        return Ok(Some(Cached { form: c, articles }));
+                    }
+                }
+                Ok(None)
+            }
+            Provider::Wiktionary => {
+                let lemmas = get(&online::wiktionary_lemma_url(&at.wiktionary, &candidates))?;
+                let Some((form, title)) =
+                    online::pick_lemma(&lemmas, &candidates).map_err(invalid)?
+                else {
+                    return Ok(None);
+                };
+                let page = get(&online::wiktionary_extract_url(&at.wiktionary, &title))?;
+                Ok(online::parse_wiktionary(&page, &title)
+                    .map_err(invalid)?
+                    .map(|a| Cached {
+                        form,
+                        articles: vec![a],
+                    }))
+            }
+        }
+    }
+}
+
+/// Sürmekte olan çevrimiçi arama: kelime ve arka plan işi.
+pub(super) type OnlineSearch = (String, Job<Result<Option<Definition>, Msg>>);
+
+/// Önbellekteki çevrimiçi sonuç.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct Cached {
+    form: String,
+    articles: Vec<Article>,
+}
+
+/// Ayrı iş parçacığında: `word`'ü sağlayıcılarda (önce önbellekte) arar.
+/// Hiçbiri bulamadıysa ve biri hata verdiyse hatası döner.
+fn define_online(
+    net: &Net,
+    at: &Endpoints,
+    providers: &[Provider],
+    word: &str,
+    data: &Path,
+) -> Result<Option<Definition>, Msg> {
+    let cache = Store::new(data);
+    let mut found = Vec::new();
+    let mut error = None;
+    // Vikisözlük kök bulmada TDK'dan iyidir (bütün adaylara tek istekte
+    // bakar): önce ona sorulur, bulduğu kök TDK'da ilk denenir.
+    let mut order = providers.to_vec();
+    order.sort_by_key(|p| *p != Provider::Wiktionary);
+    for p in order {
+        let file = p.cache_file(word);
+        if let Some(c) = cache.load::<Cached>(&file) {
+            found.push((p, c));
+            continue;
+        }
+        let hint = found
+            .first()
+            .map(|(_, c): &(Provider, Cached)| c.form.clone());
+        match p.fetch(net, at, word, hint.as_deref()) {
+            Ok(Some(c)) => {
+                cache.save(&file, &c);
+                found.push((p, c));
+            }
+            Ok(None) => {}
+            Err(msg) => {
+                error.get_or_insert(msg);
+            }
+        }
+    }
+    // Gösterim sırası ayarlardaki gibi (TDK önce).
+    found.sort_by_key(|(p, _)| providers.iter().position(|q| q == p));
+    let Some(form) = found.first().map(|(_, c)| c.form.clone()) else {
+        return error.map_or(Ok(None), Err);
+    };
+    let articles = found
+        .into_iter()
+        .flat_map(|(p, c)| {
+            let source = tr(&p.source());
+            c.articles.into_iter().map(move |a| (source.clone(), a))
+        })
+        .collect();
+    Ok(Some(Definition { form, articles }))
+}
 
 /// Gösterilen sözlük sonucu, sayfalara dizilmiş.
 pub(super) struct Lookup {
@@ -44,17 +216,101 @@ impl App {
         })
     }
 
+    /// Ayarlarda açık çevrimiçi sözlükler (internet kapalıysa hiçbiri).
+    fn online_providers(&self) -> Vec<Provider> {
+        let s = &self.settings;
+        let mut out = Vec::new();
+        if s.network && s.online_tdk {
+            out.push(Provider::Tdk);
+        }
+        if s.network && s.online_wiktionary {
+            out.push(Provider::Wiktionary);
+        }
+        out
+    }
+
     /// `word`'ü arar; bulunursa tanım ekranını, bulunamazsa açıklamayı gösterir.
+    /// Cihazdaki sözlüklerde yoksa çevrimiçi arama arka planda başlar.
     pub(super) fn look_up(&mut self, word: &str) -> Option<Refresh> {
-        let width = self.width;
-        if self.dictionaries().is_empty() {
-            self.show_message(Msg::NoDictionaries);
+        let word = word.trim().to_string();
+        let local = {
+            let dicts = self.dictionaries();
+            (!dicts.is_empty()).then(|| dicts.define(&word)).flatten()
+        };
+        if let Some(def) = local {
+            return self.show_definition(&word, &def);
+        }
+        let providers = self.online_providers();
+        if !providers.is_empty() {
+            let net = self.browser.net();
+            let data = self.store.dir().to_path_buf();
+            let (w, at) = (word.clone(), self.endpoints.clone());
+            let job = Job::spawn(move |_| define_online(&net, &at, &providers, &w, &data));
+            self.online = Some((word, job));
+            self.view = View::Searching;
             return Some(self.refresh(true));
         }
-        let Some(def) = self.dictionaries().define(word) else {
-            self.show_message(Msg::NotInDictionary(word.trim().to_string()));
-            return Some(self.refresh(true));
+        let msg = if self.dictionaries().is_empty() {
+            Msg::NoDictionaries
+        } else {
+            Msg::NotInDictionary(word)
         };
+        self.show_message(msg);
+        Some(self.refresh(true))
+    }
+
+    /// `Event::Tick`: çevrimiçi arama bittiyse sonucu gösterir.
+    pub(super) fn poll_online(&mut self) -> Option<Refresh> {
+        let (_, job) = self.online.as_ref()?;
+        let result = job.poll()?;
+        let (word, _) = self.online.take()?;
+        match result {
+            Some(Ok(Some(def))) => return self.show_definition(&word, &def),
+            Some(Ok(None)) => self.show_message(Msg::NotInDictionary(word)),
+            failed => {
+                let reason = failed.and_then(Result::err).unwrap_or(Msg::NetInvalid);
+                self.show_message(Msg::OnlineFailed {
+                    word,
+                    reason: tr(&reason),
+                });
+            }
+        }
+        Some(self.refresh(true))
+    }
+
+    pub(super) fn handle_searching(&mut self, event: Event) -> Option<Refresh> {
+        let Event::Tap { x, y } = event else {
+            return None;
+        };
+        if !self.loading_cancel().contains(x, y) {
+            return None;
+        }
+        self.online = None;
+        self.view = View::Reading;
+        Some(self.refresh(true))
+    }
+
+    pub(super) fn draw_searching(&self, canvas: &mut Canvas) {
+        let word = self.online.as_ref().map_or("", |(w, _)| w.as_str());
+        draw_header(
+            &self.text,
+            canvas,
+            &tr(&Msg::SearchingDictionary),
+            word,
+            false,
+        );
+        draw_button(
+            &self.text,
+            canvas,
+            self.loading_cancel(),
+            &tr(&Msg::Cancel),
+            ROW_PX,
+        );
+    }
+
+    /// Sözlük sonucunu sayfalara dizip tanım ekranını açar.
+    fn show_definition(&mut self, word: &str, def: &Definition) -> Option<Refresh> {
+        let width = self.width;
         let mut blocks = Vec::new();
         let asked = crate::dict::key(word);
         if crate::dict::key(&def.form) != asked {
@@ -70,7 +326,7 @@ impl App {
         self.lookup = Some(Lookup {
             pages,
             form: def.form.clone(),
-            seen: word.trim().to_string(),
+            seen: word.to_string(),
         });
         self.view = View::Lookup { page: 0 };
         Some(self.refresh(true))

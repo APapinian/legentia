@@ -196,7 +196,9 @@ fn run(
 impl App {
     /// Arka plan işi sürüyor: platform `Event::Tick` göndermeli.
     pub fn wants_ticks(&self) -> bool {
-        self.browser.job.is_some() || self.downloads.iter().any(Download::active)
+        self.browser.job.is_some()
+            || self.downloads.iter().any(Download::active)
+            || self.online.is_some()
     }
 
     fn download_of(&self, dest: &Path) -> Option<usize> {
