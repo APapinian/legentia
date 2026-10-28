@@ -276,6 +276,8 @@ Not: PDF'e not yazma, M6'daki ortak konumlandırma modeline bağlıdır; M5'te P
 
 ## M9 — Google Drive
 
+**Kullanıcı kararı (2026-10-28): v2'ye bırakıldı.** Ana aktarım yolu USB; OPDS ve Calibre M8'de hazır. Aşağıdaki işler v2'de ele alınacak; araştırma sonuçları "v2'ye bırakılanlar" bölümünde.
+
 **Amaç:** Drive kitaplık erişimini güvenli ve kararlı biçimde eklemek.
 
 ### İşler
@@ -327,6 +329,7 @@ Kullanıcı kararı (2026-10-28): uygulama bittikten sonra v2 güncellemesinde e
 - Sözlük: LZO sıkıştırmalı ve GBK/Big5 kodlamalı MDict; DSL dizininin diske önbelleklenmesi; sözlüğün dil bilgisinin gösterilmesi; diğer diller için kök bulma (Almanca, Rusça, Japonca).
 - Sözlük: şifreli sözlükler (Kobo'nun resmî dicthtml'leri, kayıt kodlu MDict) kopya koruması nedeniyle desteklenmeyecek; v2'de de ancak kullanıcının yasal olarak açabildiği bir yol varsa.
 - Vurgu/not: taranmış (OCR'lı) sayfa görüntüsünde seçim; notta imleci metin ortasına taşıma.
+- Google Drive (M9). Araştırma (2026-10-28, Google belgeleri): tarayıcısız cihaz akışı (google.com/device + kod) yalnızca `drive.file` ve `drive.appdata` izinlerini kabul ediyor; `drive.file` uygulamanın kendi oluşturmadığı dosyaları göremez, yani Drive'daki mevcut kitaplar listelenemez (ama not/ilerleme/yedek eşitlemesine yeter). Bütün Drive'ı okumak (`drive.readonly`) "kısıtlı" izin: herkese açık uygulamada Google doğrulaması gerekir, cihaz akışında hiç verilmez; ancak bilgisayarda tarayıcıyla (loopback) alınabilir. "Test" durumundaki projede yetki 7 günde sona erer; "Yayında" ama doğrulanmamış projede giriş uyarısı çıkar, en çok 100 kullanıcı. Her yol kullanıcının kendi Google Cloud projesini ve istemci kimliğini gerektirir. Seçenekler: bilgisayarda bir kez giriş + USB ile yetki dosyası; bağlantıyla paylaşılan klasör + API anahtarı (OAuth'suz, ama bağlantıyı bilen herkes görür); cihazda kodla giriş yalnızca eşitleme için.
 - PDF: sütun modunda neredeyse boş sayfaların (kapak) yanlış bölünmesi; sütunları aşan uzun başlıklı sayfalarda sütun bulma.
 
 ## Her sürüm için genel tamamlanma ölçütleri
