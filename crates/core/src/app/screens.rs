@@ -302,10 +302,20 @@ impl App {
             if s.bookmark_here().is_some() {
                 draw_dog_ear(canvas);
             }
-            let footer = Msg::PdfFooter {
-                page: s.spine + 1,
-                pages: s.chapter_count(),
-                percent: s.percent(),
+            let footer = if s.pages.len() > 1 {
+                Msg::PdfScreenFooter {
+                    page: s.spine + 1,
+                    pages: s.chapter_count(),
+                    screen: s.page + 1,
+                    screens: s.pages.len(),
+                    percent: s.percent(),
+                }
+            } else {
+                Msg::PdfFooter {
+                    page: s.spine + 1,
+                    pages: s.chapter_count(),
+                    percent: s.percent(),
+                }
             };
             draw_footer(t, canvas, &footer, MARGIN);
             return;
@@ -320,7 +330,7 @@ impl App {
             draw_dog_ear(canvas);
         }
         let footer = if s.pdf().is_some() {
-            Msg::PdfReflowFooter {
+            Msg::PdfScreenFooter {
                 page: s.spine + 1,
                 pages: s.chapter_count(),
                 screen: s.page + 1,

@@ -1,6 +1,6 @@
 # Legentia
 
-Kobo Libra 2 için Rust ile yazılan, tamamen Türkçe arayüzlü e-kitap okuyucu. Şu an M4 tamamlandı, M5 (PDF) sürüyor: simülatörde EPUB ve PDF okuma; kütüphane, içindekiler, menü, yer imleri, yazı ayarları; PDF'te otomatik kenar kırpma ve metni yeniden akıtma.
+Kobo Libra 2 için Rust ile yazılan, tamamen Türkçe arayüzlü e-kitap okuyucu. Şu an M4 tamamlandı, M5 (PDF) sürüyor: simülatörde EPUB ve PDF okuma; kütüphane, içindekiler, menü, yer imleri, yazı ayarları; PDF'te otomatik kenar kırpma, genişliğe sığdırma, sütun sütun okuma, yakınlaştırma ve metni yeniden akıtma.
 
 Belgeler: `kobo-rust-okuyucu-proje-aktarim.md` (vizyon), `milestone.md` (plan), `dikkat-edilmesi-gerekenler.md` (kurallar), `docs/device-compatibility.md` (cihaz bilgisi), `docs/epub-support.md` (desteklenen EPUB özellikleri), `docs/dependencies.md` (bağımlılıklar, fontlar ve lisansları).
 
@@ -35,7 +35,7 @@ cargo run --release -p legentia-core --example ocr_check -- <belge.pdf> <sayfa> 
 cargo run --release -p legentia-core --example pdf_text -- <belge.pdf> [ilk sayfa] [son sayfa]
 
 # Pencere açmadan ekran görüntüleri (PGM): kütüphane, içindekiler, okuma, menü, ayarlar
-cargo run --release -p legentia-core --example screenshots -- <kütüphane> <çıktı klasörü> [kitap sırası] [reflow]
+cargo run --release -p legentia-core --example screenshots -- <kütüphane> <çıktı klasörü> [kitap sırası] [reflow] [sutun]
 
 # Kobo hedefi: statik ARMv7 musl; testler qemu-arm ile çalışır
 cargo build -p legentia-core --target armv7-unknown-linux-musleabihf

@@ -4,14 +4,17 @@
 //! görünümünde bölüm tek ekrandır; yeniden akıtmada sayfanın metni EPUB gibi
 //! ekranlara dizilir. İki görünümde de konum aynı anlamı taşır.
 
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 
+use super::pdf_view::{Screen, page_screens};
 use super::settings::Settings;
 use super::ui::{BOTTOM, TOP};
 use crate::epub::{Block, BlockKind, Book, TocEntry};
 use crate::i18n::{Msg, tr};
 use crate::ocr;
-use crate::pdf::{OcrLayer, PdfDoc};
+use crate::pdf::{OcrLayer, PageLayout, PdfDoc};
 use crate::storage::Store;
 use crate::text::{Align, Family, Line, ParaStyle, Style, Text, layout};
 
@@ -57,6 +60,8 @@ pub(super) struct PlacedLine {
 pub(super) struct Page {
     pub lines: Vec<PlacedLine>,
     pub start: Position,
+    /// PDF sayfa görüntüsünde bu ekranın gösterdiği bölüm; metin sayfasında yok.
+    pub screen: Option<Screen>,
 }
 
 pub(super) enum Target {
@@ -78,6 +83,8 @@ pub(super) struct Session {
     pub path: std::path::PathBuf,
     /// OCR sonuçlarının kitap başına önbelleği (`ocr/<kimlik>/<sayfa>.json`).
     pub ocr_cache: Option<Store>,
+    /// PDF sayfası → içerik alanı ve sütunlar (oturum boyunca).
+    pub pdf_layouts: HashMap<usize, PageLayout>,
     pub id: String,
     pub state: BookState,
     pub spine: usize,
@@ -93,6 +100,7 @@ impl Session {
             name,
             path: std::path::PathBuf::new(),
             ocr_cache: None,
+            pdf_layouts: HashMap::new(),
             id,
             state,
             spine: 0,
@@ -174,17 +182,43 @@ impl Session {
             }
             Doc::Pdf(_) => Vec::new(),
         };
-        let pages = if self.pdf().is_some() && blocks.is_empty() {
-            vec![Page {
+        let image = match &self.doc {
+            Doc::Pdf(pdf) if blocks.is_empty() => Some(page_screens(
+                pdf,
+                &mut self.pdf_layouts,
+                settings,
+                width,
+                spine,
+            )),
+            _ => None,
+        };
+        let pages = match &image {
+            // Sayfa görüntüsünün ekranları; konum, ekranın okuma sırasındaki yeri (binde).
+            // Bölünemeyen sayfa tek ekran kalır, çizilirken hata gösterilir.
+            Some(screens) if screens.is_empty() => vec![Page {
                 lines: Vec::new(),
                 start: Position::default(),
-            }]
-        } else {
-            paginate(text, settings, self.language(), width, &blocks)
+                screen: None,
+            }],
+            Some(screens) => screens
+                .iter()
+                .enumerate()
+                .map(|(i, screen)| Page {
+                    lines: Vec::new(),
+                    start: Position {
+                        block: 0,
+                        offset: i * 1000 / screens.len(),
+                    },
+                    screen: Some(*screen),
+                })
+                .collect(),
+            None => paginate(text, settings, self.language(), width, &blocks),
         };
         self.page = match target {
             Target::Start => 0,
             Target::End => pages.len() - 1,
+            // Yeniden akıtılmış metindeki konumun (blok > 0) görüntüde karşılığı yok.
+            Target::At(pos) if image.is_some() && pos.block > 0 => 0,
             Target::At(pos) => page_of(&pages, pos),
         };
         self.spine = spine;
@@ -323,6 +357,7 @@ fn paginate(
     let mut pages = vec![Page {
         lines: Vec::new(),
         start: Position::default(),
+        screen: None,
     }];
     let mut y = TOP as f32;
     for (index, block) in blocks.iter().enumerate() {
@@ -368,6 +403,7 @@ fn paginate(
                 pages.push(Page {
                     lines: Vec::new(),
                     start: Position::default(),
+                    screen: None,
                 });
                 y = TOP as f32;
             }

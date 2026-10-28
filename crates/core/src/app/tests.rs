@@ -411,6 +411,97 @@ fn pdf_crop_enlarges_the_content() {
     );
 }
 
+/// Ayarlar ekranında bir alanı `times` kez artırıp "Tamam"a dokunur.
+fn change_setting(app: &mut App, field: Field, times: usize) {
+    menu(app, MenuItem::Settings);
+    for _ in 0..times {
+        press_plus(app, field);
+    }
+    let at = app.settings_ok().center();
+    tap(app, at);
+}
+
+fn screens(app: &App) -> Vec<super::pdf_view::Screen> {
+    session(app).pages.iter().filter_map(|p| p.screen).collect()
+}
+
+#[test]
+fn pdf_width_and_zoom_split_the_page_into_screens() {
+    let (mut app, _, _) = setup(&[("metin.pdf", text_pdf())]);
+    tap_row(&mut app, &LIBRARY, 0);
+    assert_eq!(session(&app).pages.len(), 1, "sayfaya sığdırınca tek ekran");
+
+    change_setting(&mut app, Field::PdfView, 1);
+    assert_eq!(app.settings().pdf_view, settings::PdfView::Width);
+    change_setting(&mut app, Field::PdfZoom, 3);
+    assert_eq!(app.settings().pdf_zoom, 200);
+    let s = screens(&app);
+    assert_eq!(s.len(), 6, "%200 genişlikte 2 sütun × 3 satır ekran: {s:?}");
+    // Okuma sırası: önce soldaki, sonra sağdaki karo; sonra aşağı.
+    assert!(s[1].area.x > s[0].area.x && s[1].area.y == s[0].area.y);
+    assert!(s[2].area.y > s[0].area.y);
+    let mut c = Canvas::new(W, LIBRA2_HEIGHT);
+    app.draw(&mut c);
+    assert!(ink(&c) > 1000);
+
+    // Ekranlar bitince sonraki PDF sayfası; geri dönünce önceki sayfanın son ekranı.
+    for _ in 0..6 {
+        key(&mut app, true);
+    }
+    assert_eq!((session(&app).spine, session(&app).page), (1, 0));
+    key(&mut app, false);
+    assert_eq!((session(&app).spine, session(&app).page), (0, 5));
+
+    // Yakınlaştırma değişince okuma sırasındaki yer korunur.
+    menu(&mut app, MenuItem::Settings);
+    let at = app.settings_page_button().center(); // PDF ayarları
+    tap(&mut app, at);
+    let row = FIELD_PAGES[1]
+        .iter()
+        .position(|f| *f == Field::PdfZoom)
+        .unwrap();
+    let at = app.settings_buttons(row).0.center(); // "−"
+    tap(&mut app, at);
+    let at = app.settings_ok().center();
+    tap(&mut app, at);
+    assert_eq!(app.settings().pdf_zoom, 150);
+    let s = session(&app);
+    assert_eq!(s.spine, 0);
+    assert_eq!(s.page, s.pages.len() - 1, "son ekranda kalmalı");
+}
+
+#[test]
+fn pdf_columns_are_read_one_after_another() {
+    let line = |x0: u32, x1: u32, top: u32, bottom: u32| -> String {
+        (bottom..top)
+            .step_by(14)
+            .map(|y| format!("{x0} {y} {} 8 re f ", x1 - x0))
+            .collect()
+    };
+    let page = format!("{}{}", line(72, 290, 720, 100), line(322, 540, 720, 100));
+    let (mut app, _, _) = setup(&[(
+        "sutun.pdf",
+        crate::pdf::testutil::pdf_with_content(&[&page]),
+    )]);
+    tap_row(&mut app, &LIBRARY, 0);
+    change_setting(&mut app, Field::PdfView, 2);
+    assert_eq!(app.settings().pdf_view, settings::PdfView::Columns);
+    let s = screens(&app);
+    assert!(s.len() >= 2, "{s:?}");
+    let half = s.len() / 2;
+    assert!(
+        s[..half].iter().all(|x| x.area.x < 100.0),
+        "önce sol sütun: {s:?}"
+    );
+    assert!(
+        s[half..].iter().all(|x| x.area.x > 300.0),
+        "sonra sağ sütun: {s:?}"
+    );
+    // Sütun ekran genişliğine sığar: tüm sayfayı sığdırmaktan büyük ölçek.
+    let (pw, _) = session(&app).pdf().unwrap().page_size(0).unwrap();
+    assert!(s[0].scale > 1.5 * (W as f32 / pw), "{}", s[0].scale);
+}
+
 #[test]
 fn broken_pdf_shows_turkish_error() {
     let (mut app, _, _) = setup(&[("bozuk.pdf", b"%PDF-1.4 bozuk".to_vec())]);

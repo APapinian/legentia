@@ -19,7 +19,7 @@ use crate::epub::Book;
 use crate::event::{Event, Refresh};
 use crate::i18n::Msg;
 use crate::library::{self, Entry, Format};
-use crate::pdf::{Area, GrayImage, PdfDoc, PdfEdit};
+use crate::pdf::{GrayImage, PdfDoc, PdfEdit};
 use crate::storage::Store;
 use crate::text::Text;
 pub use session::{BookState, Bookmark, Position};
@@ -66,16 +66,14 @@ pub struct App {
     since_full: u32,
     /// Son kayıttan beri çevrilen sayfa sayısı.
     unsaved_turns: u32,
-    /// Son çizilen PDF sayfası; menü açılıp kapanınca yeniden çizilmez.
+    /// Son çizilen PDF ekranı; menü açılıp kapanınca yeniden çizilmez.
     pdf_frame: RefCell<Option<PdfFrame>>,
-    /// PDF sayfası → kırpılmış içerik alanı (oturum boyunca).
-    pdf_areas: RefCell<HashMap<usize, Area>>,
 }
 
 /// Ekrana yerleştirilmiş PDF sayfa görüntüsü.
 struct PdfFrame {
     page: usize,
-    crop: bool,
+    screen: pdf_view::Screen,
     image: GrayImage,
     x: i32,
     y: i32,
@@ -106,7 +104,6 @@ impl App {
             since_full: 0,
             unsaved_turns: 0,
             pdf_frame: RefCell::new(None),
-            pdf_areas: RefCell::new(HashMap::new()),
         }
     }
 
@@ -170,7 +167,6 @@ impl App {
         }
         self.session = Some(session);
         self.pdf_frame.replace(None);
-        self.pdf_areas.borrow_mut().clear();
         self.view = View::Contents { page: 0 };
         match last {
             Some((spine, at)) => self.open_chapter(spine, Target::At(at)),

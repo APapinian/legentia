@@ -7,6 +7,21 @@ use crate::text::{book_family_count, book_family_name};
 pub const FONT_SIZES: &[f32] = &[28.0, 32.0, 36.0, 40.0, 44.0, 48.0, 54.0, 60.0, 68.0, 76.0];
 pub const LINE_SPACINGS: &[f32] = &[1.2, 1.3, 1.4, 1.5, 1.6, 1.8, 2.0];
 pub const MARGINS: &[i32] = &[30, 50, 70, 100, 130, 160];
+/// PDF yakınlaştırma adımları (yüzde).
+pub const PDF_ZOOMS: &[u32] = &[100, 125, 150, 200];
+
+/// PDF sayfa görüntüsünün ekrana yerleşimi. Ekrana sığmayan kısım birden çok
+/// ekrana bölünür; sayfa tuşları ekran ekran ilerler.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum PdfView {
+    /// Sayfanın tamamı tek ekranda.
+    #[default]
+    Page,
+    /// Sayfa genişliği ekrana sığar; boyu ekranlara bölünür.
+    Width,
+    /// Sütunlar sırayla, her biri genişliğe sığdırılarak.
+    Columns,
+}
 
 /// Okuma ayarları. Değişince bölüm yeniden dizilir, okuma konumu korunur.
 /// Kayıt dosyasında eksik alanlar varsayılanla doldurulur.
@@ -26,6 +41,9 @@ pub struct Settings {
     pub night: bool,
     /// PDF sayfalarının beyaz kenarlarını kırpıp içeriği ekrana büyüt.
     pub pdf_crop: bool,
+    pub pdf_view: PdfView,
+    /// Yakınlaştırma (yüzde); `pdf_view`'in sığdırdığı boyutun bu katı.
+    pub pdf_zoom: u32,
     /// PDF'in metnini sayfa görüntüsü yerine EPUB gibi yeniden diz.
     pub pdf_reflow: bool,
     /// Yeniden akıtırken metin katmanı olmayan (taranmış) sayfaları OCR ile oku.
@@ -43,6 +61,8 @@ impl Default for Settings {
             hyphenate: true,
             night: false,
             pdf_crop: true,
+            pdf_view: PdfView::Page,
+            pdf_zoom: 100,
             pdf_reflow: false,
             ocr: false,
         }
@@ -59,6 +79,8 @@ pub enum Field {
     Align,
     Hyphenate,
     Night,
+    PdfView,
+    PdfZoom,
     PdfCrop,
     PdfReflow,
     Ocr,
@@ -76,7 +98,13 @@ pub const FIELD_PAGES: [&[Field]; 2] = [
         Field::Hyphenate,
         Field::Night,
     ],
-    &[Field::PdfCrop, Field::PdfReflow, Field::Ocr],
+    &[
+        Field::PdfView,
+        Field::PdfZoom,
+        Field::PdfCrop,
+        Field::PdfReflow,
+        Field::Ocr,
+    ],
 ];
 
 impl Field {
@@ -89,6 +117,8 @@ impl Field {
             Field::Align => Msg::SettingAlign,
             Field::Hyphenate => Msg::SettingHyphenate,
             Field::Night => Msg::SettingNight,
+            Field::PdfView => Msg::SettingPdfView,
+            Field::PdfZoom => Msg::SettingPdfZoom,
             Field::PdfCrop => Msg::SettingPdfCrop,
             Field::PdfReflow => Msg::SettingPdfReflow,
             Field::Ocr => Msg::SettingOcr,
@@ -126,6 +156,19 @@ impl Settings {
             Field::Align => s.justify = !s.justify,
             Field::Hyphenate => s.hyphenate = !s.hyphenate,
             Field::Night => s.night = !s.night,
+            Field::PdfView => {
+                const VIEWS: [PdfView; 3] = [PdfView::Page, PdfView::Width, PdfView::Columns];
+                let i = VIEWS.iter().position(|v| *v == s.pdf_view).unwrap_or(0);
+                s.pdf_view = VIEWS[if up { (i + 1) % 3 } else { (i + 2) % 3 }];
+            }
+            Field::PdfZoom => {
+                s.pdf_zoom = PDF_ZOOMS[step(
+                    PDF_ZOOMS.len(),
+                    |i| PDF_ZOOMS[i] as f32,
+                    s.pdf_zoom as f32,
+                    up,
+                )]
+            }
             Field::PdfCrop => s.pdf_crop = !s.pdf_crop,
             Field::PdfReflow => s.pdf_reflow = !s.pdf_reflow,
             Field::Ocr => s.ocr = !s.ocr,
@@ -153,6 +196,12 @@ impl Settings {
             }),
             Field::Hyphenate => tr(if self.hyphenate { &Msg::On } else { &Msg::Off }),
             Field::Night => tr(if self.night { &Msg::On } else { &Msg::Off }),
+            Field::PdfView => tr(match self.pdf_view {
+                PdfView::Page => &Msg::PdfViewPage,
+                PdfView::Width => &Msg::PdfViewWidth,
+                PdfView::Columns => &Msg::PdfViewColumns,
+            }),
+            Field::PdfZoom => tr(&Msg::Percent(self.pdf_zoom)),
             Field::PdfCrop => tr(if self.pdf_crop { &Msg::On } else { &Msg::Off }),
             Field::PdfReflow => tr(if self.pdf_reflow { &Msg::On } else { &Msg::Off }),
             Field::Ocr => tr(if self.ocr { &Msg::On } else { &Msg::Off }),
@@ -204,6 +253,18 @@ mod tests {
         assert_eq!(s.value_text(Field::Align), "İki yana");
         assert_eq!(s.value_text(Field::Night), "Kapalı");
         assert_eq!(s.step(Field::Night, true).value_text(Field::Night), "Açık");
+        assert_eq!(s.value_text(Field::PdfView), "Sayfaya sığdır");
+        assert_eq!(
+            s.step(Field::PdfZoom, true).value_text(Field::PdfZoom),
+            "%125"
+        );
+    }
+
+    #[test]
+    fn pdf_view_cycles_both_ways() {
+        let s = Settings::default();
+        assert_eq!(s.step(Field::PdfView, true).pdf_view, PdfView::Width);
+        assert_eq!(s.step(Field::PdfView, false).pdf_view, PdfView::Columns);
     }
 
     #[test]

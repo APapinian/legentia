@@ -39,7 +39,7 @@ pub enum Msg {
         pages: usize,
         percent: u32,
     },
-    PdfReflowFooter {
+    PdfScreenFooter {
         page: usize,
         pages: usize,
         screen: usize,
@@ -74,6 +74,11 @@ pub enum Msg {
     SettingAlign,
     SettingHyphenate,
     SettingNight,
+    SettingPdfView,
+    PdfViewPage,
+    PdfViewWidth,
+    PdfViewColumns,
+    SettingPdfZoom,
     SettingPdfCrop,
     SettingPdfReflow,
     SettingOcr,
@@ -132,7 +137,7 @@ pub fn tr(msg: &Msg) -> String {
             format!("Bölüm {chapter}/{chapters} · Sayfa {page}/{pages} · %{percent}")
         }
         Msg::PdfFooter { page, pages, percent } => format!("Sayfa {page}/{pages} · %{percent}"),
-        Msg::PdfReflowFooter { page, pages, screen, screens, percent } => {
+        Msg::PdfScreenFooter { page, pages, screen, screens, percent } => {
             format!("Sayfa {page}/{pages} ({screen}/{screens}) · %{percent}")
         }
         Msg::PageNumber(n) => format!("Sayfa {n}"),
@@ -160,6 +165,11 @@ pub fn tr(msg: &Msg) -> String {
         Msg::SettingAlign => "Hizalama".into(),
         Msg::SettingHyphenate => "Heceleme".into(),
         Msg::SettingNight => "Gece modu (ters renk)".into(),
+        Msg::SettingPdfView => "PDF görünümü".into(),
+        Msg::PdfViewPage => "Sayfaya sığdır".into(),
+        Msg::PdfViewWidth => "Genişliğe sığdır".into(),
+        Msg::PdfViewColumns => "Sütun sütun".into(),
+        Msg::SettingPdfZoom => "PDF yakınlaştırma".into(),
         Msg::SettingPdfCrop => "PDF kenarlarını kırp".into(),
         Msg::SettingPdfReflow => "PDF metnini yeniden akıt".into(),
         Msg::SettingOcr => "Taranmış sayfaları OCR ile oku".into(),
@@ -236,7 +246,7 @@ mod tests {
                 pages: 2,
                 percent: 50,
             },
-            PdfReflowFooter {
+            PdfScreenFooter {
                 page: 1,
                 pages: 2,
                 screen: 1,
@@ -269,6 +279,11 @@ mod tests {
             SettingAlign,
             SettingHyphenate,
             SettingNight,
+            SettingPdfView,
+            PdfViewPage,
+            PdfViewWidth,
+            PdfViewColumns,
+            SettingPdfZoom,
             SettingPdfCrop,
             SettingPdfReflow,
             SettingOcr,

@@ -185,36 +185,53 @@ impl PdfDoc {
     }
 }
 
+/// Sayfanın içerik düzeni: beyaz kenarlar atılmış alan ve soldan sağa sütunlar
+/// (tek sütunlu sayfada tek eleman, içerik alanının kendisi).
+#[derive(Debug, Clone, PartialEq)]
+pub struct PageLayout {
+    pub content: Area,
+    pub columns: Vec<Area>,
+}
+
 impl PdfDoc {
-    /// Sayfanın beyaz kenarlar atılmış içerik alanı; boş sayfada tüm sayfa.
-    pub fn content_area(&self, index: usize) -> Result<Area, PdfError> {
+    /// Sayfanın içerik alanı ve sütunları; boş sayfada tüm sayfa. Sayfa düşük
+    /// çözünürlükte bir kez çizilir.
+    pub fn page_layout(&self, index: usize) -> Result<PageLayout, PdfError> {
         let (pw, ph) = self.page_size(index).ok_or(PdfError::PageMissing(index))?;
         let probe = self.render(index, CROP_PROBE_SCALE)?;
-        let full = Area {
-            x: 0.0,
-            y: 0.0,
-            w: pw,
-            h: ph,
-        };
-        let Some((x0, y0, x1, y1)) = ink_bounds(&probe) else {
-            return Ok(full);
+        let Some(bounds) = ink_bounds(&probe) else {
+            let full = Area {
+                x: 0.0,
+                y: 0.0,
+                w: pw,
+                h: ph,
+            };
+            return Ok(PageLayout {
+                content: full,
+                columns: vec![full],
+            });
         };
         let sx = pw / probe.width as f32;
         let sy = ph / probe.height as f32;
-        let (x, y, w, h) = (
-            x0 as f32 * sx,
-            y0 as f32 * sy,
-            (x1 - x0 + 1) as f32 * sx,
-            (y1 - y0 + 1) as f32 * sy,
-        );
-        let pad = CROP_PADDING * w.max(h);
-        let x = (x - pad).max(0.0);
-        let y = (y - pad).max(0.0);
-        Ok(Area {
-            x,
-            y,
-            w: (w + 2.0 * pad).min(pw - x),
-            h: (h + 2.0 * pad).min(ph - y),
+        let (x0, y0, x1, y1) = bounds;
+        let pad = CROP_PADDING * ((x1 - x0 + 1) as f32 * sx).max((y1 - y0 + 1) as f32 * sy);
+        // Piksel kutusunu punto alanına çevirir; çevresine pay bırakıp sayfaya sığdırır.
+        let to_area = |(x0, y0, x1, y1): (u32, u32, u32, u32)| {
+            let x = (x0 as f32 * sx - pad).max(0.0);
+            let y = (y0 as f32 * sy - pad).max(0.0);
+            Area {
+                x,
+                y,
+                w: ((x1 + 1) as f32 * sx + pad).min(pw) - x,
+                h: ((y1 + 1) as f32 * sy + pad).min(ph) - y,
+            }
+        };
+        Ok(PageLayout {
+            content: to_area(bounds),
+            columns: column_bounds(&probe, bounds)
+                .into_iter()
+                .map(to_area)
+                .collect(),
         })
     }
 }
@@ -242,6 +259,81 @@ fn ink_bounds(img: &GrayImage) -> Option<(u32, u32, u32, u32)> {
     let y0 = rows.iter().position(|&c| c >= min_row)? as u32;
     let y1 = rows.iter().rposition(|&c| c >= min_row)? as u32;
     Some((x0, y0, x1, y1))
+}
+
+/// Sütun arasındaki dikey ayırıcı çizginin (kenar yumuşatmasıyla) en fazla
+/// genişliği (yoklama pikseli).
+const RULE_PX: usize = 4;
+
+/// İçerik kutusunu (x0, y0, x1, y1) sütunlara böler. Her x için koyu pikselli
+/// satır sayılır; olası sütun aralarındaki en boş x'in sayısı taban alınır (sütunları
+/// aşan başlık ve çizgiler bu tabana girer). Taban içerik yüksekliğinin %10'undan
+/// fazlaysa sayfa tek sütundur. Oluk: tabana çok yakın x'lerin en az içerik
+/// genişliğinin 1/40'ı kadar kesintisiz dizisi; içindeki ince dikey ayırıcı çizgi
+/// oluğa dahildir. Seyrek sütunlarda metin de satırların azında mürekkep bıraktığından
+/// eşik mutlak değil, tabana göredir. Her sütun en az içerik genişliğinin beşte biri
+/// olmalı; yoksa tablo ya da girinti sayılıp bölünmez. Her sütunun dikey sınırı
+/// kendi içinden bulunur.
+fn column_bounds(
+    img: &GrayImage,
+    (x0, y0, x1, y1): (u32, u32, u32, u32),
+) -> Vec<(u32, u32, u32, u32)> {
+    let w = img.width;
+    let dark = |x: u32, y: u32| img.pixels[(y * w + x) as usize] < INK;
+    let (content_w, content_h) = (x1 - x0 + 1, y1 - y0 + 1);
+    let ink: Vec<u32> = (x0..=x1)
+        .map(|x| (y0..=y1).filter(|&y| dark(x, y)).count() as u32)
+        .collect();
+    let n = ink.len();
+    let min_col = content_w as usize / 5;
+    let floor = ink[min_col..n - min_col]
+        .iter()
+        .copied()
+        .min()
+        .unwrap_or(u32::MAX);
+    if floor > content_h / 10 {
+        return vec![(x0, y0, x1, y1)];
+    }
+    let mut gutter: Vec<bool> = ink.iter().map(|&c| c <= floor + content_h / 100).collect();
+    let mut i = 0;
+    while i < n {
+        let j = (i..n).find(|&j| gutter[j]).unwrap_or(n);
+        if i > 0 && j < n && j - i <= RULE_PX {
+            gutter[i..j].fill(true);
+        }
+        i = j + 1;
+    }
+    let min_gap = (content_w as usize / 40).max(2);
+    let mut spans = Vec::new();
+    let mut start = 0;
+    let mut i = 0;
+    while i < n {
+        if !gutter[i] {
+            i += 1;
+            continue;
+        }
+        let j = (i..n).find(|&j| !gutter[j]).unwrap_or(n);
+        if j - i >= min_gap && i - start >= min_col && n - j >= min_col {
+            spans.push((start, i - 1));
+            start = j;
+        }
+        i = j;
+    }
+    if spans.is_empty() {
+        return vec![(x0, y0, x1, y1)];
+    }
+    spans.push((start, n - 1));
+    spans
+        .into_iter()
+        .filter_map(|(a, b)| {
+            let (a, b) = (x0 + a as u32, x0 + b as u32);
+            let min_row = ((b - a + 1) / 200).max(3);
+            let row_ink = |y: u32| (a..=b).filter(|&x| dark(x, y)).count() as u32 >= min_row;
+            let top = (y0..=y1).find(|&y| row_ink(y))?;
+            let bottom = (y0..=y1).rfind(|&y| row_ink(y))?;
+            Some((a, top, b, bottom))
+        })
+        .collect()
 }
 
 #[cfg(test)]
@@ -419,11 +511,65 @@ mod tests {
     #[test]
     fn content_area_crops_white_margins() {
         let doc = PdfDoc::from_bytes(minimal_pdf("Merhaba")).unwrap();
-        let a = doc.content_area(0).unwrap();
+        let layout = doc.page_layout(0).unwrap();
+        assert_eq!(layout.columns, vec![layout.content], "tek sütun");
+        let a = layout.content;
         // İçerik: metin (72,~700-740) ve dikdörtgen (72..272, 600..650); sayfa 612x792.
         assert!(a.x > 50.0 && a.x < 72.0, "{a:?}");
         assert!(a.w < 300.0, "{a:?}");
         assert!(a.y > 30.0 && a.y + a.h < 220.0, "{a:?}");
+    }
+
+    /// Satır satır ince dikdörtgenler: `x0..x1` aralığında metin sütunu taklidi.
+    fn column(x0: u32, x1: u32, top: u32, bottom: u32) -> String {
+        (bottom..top)
+            .step_by(14)
+            .map(|y| format!("{x0} {y} {} 8 re f ", x1 - x0))
+            .collect()
+    }
+
+    #[test]
+    fn two_columns_are_found_under_a_spanning_title() {
+        // Başlık iki sütunu aşar; sütunlar arasında ince ayırıcı çizgi var; sol sütunda
+        // yalnızca ilk satırlar uzun: 180..290 arası seyrek, sütun içinde sahte boşluk.
+        let title = "72 740 468 20 re f 305.5 100 1 620 re f ";
+        let content = format!(
+            "{title}{}{}{}",
+            column(72, 290, 720, 680),
+            column(72, 180, 680, 100),
+            column(322, 540, 720, 300)
+        );
+        let doc = PdfDoc::from_bytes(testutil::pdf_with_content(&[&content])).unwrap();
+        let layout = doc.page_layout(0).unwrap();
+        let [left, right] = layout.columns[..] else {
+            panic!("iki sütun bekleniyordu: {layout:?}");
+        };
+        assert!(
+            left.x < 72.0 && (285.0..306.0).contains(&(left.x + left.w)),
+            "{left:?}"
+        );
+        assert!(
+            (306.0..322.0).contains(&right.x) && right.x + right.w > 540.0,
+            "{right:?}"
+        );
+        // Sağ sütun daha kısa (y=300'de biter): alt sınırı kendi içinden bulunur.
+        assert!(
+            right.y + right.h < left.y + left.h - 150.0,
+            "{left:?} {right:?}"
+        );
+    }
+
+    #[test]
+    fn a_narrow_gap_does_not_split_a_single_column() {
+        // Tablo gibi: dar bir dikey boşluk ve çok dar bir sütun bölünmeye yetmez.
+        let content = format!(
+            "{}{}",
+            column(72, 500, 720, 100),
+            column(510, 540, 720, 100)
+        );
+        let doc = PdfDoc::from_bytes(testutil::pdf_with_content(&[&content])).unwrap();
+        let layout = doc.page_layout(0).unwrap();
+        assert_eq!(layout.columns, vec![layout.content]);
     }
 
     #[test]

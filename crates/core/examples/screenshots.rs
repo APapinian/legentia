@@ -2,9 +2,9 @@
 //! ilk kitabı okur, menü ve yazı ayarlarını gezer; her ekranı PGM olarak yazar.
 //! Kayıtlar geçici bir veri klasörüne gider; kullanıcının verisine dokunulmaz.
 //!
-//!     cargo run --release -p legentia-core --example screenshots -- <kütüphane> <çıktı klasörü> [kitap sırası] [reflow]
+//!     cargo run --release -p legentia-core --example screenshots -- <kütüphane> <çıktı klasörü> [kitap sırası] [reflow] [sutun]
 //!
-//! `reflow` verilirse PDF'ler yeniden akıtılmış açılır.
+//! `reflow` verilirse PDF'ler yeniden akıtılmış, `sutun` verilirse sütun sütun açılır.
 #![allow(clippy::print_stdout, clippy::print_stderr)]
 
 use std::path::{Path, PathBuf};
@@ -34,11 +34,19 @@ fn main() {
     .expect("fonts");
     let data = std::env::temp_dir().join(format!("legentia-screens-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&data);
-    if rest.iter().any(|a| a.as_os_str() == "reflow") {
+    let flag = |name: &str| rest.iter().any(|a| a.as_os_str() == name);
+    let mut settings = Vec::new();
+    if flag("reflow") {
+        settings.push(r#""pdf_reflow": true"#);
+    }
+    if flag("sutun") {
+        settings.push(r#""pdf_view": "Columns""#);
+    }
+    if !settings.is_empty() {
         std::fs::create_dir_all(&data).expect("data dir");
         std::fs::write(
             data.join("settings.json"),
-            r#"{"version": 1, "data": {"pdf_reflow": true}}"#,
+            format!(r#"{{"version": 1, "data": {{{}}}}}"#, settings.join(", ")),
         )
         .expect("settings");
     }
