@@ -52,6 +52,9 @@ fn markdown(title: &str, items: &[(String, &Annotation)]) -> String {
         if let Some(note) = &a.note {
             out.push_str(&format!("\n{}\n", tr(&Msg::NoteLine(note.clone()))));
         }
+        if let Some(tag) = &a.tag {
+            out.push_str(&format!("\n{}\n", tr(&Msg::TagLine(tag.clone()))));
+        }
     }
     out
 }
@@ -155,6 +158,7 @@ impl App {
 mod tests {
     use super::*;
     use crate::app::Position;
+    use crate::app::annotations::Mark;
 
     #[test]
     fn markdown_groups_quotes_under_chapters() {
@@ -165,6 +169,8 @@ mod tests {
             quote: quote.into(),
             note: note.map(str::to_string),
             created: 0,
+            mark: Mark::Gray,
+            tag: None,
         };
         let (a, b, c) = (
             ann("Ağaçların gölgesinde", Some("Güzel bir cümle.")),

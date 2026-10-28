@@ -790,7 +790,7 @@ impl App {
     // --- Vurgular ve notlar ---
 
     /// Listede görünen vurgular (`state.annotations` sırası), kitaptaki sırayla;
-    /// arama varsa alıntısında ya da notunda geçenler.
+    /// arama varsa alıntısında, notunda ya da etiketinde geçenler.
     pub(super) fn annotation_rows(&self) -> Vec<usize> {
         let Some(s) = &self.session else {
             return Vec::new();
@@ -801,10 +801,10 @@ impl App {
             .filter(|&i| {
                 let a = &s.state.annotations[i];
                 query.as_ref().is_none_or(|q| {
-                    super::shelf::fold(&a.quote).contains(q.as_str())
-                        || a.note
-                            .as_deref()
-                            .is_some_and(|n| super::shelf::fold(n).contains(q.as_str()))
+                    [Some(a.quote.as_str()), a.note.as_deref(), a.tag.as_deref()]
+                        .into_iter()
+                        .flatten()
+                        .any(|t| super::shelf::fold(t).contains(q.as_str()))
                 })
             })
             .collect()
@@ -887,6 +887,9 @@ impl App {
             let quote = one_line(t, &a.quote.replace('\n', " "), PLAIN, ROW_PX, max_w);
             t.draw_plain(canvas, &quote, Family::Ui, PLAIN, MARGIN, r.y + 50, ROW_PX);
             let mut second = s.chapter_title(a.spine);
+            if let Some(tag) = &a.tag {
+                second = format!("{second} · {}", tr(&Msg::TagLine(tag.clone())));
+            }
             if let Some(note) = &a.note {
                 second = format!("{second} · {}", tr(&Msg::NoteLine(note.clone())));
             }

@@ -196,6 +196,8 @@ mod tests {
             quote: "çay".into(),
             note: note.map(str::to_string),
             created: 0,
+            mark: crate::app::annotations::Mark::Gray,
+            tag: None,
         }
     }
 

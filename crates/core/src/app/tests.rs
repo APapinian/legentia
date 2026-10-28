@@ -585,10 +585,14 @@ fn annotations_survive_restart_and_font_changes() {
         block: 1,
         offset: 20,
     };
-    let i = s.add_annotation(start, end).unwrap();
+    let i = s.add_annotation(start, end, Default::default()).unwrap();
     assert_eq!(s.state.annotations[i].quote, "bir paragraf: a");
     assert_eq!(s.placed, vec![(i, start, end)]);
-    assert_eq!(s.add_annotation(end, start), None, "boş aralık");
+    assert_eq!(
+        s.add_annotation(end, start, Default::default()),
+        None,
+        "boş aralık"
+    );
     app.shutdown();
     app.save_progress();
 
@@ -651,10 +655,76 @@ fn hold_drag_and_highlight_then_remove_it() {
     tap(&mut app, (x, y));
     assert!(matches!(app.view, View::Annotation { index: 0 }));
     assert_eq!(session(&app).page, 0);
-    let at = app.action_rect(1).center(); // Vurguyu sil
+    let at = app.action_rect(3).center(); // Vurguyu sil
     tap(&mut app, at);
     assert!(session(&app).state.annotations.is_empty());
     assert!(matches!(app.view, View::Reading));
+}
+
+#[test]
+fn highlight_kind_and_tag_are_changed_remembered_and_searched() {
+    let (mut app, data, root) = setup(&[("uzun.epub", long_book())]);
+    tap_row(&mut app, &LIBRARY, 0);
+    tap_row(&mut app, &CONTENTS, 0);
+    let (x, y) = glyph_point(&app, 1, 6);
+    app.handle(Event::Hold { x, y });
+    app.handle(Event::HoldEnd { x, y });
+    let at = app.action_rect(0).center();
+    tap(&mut app, at); // Vurgula
+    tap(&mut app, (x, y));
+    assert!(matches!(app.view, View::Annotation { index: 0 }));
+
+    // Tür: gri → çizgi; çubuk açık kalır, çizgi siyah çizilir, gri zemin yok.
+    let at = app.action_rect(1).center();
+    tap(&mut app, at);
+    assert!(matches!(app.view, View::Annotation { index: 0 }));
+    assert_eq!(
+        session(&app).state.annotations[0].mark,
+        annotations::Mark::Underline
+    );
+    assert_eq!(app.settings().highlight, annotations::Mark::Underline);
+    tap(&mut app, (10, 10));
+    let mut c = Canvas::new(W, LIBRA2_HEIGHT);
+    app.draw(&mut c);
+    let row = |c: &Canvas, y: u32| c.pixels()[(y * W) as usize..((y + 1) * W) as usize].to_vec();
+    assert!(!row(&c, y).contains(&select::HIGHLIGHT_GRAY));
+
+    // Etiket yazılır.
+    tap(&mut app, (x, y));
+    let at = app.action_rect(2).center();
+    tap(&mut app, at);
+    type_text(&mut app, "önemli");
+    form_button(&mut app, form::Button::Submit);
+    assert!(matches!(app.view, View::Reading));
+    assert_eq!(
+        session(&app).state.annotations[0].tag.as_deref(),
+        Some("önemli")
+    );
+
+    // Yeni vurgu son seçilen türle.
+    let (x2, y2) = glyph_point(&app, 1, 12);
+    app.handle(Event::Hold { x: x2, y: y2 });
+    app.handle(Event::HoldEnd { x: x2, y: y2 });
+    let at = app.action_rect(0).center();
+    tap(&mut app, at);
+    assert_eq!(
+        session(&app).state.annotations[1].mark,
+        annotations::Mark::Underline
+    );
+
+    // Etiketle arama; kayıtlar kalıcı.
+    menu(&mut app, MenuItem::Annotations);
+    app.annotation_query = Some("ÖNEMLİ".into());
+    assert_eq!(app.annotation_rows(), [0]);
+    app.draw(&mut c);
+    app.shutdown();
+    let mut app = restart(&data, &root);
+    tap_row(&mut app, &LIBRARY, 0);
+    let a = &session(&app).state.annotations[0];
+    assert_eq!(
+        (a.mark, a.tag.as_deref()),
+        (annotations::Mark::Underline, Some("önemli"))
+    );
 }
 
 #[test]
@@ -810,7 +880,7 @@ fn annotation_list_jumps_and_notes_export_to_markdown() {
         offset: at.offset + 10,
         ..at
     };
-    let i = s.add_annotation(at, end).unwrap();
+    let i = s.add_annotation(at, end, Default::default()).unwrap();
     s.set_note(i, Some("Önemli yer.".into()));
     let quote = s.state.annotations[i].quote.clone();
     key(&mut app, false);
@@ -851,7 +921,7 @@ fn pdf_notes_export_as_standard_annotations() {
         block: 1,
         offset: 6,
     }; // başlık + paragrafın ilk kelimesi, iki satır
-    let i = s.add_annotation(start, end).unwrap();
+    let i = s.add_annotation(start, end, Default::default()).unwrap();
     s.set_note(i, Some("Başlıkla birlikte.".into()));
     let original = std::fs::read(root.join("metin.pdf")).unwrap();
 
@@ -897,6 +967,7 @@ fn backup_restores_notes_and_settings_on_a_fresh_install() {
                 block: 1,
                 offset: 4,
             },
+            Default::default(),
         )
         .unwrap();
     s.set_note(i, Some("yedeklenecek".into()));

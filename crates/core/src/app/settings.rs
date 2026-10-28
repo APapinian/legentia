@@ -94,6 +94,8 @@ pub struct Settings {
     pub library_filter: super::shelf::Filter,
     /// Kütüphane liste yerine kapak ızgarası.
     pub library_grid: bool,
+    /// Yeni vurgunun biçimi: son seçilen.
+    pub highlight: super::annotations::Mark,
 }
 
 impl Default for Settings {
@@ -123,6 +125,7 @@ impl Default for Settings {
             library_sort: Default::default(),
             library_filter: Default::default(),
             library_grid: false,
+            highlight: Default::default(),
         }
     }
 }

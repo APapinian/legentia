@@ -1,8 +1,10 @@
 //! Metin seçimi ve vurgu çizimi. Uzun basma kelimeyi seçer, sürükleme seçimi
 //! kelime kelime uzatır. Dizilmiş metinde (EPUB, yeniden akıtılmış PDF) satırların
 //! glifleri, PDF sayfa görüntüsünde sayfa metninin karakter kutuları kullanılır.
-//! Vurgu, sayfa çizildikten sonra dikdörtgenleri koyulaştırarak çizilir; yazı siyah kalır.
+//! Vurgu, sayfa çizildikten sonra dikdörtgenleri koyulaştırarak (ya da altını
+//! çizerek, çerçeveleyerek) çizilir; yazı siyah kalır.
 
+use super::annotations::Mark;
 use super::pdf_view;
 use super::session::{Page, PlacedLine, Position};
 use super::ui::{MARGIN, Rect, TOP, draw_button};
@@ -23,6 +25,9 @@ pub(super) const HIGHLIGHT_GRAY: u8 = 215;
 pub(super) const SELECTION_GRAY: u8 = 170;
 /// Notlu vurgunun sonundaki işaretin kenarı (piksel).
 const NOTE_MARK: u32 = 14;
+/// Altı çizili vurgunun çizgisi ve çerçeveli vurgunun kenarı (piksel).
+const UNDERLINE: i32 = 4;
+const FRAME: u32 = 2;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) struct Selection {
@@ -200,6 +205,10 @@ pub(super) enum Action {
     Dictionary,
     /// Seçilen metni Türkçe Vikipedi'de arar.
     Wikipedia,
+    /// Vurgunun biçimini sıradakine çevirir (gri → altı çizili → çerçeveli).
+    Mark,
+    /// Vurgunun etiketini yazdırır.
+    Tag,
     Remove,
     Cancel,
 }
@@ -254,24 +263,37 @@ impl App {
         let Some(s) = self.session.as_ref() else {
             return;
         };
-        let noted = |i: usize| s.state.annotations.get(i).is_some_and(|a| a.note.is_some());
+        let info = |i: usize| {
+            s.state
+                .annotations
+                .get(i)
+                .map_or((Mark::Gray, false), |a| (a.mark, a.note.is_some()))
+        };
+        // Seçim ve arama sonucu her zaman gri zeminle (daha koyu).
         let marks = s
             .placed
             .iter()
-            .map(|(i, a, b)| (*a, *b, HIGHLIGHT_GRAY, noted(*i)))
+            .map(|(i, a, b)| (*a, *b, HIGHLIGHT_GRAY, info(*i)))
             .chain(
                 self.selection
-                    .map(|sel| (sel.start, sel.end, SELECTION_GRAY, false)),
+                    .map(|sel| (sel.start, sel.end, SELECTION_GRAY, (Mark::Gray, false))),
             )
             .chain(
                 self.search_mark
                     .filter(|(spine, ..)| *spine == s.spine)
-                    .map(|(_, a, b)| (a, b, SELECTION_GRAY, false)),
+                    .map(|(_, a, b)| (a, b, SELECTION_GRAY, (Mark::Gray, false))),
             );
-        for (a, b, gray, note) in marks {
+        for (a, b, gray, (mark, note)) in marks {
             let rects = self.range_rects(a, b);
             for r in &rects {
-                canvas.darken_rect(r.x, r.y, r.w.max(0) as u32, r.h.max(0) as u32, gray);
+                let (w, h) = (r.w.max(0) as u32, r.h.max(0) as u32);
+                match mark {
+                    Mark::Gray => canvas.darken_rect(r.x, r.y, w, h, gray),
+                    Mark::Underline => {
+                        canvas.fill_rect(r.x, r.y + r.h - UNDERLINE, w, UNDERLINE as u32, 0)
+                    }
+                    Mark::Frame => canvas.stroke_rect(r.x, r.y, w, h, FRAME),
+                }
             }
             // Notlu vurgunun sonunda küçük siyah işaret.
             if note && let Some(r) = rects.last() {
@@ -333,7 +355,13 @@ impl App {
                 Action::Wikipedia,
                 Action::Cancel,
             ],
-            View::Annotation { .. } => &[Action::Note, Action::Remove, Action::Cancel],
+            View::Annotation { .. } => &[
+                Action::Note,
+                Action::Mark,
+                Action::Tag,
+                Action::Remove,
+                Action::Cancel,
+            ],
             _ => &[],
         }
     }
@@ -400,7 +428,7 @@ impl App {
         }
         let added = match (action, self.selection, self.session.as_mut()) {
             (Some(Action::Highlight | Action::Note), Some(sel), Some(s)) => {
-                s.add_annotation(sel.start, sel.end)
+                s.add_annotation(sel.start, sel.end, self.settings.highlight)
             }
             _ => None,
         };
@@ -419,6 +447,34 @@ impl App {
     pub(super) fn handle_annotation(&mut self, index: usize, event: Event) -> Option<Refresh> {
         match self.tapped_action(event) {
             Some(Action::Note) => return self.open_note(index),
+            Some(Action::Mark) => {
+                let s = self.session.as_mut()?;
+                let mark = s.state.annotations.get(index)?.mark.next();
+                s.set_mark(index, mark);
+                self.save_progress();
+                // Sonraki yeni vurgular da bu biçimde olur.
+                let mut next = self.settings.clone();
+                next.highlight = mark;
+                self.apply_settings(next);
+                // Çubuk açık kalır; biçimler art arda denenebilir.
+                return Some(self.refresh(false));
+            }
+            Some(Action::Tag) => {
+                let tag = self
+                    .session
+                    .as_ref()?
+                    .state
+                    .annotations
+                    .get(index)?
+                    .tag
+                    .clone();
+                let field = super::form::Field::new(Msg::FieldTag, &tag.unwrap_or_default());
+                let form = super::form::Form::new(
+                    super::form::FormKind::AnnotationTag(index),
+                    vec![field],
+                );
+                return self.open_form(form);
+            }
             Some(Action::Remove) => {
                 if let Some(s) = self.session.as_mut() {
                     s.remove_annotation(index);
@@ -429,6 +485,17 @@ impl App {
         }
         self.view = View::Reading;
         Some(self.refresh(false))
+    }
+
+    /// Dokunulan vurgunun biçimi.
+    fn opened_mark(&self) -> Mark {
+        let View::Annotation { index } = self.view else {
+            return Mark::Gray;
+        };
+        self.session
+            .as_ref()
+            .and_then(|s| s.state.annotations.get(index))
+            .map_or(Mark::Gray, |a| a.mark)
     }
 
     /// Dokunulan vurgunun notu.
@@ -457,6 +524,12 @@ impl App {
                 Action::Note => Msg::AddNote,
                 Action::Dictionary => Msg::Dictionary,
                 Action::Wikipedia => Msg::Wikipedia,
+                Action::Mark => Msg::MarkKind(match self.opened_mark() {
+                    Mark::Gray => Box::new(Msg::MarkGray),
+                    Mark::Underline => Box::new(Msg::MarkUnderline),
+                    Mark::Frame => Box::new(Msg::MarkFrame),
+                }),
+                Action::Tag => Msg::Tag,
                 Action::Remove => Msg::RemoveHighlight,
                 Action::Cancel => Msg::Cancel,
             };

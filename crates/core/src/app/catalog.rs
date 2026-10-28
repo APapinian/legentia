@@ -409,6 +409,15 @@ impl App {
                 self.annotation_query = (!query.is_empty()).then_some(query);
                 self.view = View::Annotations { page: 0 };
             }
+            (Button::Cancel, FormKind::AnnotationTag(_)) => self.view = View::Reading,
+            (Button::Submit, FormKind::AnnotationTag(index)) => {
+                let tag = form.fields[0].value.trim().to_string();
+                if let Some(s) = self.session.as_mut() {
+                    s.set_tag(index, (!tag.is_empty()).then_some(tag));
+                }
+                self.save_progress();
+                self.view = View::Reading;
+            }
             (Button::Submit, FormKind::LibrarySearch) => {
                 let query = form.fields[0].value.trim().to_string();
                 self.library_query = (!query.is_empty()).then_some(query);

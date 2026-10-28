@@ -8,7 +8,7 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-use super::annotations::{self, Annotation, Flat};
+use super::annotations::{self, Annotation, Flat, Mark};
 use super::pdf_view::{Screen, page_screens};
 use super::settings::{PdfView, Settings};
 use super::ui::TOP;
@@ -423,7 +423,7 @@ impl Session {
 
     /// Okunan bölümün metnindeki `[start, end)` aralığını vurgular; aralık boş
     /// ya da geçersizse `None`. Dönen değer `state.annotations` sırasıdır.
-    pub fn add_annotation(&mut self, start: Position, end: Position) -> Option<usize> {
+    pub fn add_annotation(&mut self, start: Position, end: Position, mark: Mark) -> Option<usize> {
         let flat = Flat::new(self.text_blocks());
         let (s, e) = (flat.index(start)?, flat.index(end)?);
         if s >= e {
@@ -436,9 +436,25 @@ impl Session {
             quote: flat.text[s..e].to_string(),
             note: None,
             created: annotations::now(),
+            mark,
+            tag: None,
         });
         self.place_annotations();
         Some(self.state.annotations.len() - 1)
+    }
+
+    /// Vurgunun çiziliş biçimini değiştirir.
+    pub fn set_mark(&mut self, index: usize, mark: Mark) {
+        if let Some(a) = self.state.annotations.get_mut(index) {
+            a.mark = mark;
+        }
+    }
+
+    /// Vurgunun etiketini değiştirir; `None` kaldırır.
+    pub fn set_tag(&mut self, index: usize, tag: Option<String>) {
+        if let Some(a) = self.state.annotations.get_mut(index) {
+            a.tag = tag;
+        }
     }
 
     /// Vurgunun notunu değiştirir; `None` notu kaldırır (vurgu kalır).

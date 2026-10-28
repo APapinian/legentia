@@ -384,7 +384,7 @@ Kullanıcı isteği (2026-10-28): 50 maddelik öneri listesi milestone olarak ka
 - [ ] 33. DjVu (B)
 
 ### Not ve öğrenme
-- [ ] 34. Vurgu türleri: altı çizili, çerçeveli, etiketli (K)
+- [x] 34. Vurgu türleri: altı çizili, çerçeveli, etiketli (K) (Vurguya dokununca çubukta "Tür": gri → altı çizili → çerçeveli; seçilen tür yeni vurgulara da uygulanır (`highlight` ayarı). "Etiket": kısa etiket yazılır, boş bırakılınca kalkar; vurgu listesinde gösterilir ve aramaya girer, Markdown dışa aktarmada "Etiket:" satırı. Eski kayıtlar gri olarak açılır. Notlu PDF'e aktarmada tür yok sayılıyor, hepsi vurgu olarak yazılıyor.)
 - [x] 35. Notlarda ve vurgularda arama (K) (Vurgular ekranının başlığında "Ara": alıntıda ve not metninde, kitap içi aramayla aynı harf kurallarıyla; yeniden dokununca kaldırılır. Testli.)
 - [x] 36. Kelime listesinden Anki kartları (CSV) (K) (Kelime listesi başlığında "Anki'ye aktar": kütüphane klasörüne "Legentia kelimeler.csv" (Anki başlık satırlarıyla, noktalı virgüllü). Ön yüz kelime; arka yüz cihazdaki sözlüklerden ilk tanım (en çok 600 karakter), metindeki biçim ve kitap. Testli; Anki'de içe aktarma elle denenmedi.)
 - [ ] 37. Cihazda aralıklı tekrarlı kelime çalışması (O)

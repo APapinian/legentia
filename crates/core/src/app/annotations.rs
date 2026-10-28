@@ -21,6 +21,30 @@ pub struct Annotation {
     pub note: Option<String>,
     /// Oluşturulma zamanı (Unix saniyesi).
     pub created: u64,
+    #[serde(default)]
+    pub mark: Mark,
+    /// Kısa etiket ("önemli", "alıntı"…); listede gösterilir ve aranır.
+    #[serde(default)]
+    pub tag: Option<String>,
+}
+
+/// Vurgunun çiziliş biçimi.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum Mark {
+    #[default]
+    Gray,
+    Underline,
+    Frame,
+}
+
+impl Mark {
+    pub(super) fn next(self) -> Mark {
+        match self {
+            Mark::Gray => Mark::Underline,
+            Mark::Underline => Mark::Frame,
+            Mark::Frame => Mark::Gray,
+        }
+    }
 }
 
 /// Bölümün metni tek dizgede: bloklar "\n" ile ayrılır. Konumla dizin arasında
@@ -125,6 +149,8 @@ mod tests {
             quote: quote.into(),
             note: None,
             created: 0,
+            mark: Mark::Gray,
+            tag: None,
         }
     }
 
