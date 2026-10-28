@@ -198,6 +198,8 @@ pub(super) enum Action {
     Note,
     /// Seçilen kelimeyi sözlükte arar.
     Dictionary,
+    /// Seçilen metni Türkçe Vikipedi'de arar.
+    Wikipedia,
     Remove,
     Cancel,
 }
@@ -328,6 +330,7 @@ impl App {
                 Action::Highlight,
                 Action::Note,
                 Action::Dictionary,
+                Action::Wikipedia,
                 Action::Cancel,
             ],
             View::Annotation { .. } => &[Action::Note, Action::Remove, Action::Cancel],
@@ -390,6 +393,11 @@ impl App {
             self.selection = None;
             return self.look_up(&word.unwrap_or_default());
         }
+        if action == Some(Action::Wikipedia) {
+            let text = self.selection_text();
+            self.selection = None;
+            return self.look_up_wikipedia(&text.unwrap_or_default());
+        }
         let added = match (action, self.selection, self.session.as_mut()) {
             (Some(Action::Highlight | Action::Note), Some(sel), Some(s)) => {
                 s.add_annotation(sel.start, sel.end)
@@ -448,6 +456,7 @@ impl App {
                 Action::Note if note.is_some() => Msg::EditNote,
                 Action::Note => Msg::AddNote,
                 Action::Dictionary => Msg::Dictionary,
+                Action::Wikipedia => Msg::Wikipedia,
                 Action::Remove => Msg::RemoveHighlight,
                 Action::Cancel => Msg::Cancel,
             };

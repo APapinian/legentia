@@ -35,6 +35,7 @@ const ONLINE_CACHE: &str = "cevrimici-sozluk";
 pub(super) struct Endpoints {
     pub tdk: String,
     pub wiktionary: String,
+    pub wikipedia: String,
 }
 
 impl Default for Endpoints {
@@ -42,6 +43,7 @@ impl Default for Endpoints {
         Endpoints {
             tdk: online::TDK.into(),
             wiktionary: online::WIKTIONARY.into(),
+            wikipedia: online::WIKIPEDIA.into(),
         }
     }
 }
@@ -129,7 +131,39 @@ impl Provider {
 }
 
 /// Sürmekte olan çevrimiçi arama: kelime ve arka plan işi.
-pub(super) type OnlineSearch = (String, Job<Result<Option<Definition>, Msg>>);
+pub(super) struct OnlineSearch {
+    pub word: String,
+    job: Job<Result<Option<Definition>, Msg>>,
+    /// Vikipedi araması (sözlük değil): bulunamadı/ulaşılamadı mesajları farklı.
+    wikipedia: bool,
+}
+
+/// Ayrı iş parçacığında: Vikipedi'de en uygun madde ve özeti.
+fn define_wikipedia(net: &Net, at: &Endpoints, query: &str) -> Result<Option<Definition>, Msg> {
+    let get = |url: &str| {
+        net.get(url, None, ONLINE_LIMIT).map_err(|e| {
+            log::warn!("wikipedia {url}: {e:?}");
+            e.message()
+        })
+    };
+    let invalid = |e: crate::dict::DictError| {
+        log::warn!("wikipedia answer: {e:?}");
+        Msg::NetInvalid
+    };
+    let found =
+        online::parse_wikipedia_search(&get(&online::wikipedia_search_url(&at.wikipedia, query))?)
+            .map_err(invalid)?;
+    let Some(title) = found else {
+        return Ok(None);
+    };
+    let summary = get(&online::wikipedia_summary_url(&at.wikipedia, &title))?;
+    Ok(online::parse_wikipedia_summary(&summary)
+        .map_err(invalid)?
+        .map(|article| Definition {
+            form: title,
+            articles: vec![(tr(&Msg::SourceWikipedia), article)],
+        }))
+}
 
 /// Önbellekteki çevrimiçi sonuç.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -246,7 +280,11 @@ impl App {
             let data = self.store.dir().to_path_buf();
             let (w, at) = (word.clone(), self.endpoints.clone());
             let job = Job::spawn(move |_| define_online(&net, &at, &providers, &w, &data));
-            self.online = Some((word, job));
+            self.online = Some(OnlineSearch {
+                word,
+                job,
+                wikipedia: false,
+            });
             self.view = View::Searching;
             return Some(self.refresh(true));
         }
@@ -261,20 +299,42 @@ impl App {
 
     /// `Event::Tick`: çevrimiçi arama bittiyse sonucu gösterir.
     pub(super) fn poll_online(&mut self) -> Option<Refresh> {
-        let (_, job) = self.online.as_ref()?;
-        let result = job.poll()?;
-        let (word, _) = self.online.take()?;
+        let result = self.online.as_ref()?.job.poll()?;
+        let OnlineSearch {
+            word, wikipedia, ..
+        } = self.online.take()?;
         match result {
             Some(Ok(Some(def))) => return self.show_definition(&word, &def),
+            Some(Ok(None)) if wikipedia => self.show_message(Msg::NotOnWikipedia(word)),
             Some(Ok(None)) => self.show_message(Msg::NotInDictionary(word)),
             failed => {
-                let reason = failed.and_then(Result::err).unwrap_or(Msg::NetInvalid);
-                self.show_message(Msg::OnlineFailed {
-                    word,
-                    reason: tr(&reason),
+                let reason = tr(&failed.and_then(Result::err).unwrap_or(Msg::NetInvalid));
+                self.show_message(if wikipedia {
+                    Msg::WikipediaFailed(reason)
+                } else {
+                    Msg::OnlineFailed { word, reason }
                 });
             }
         }
+        Some(self.refresh(true))
+    }
+
+    /// Seçili metni Türkçe Vikipedi'de arar (arka planda; sonuç tanım ekranında).
+    pub(super) fn look_up_wikipedia(&mut self, query: &str) -> Option<Refresh> {
+        let query = query.trim().to_string();
+        if !self.settings.network {
+            self.show_message(Msg::NetworkOff);
+            return Some(self.refresh(true));
+        }
+        let net = self.browser.net();
+        let (q, at) = (query.clone(), self.endpoints.clone());
+        let job = Job::spawn(move |_| define_wikipedia(&net, &at, &q));
+        self.online = Some(OnlineSearch {
+            word: query,
+            job,
+            wikipedia: true,
+        });
+        self.view = View::Searching;
         Some(self.refresh(true))
     }
 
@@ -291,7 +351,7 @@ impl App {
     }
 
     pub(super) fn draw_searching(&self, canvas: &mut Canvas) {
-        let word = self.online.as_ref().map_or("", |(w, _)| w.as_str());
+        let word = self.online.as_ref().map_or("", |o| o.word.as_str());
         draw_header(
             &self.text,
             canvas,

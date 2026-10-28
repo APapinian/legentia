@@ -22,6 +22,8 @@ pub const WIKTIONARY_TITLES: usize = 20;
 /// yerel sunucuyu) `base` olarak alır.
 pub const TDK: &str = "https://sozluk.gov.tr/gts";
 pub const WIKTIONARY: &str = "https://tr.wiktionary.org/w/api.php";
+/// Türkçe Vikipedi (içerik CC BY-SA); arama ve madde özeti.
+pub const WIKIPEDIA: &str = "https://tr.wikipedia.org";
 /// Vikisözlük'te asıl maddeleri çekim sayfalarından ayıran kategori.
 const LEMMA_CATEGORY: &str = "Kategori:Türkçe sözcükler";
 
@@ -150,6 +152,43 @@ fn tdk_article(m: &Value) -> Article {
         headword: text(m, "madde").to_string(),
         parts: vec![(Markup::Html, html)],
     }
+}
+
+// --- Vikipedi ---
+
+/// En uygun madde için arama (Vikipedi'nin araması çekimli biçimi de bulur).
+pub fn wikipedia_search_url(base: &str, query: &str) -> String {
+    format!(
+        "{base}/w/api.php?action=query&format=json&formatversion=2&list=search&srlimit=1&srsearch={}",
+        encode(query.trim())
+    )
+}
+
+pub fn parse_wikipedia_search(json: &[u8]) -> Result<Option<String>, DictError> {
+    let v: Value = serde_json::from_slice(json).map_err(invalid)?;
+    Ok(v.pointer("/query/search/0/title")
+        .and_then(Value::as_str)
+        .map(str::to_string))
+}
+
+pub fn wikipedia_summary_url(base: &str, title: &str) -> String {
+    format!(
+        "{base}/api/rest_v1/page/summary/{}",
+        encode(&title.replace(' ', "_"))
+    )
+}
+
+/// Maddenin giriş özeti (düz metin).
+pub fn parse_wikipedia_summary(json: &[u8]) -> Result<Option<Article>, DictError> {
+    let v: Value = serde_json::from_slice(json).map_err(invalid)?;
+    let extract = text(&v, "extract");
+    if extract.is_empty() {
+        return Ok(None);
+    }
+    Ok(Some(Article {
+        headword: text(&v, "title").to_string(),
+        parts: vec![(Markup::Plain, extract.to_string())],
+    }))
 }
 
 // --- Vikisözlük ---

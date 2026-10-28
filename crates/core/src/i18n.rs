@@ -237,6 +237,10 @@ pub enum Msg {
     Idioms,
     SourceTdk,
     SourceWiktionary,
+    SourceWikipedia,
+    Wikipedia,
+    NotOnWikipedia(String),
+    WikipediaFailed(String),
     SearchingDictionary,
     OnlineFailed {
         word: String,
@@ -529,6 +533,10 @@ pub fn tr(msg: &Msg) -> String {
         Msg::CompoundWords => "Birleşik kelimeler".into(),
         Msg::Idioms => "Atasözleri, deyimler ve birleşik fiiller".into(),
         Msg::SourceTdk => "TDK Güncel Türkçe Sözlük (çevrimiçi)".into(),
+        Msg::SourceWikipedia => "Vikipedi (çevrimiçi, CC BY-SA)".into(),
+        Msg::Wikipedia => "Vikipedi".into(),
+        Msg::NotOnWikipedia(w) => format!("“{w}” için Vikipedi'de madde bulunamadı."),
+        Msg::WikipediaFailed(reason) => format!("Vikipedi'ye ulaşılamadı. {reason}"),
         Msg::SourceWiktionary => "Vikisözlük (çevrimiçi, CC BY-SA)".into(),
         Msg::SearchingDictionary => "Çevrimiçi sözlükte aranıyor…".into(),
         Msg::OnlineFailed { word, reason } => {
@@ -841,6 +849,10 @@ mod tests {
             CompoundWords,
             Idioms,
             SourceTdk,
+            SourceWikipedia,
+            Wikipedia,
+            NotOnWikipedia("x".into()),
+            WikipediaFailed("y".into()),
             SourceWiktionary,
             SearchingDictionary,
             OnlineFailed {

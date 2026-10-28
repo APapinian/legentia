@@ -36,6 +36,7 @@ fn no_online_dictionaries(app: &mut App) {
     app.endpoints = super::lookup::Endpoints {
         tdk: "http://127.0.0.1:1/gts".into(),
         wiktionary: "http://127.0.0.1:1/api.php".into(),
+        wikipedia: "http://127.0.0.1:1".into(),
     };
 }
 
@@ -1764,6 +1765,7 @@ fn words_missing_locally_are_looked_up_online_and_cached() {
     app.endpoints = super::lookup::Endpoints {
         tdk: format!("{url}/gts"),
         wiktionary: format!("{url}/api.php"),
+        wikipedia: url.clone(),
     };
     tap_row(&mut app, &LIBRARY, 0);
     tap_row(&mut app, &CONTENTS, 0);
@@ -2782,4 +2784,47 @@ fn annotations_are_searched_in_quotes_and_notes() {
     app.draw(&mut c);
     tap(&mut app, clear);
     assert_eq!(rows(&app), 2, "arama kaldırıldı");
+}
+
+#[test]
+fn selected_text_is_looked_up_on_wikipedia() {
+    let url = crate::net::testserver::serve(|path, _| {
+        let body = if path.contains("list=search") {
+            if path.contains("bulunmayan") {
+                r#"{"query":{"search":[]}}"#.to_string()
+            } else {
+                r#"{"query":{"search":[{"title":"Ağaç"}]}}"#.to_string()
+            }
+        } else if path.starts_with("/api/rest_v1/page/summary/A%C4%9Fa%C3%A7") {
+            r#"{"title":"Ağaç","extract":"Ağaç, odunsu gövdeli bitkidir."}"#.to_string()
+        } else {
+            String::new()
+        };
+        (200, body.into_bytes())
+    });
+    let (mut app, _, _) = reading_long_book();
+    app.endpoints.wikipedia = url;
+    select_and(&mut app, "ağaçlar", 3); // Vikipedi
+    assert!(matches!(app.view, View::Searching));
+    settle(&mut app);
+    assert!(matches!(app.view, View::Lookup { .. }));
+    assert_eq!(app.lookup.as_ref().unwrap().form, "Ağaç");
+    tap(&mut app, (W / 2, LIBRA2_HEIGHT / 2));
+
+    // Bulunamayan ve internet kapalı.
+    app.look_up_wikipedia("bulunmayan");
+    settle(&mut app);
+    assert!(
+        matches!(&app.view, View::Message { msg: Msg::NotOnWikipedia(w), .. } if w == "bulunmayan")
+    );
+    tap(&mut app, (10, 10));
+    app.settings.network = false;
+    select_and(&mut app, "gölgeler", 3);
+    assert!(matches!(
+        app.view,
+        View::Message {
+            msg: Msg::NetworkOff,
+            ..
+        }
+    ));
 }
