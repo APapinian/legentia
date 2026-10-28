@@ -1834,3 +1834,28 @@ fn exit_button_saves_and_asks_the_platform_to_quit() {
     tap_row(&mut app, &LIBRARY, 0);
     assert_eq!(session(&app).page, 2, "çevrilen sayfalar kaydedildi");
 }
+
+#[test]
+fn tap_zone_presets_turn_pages_and_open_the_menu() {
+    use super::settings::TapZones;
+    let (mut app, _, _) = reading_long_book();
+    let h = LIBRA2_HEIGHT;
+    let page = |app: &App| session(app).page;
+
+    // Ters: sol ileri, sağ geri.
+    app.settings.tap_zones = TapZones::Reversed;
+    tap(&mut app, (50, h / 2));
+    assert_eq!(page(&app), 1);
+    tap(&mut app, (W - 50, h / 2));
+    assert_eq!(page(&app), 0);
+
+    // Tek el: ortaya dokunmak ileri, sol şerit geri, üst şerit menü.
+    app.settings.tap_zones = TapZones::OneHand;
+    tap(&mut app, (W / 2, h / 2));
+    tap(&mut app, (W - 50, h - 300));
+    assert_eq!(page(&app), 2);
+    tap(&mut app, (50, h / 2));
+    assert_eq!(page(&app), 1);
+    tap(&mut app, (W / 2, 100));
+    assert!(matches!(app.view, View::Menu));
+}

@@ -1,7 +1,7 @@
 //! Ekranlar: her biri için olay işleme ve çizim.
 
 use super::session::Target;
-use super::settings::{FIELD_PAGES, Settings};
+use super::settings::{FIELD_PAGES, PAGE_TITLES, Settings, TapZones};
 use super::ui::{
     BOLD, BOTTOM, HEADER_BOTTOM, List, MARGIN, PLAIN, ROW_PX, Rect, TOP, back_button, draw_button,
     draw_footer, draw_header, draw_header_until, header_button, one_line,
@@ -327,18 +327,18 @@ impl App {
             }
             _ => {}
         }
-        let third = self.width / 3;
         let forward = match event {
             Event::Key(PageKey::Forward) => true,
             Event::Key(PageKey::Back) => false,
-            Event::Tap { x, .. } if x < third => false,
-            Event::Tap { x, .. } if x > 2 * third => true,
-            Event::Tap { .. } => {
-                // Menüden kütüphaneye ya da başka kitaba gidilebilir; konumu şimdi kaydet.
-                self.shutdown();
-                self.view = View::Menu;
-                return Some(self.refresh(false));
-            }
+            Event::Tap { x, y } => match self.tap_zone(x, y) {
+                Some(forward) => forward,
+                None => {
+                    // Menüden kütüphaneye ya da başka kitaba gidilebilir; konumu şimdi kaydet.
+                    self.shutdown();
+                    self.view = View::Menu;
+                    return Some(self.refresh(false));
+                }
+            },
             _ => return None,
         };
         let s = self.session.as_mut()?;
@@ -361,6 +361,20 @@ impl App {
         }
         self.page_turned();
         Some(self.refresh(false))
+    }
+
+    /// Okurken dokunulan yer: ileri (`Some(true)`), geri (`Some(false)`) ya da menü (`None`).
+    pub(super) fn tap_zone(&self, x: u32, y: u32) -> Option<bool> {
+        let (w, h) = (self.width, crate::LIBRA2_HEIGHT);
+        match self.settings.tap_zones {
+            TapZones::Standard if x < w / 3 => Some(false),
+            TapZones::Standard if x > 2 * w / 3 => Some(true),
+            TapZones::Reversed if x < w / 3 => Some(true),
+            TapZones::Reversed if x > 2 * w / 3 => Some(false),
+            TapZones::Standard | TapZones::Reversed => None,
+            TapZones::OneHand if y < h / 6 => None,
+            TapZones::OneHand => Some(x >= w / 4),
+        }
     }
 
     pub(super) fn draw_reading(&self, canvas: &mut Canvas) {
@@ -772,6 +786,11 @@ impl App {
         event: Event,
     ) -> Option<Refresh> {
         let other = (page + 1) % FIELD_PAGES.len();
+        let other = if matches!(event, Event::Key(PageKey::Back)) {
+            (page + FIELD_PAGES.len() - 1) % FIELD_PAGES.len()
+        } else {
+            other
+        };
         let Event::Tap { x, y } = event else {
             // Sayfa tuşları ayar sayfasını değiştirir.
             self.view = View::Settings { draft, page: other };
@@ -808,12 +827,13 @@ impl App {
 
     pub(super) fn draw_settings(&self, canvas: &mut Canvas, draft: &Settings, page: usize) {
         let t = &self.text;
-        let title = if page == 0 {
-            Msg::TextSettings
-        } else {
-            Msg::PdfSettings
-        };
-        draw_header(t, canvas, &tr(&title), &tr(&Msg::SettingsHint), false);
+        draw_header(
+            t,
+            canvas,
+            &tr(&PAGE_TITLES[page]),
+            &tr(&Msg::SettingsHint),
+            false,
+        );
         for (row, field) in FIELD_PAGES[page].iter().enumerate() {
             let top = HEADER_BOTTOM + row as i32 * SETTINGS_ROW;
             t.draw_msg(canvas, &field.label(), MARGIN, top + 52, ROW_PX);
@@ -830,12 +850,10 @@ impl App {
             draw_button(t, canvas, minus, "−", 52.0);
             draw_button(t, canvas, plus, "+", 52.0);
         }
-        let other = if page == 0 {
-            Msg::PdfSettingsNext
-        } else {
-            Msg::TextSettingsBack
-        };
-        draw_button(t, canvas, self.settings_page_button(), &tr(&other), 40.0);
+        let next = Msg::NextSettingsPage(Box::new(
+            PAGE_TITLES[(page + 1) % FIELD_PAGES.len()].clone(),
+        ));
+        draw_button(t, canvas, self.settings_page_button(), &tr(&next), 40.0);
         draw_button(t, canvas, self.settings_cancel(), &tr(&Msg::Cancel), 40.0);
         draw_button(t, canvas, self.settings_ok(), &tr(&Msg::Ok), 40.0);
         if page != 0 {

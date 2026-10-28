@@ -354,7 +354,7 @@ Kullanıcı isteği (2026-10-28): 50 maddelik öneri listesi milestone olarak ka
 - [ ] 7. Yatay mod, PDF'te iki sayfa yan yana (O)
 - [ ] 8. Bölümün ve kitabın kalan okuma süresi tahmini (K)
 - [ ] 9. Kaydırarak sayfa çevirme, iki parmakla punto değiştirme (O)
-- [ ] 10. Dokunma bölgelerini özelleştirme (K)
+- [x] 10. Dokunma bölgelerini özelleştirme (K) (Ayarlara üçüncü sayfa "Okuma ve ekran"; "Dokunma düzeni": sol geri/sağ ileri, ters, tek el (sol kenar şeridi geri, üst şerit menü, gerisi ileri). Testli.)
 - [ ] 11. Sayfa tuşlarının yönünü ayardan değiştirme (K)
 - [ ] 12. Otomatik sayfa çevirme zamanlayıcısı (K)
 - [ ] 13. Sağdan sola yazı (Osmanlıca, Arapça) (B)

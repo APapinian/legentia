@@ -23,6 +23,18 @@ pub enum PdfView {
     Columns,
 }
 
+/// Okurken ekrana dokunmanın anlamı.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum TapZones {
+    /// Sol üçte bir geri, orta menü, sağ üçte bir ileri.
+    #[default]
+    Standard,
+    /// Sol ileri, sağ geri.
+    Reversed,
+    /// Tek elle: sol kenar şeridi geri, üst şerit menü, geri kalan her yer ileri.
+    OneHand,
+}
+
 /// Okuma ayarları. Değişince bölüm yeniden dizilir, okuma konumu korunur.
 /// Kayıt dosyasında eksik alanlar varsayılanla doldurulur.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -54,6 +66,7 @@ pub struct Settings {
     pub online_tdk: bool,
     /// Kelime cihazdaki sözlüklerde yoksa Vikisözlük'e sor.
     pub online_wiktionary: bool,
+    pub tap_zones: TapZones,
 }
 
 impl Default for Settings {
@@ -74,6 +87,7 @@ impl Default for Settings {
             network: true,
             online_tdk: true,
             online_wiktionary: false,
+            tap_zones: TapZones::Standard,
         }
     }
 }
@@ -96,11 +110,12 @@ pub enum Field {
     Network,
     OnlineTdk,
     OnlineWiktionary,
+    TapZones,
 }
 
-/// Ayarlar ekranının sayfaları: önce yazı, sonra PDF ayarları. Hepsi tek
-/// ekrana sığmaz (alttaki Tamam/Vazgeç düğmelerine taşar).
-pub const FIELD_PAGES: [&[Field]; 2] = [
+/// Ayarlar ekranının sayfaları: yazı; PDF ve internet; okuma ve ekran. Hepsi
+/// tek ekrana sığmaz (alttaki Tamam/Vazgeç düğmelerine taşar).
+pub const FIELD_PAGES: [&[Field]; 3] = [
     &[
         Field::Family,
         Field::Size,
@@ -120,7 +135,11 @@ pub const FIELD_PAGES: [&[Field]; 2] = [
         Field::OnlineTdk,
         Field::OnlineWiktionary,
     ],
+    &[Field::TapZones],
 ];
+
+/// Ayar sayfalarının başlıkları ve bir sonrakine geçiş düğmesinin etiketi.
+pub const PAGE_TITLES: [Msg; 3] = [Msg::TextSettings, Msg::PdfSettings, Msg::ReadingSettings];
 
 impl Field {
     pub fn label(self) -> Msg {
@@ -140,6 +159,7 @@ impl Field {
             Field::Network => Msg::SettingNetwork,
             Field::OnlineTdk => Msg::SettingTdk,
             Field::OnlineWiktionary => Msg::SettingWiktionary,
+            Field::TapZones => Msg::SettingTapZones,
         }
     }
 }
@@ -193,6 +213,12 @@ impl Settings {
             Field::Network => s.network = !s.network,
             Field::OnlineTdk => s.online_tdk = !s.online_tdk,
             Field::OnlineWiktionary => s.online_wiktionary = !s.online_wiktionary,
+            Field::TapZones => {
+                const ZONES: [TapZones; 3] =
+                    [TapZones::Standard, TapZones::Reversed, TapZones::OneHand];
+                let i = ZONES.iter().position(|z| *z == s.tap_zones).unwrap_or(0);
+                s.tap_zones = ZONES[if up { (i + 1) % 3 } else { (i + 2) % 3 }];
+            }
         }
         s
     }
@@ -232,6 +258,11 @@ impl Settings {
                 &Msg::On
             } else {
                 &Msg::Off
+            }),
+            Field::TapZones => tr(match self.tap_zones {
+                TapZones::Standard => &Msg::TapStandard,
+                TapZones::Reversed => &Msg::TapReversed,
+                TapZones::OneHand => &Msg::TapOneHand,
             }),
         }
     }
