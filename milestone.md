@@ -376,7 +376,7 @@ Kullanıcı isteği (2026-10-28): 50 maddelik öneri listesi milestone olarak ka
 - [ ] 25. Koleksiyonlar ve raflar (O)
 - [x] 26. Okuma durumu: okunacak / okunuyor / bitti (K) (Araç çubuğunda süzgeç: hepsi / okunuyor / okunacak / bitti. Kitaba uzun basınca durum seçilir; seçilmediyse ilerlemeden çıkar (açılmamış okunacak, açılmış okunuyor, %100 bitti). Kitap kaydında, yedeğe girer. Testli.)
 - [ ] 27. Seri bilgisi ve seri sırası (O)
-- [ ] 28. Cihazdan kitap silme ve taşıma (K)
+- [x] 28. Cihazdan kitap silme ve taşıma (K) (Kitaba uzun basınca "Kitabı sil" (onaylı; yalnızca dosya silinir, okuma konumu ve notlar kayıtta kalır) ve "Klasöre taşı" (kök ve gizli olmayan alt klasörler, iki düzey; hedefte aynı adlı dosya varsa taşınmaz). Testli.)
 - [ ] 29. Kitap bilgilerini düzenleme (O)
 - [ ] 30. FB2, TXT, HTML (O)
 - [ ] 31. DRM'siz MOBI/AZW3 (B)

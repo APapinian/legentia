@@ -156,6 +156,33 @@ pub fn scan(root: &Path, store: &Store) -> Vec<Entry> {
     entries
 }
 
+/// Kitapların taşınabileceği klasörler: kök ve gizli olmayan alt klasörler
+/// (en çok iki düzey), Türkçe sırayla.
+pub fn folders(root: &Path) -> Vec<PathBuf> {
+    fn walk(dir: &Path, depth: usize, out: &mut Vec<PathBuf>) {
+        let Ok(read) = std::fs::read_dir(dir) else {
+            return;
+        };
+        for entry in read.flatten() {
+            let path = entry.path();
+            let hidden = path
+                .file_name()
+                .is_some_and(|n| n.to_string_lossy().starts_with('.'));
+            if path.is_dir() && !hidden {
+                out.push(path.clone());
+                if depth < 2 {
+                    walk(&path, depth + 1, out);
+                }
+            }
+        }
+    }
+    let mut out = Vec::new();
+    walk(root, 1, &mut out);
+    out.sort_by(|a, b| crate::collate::compare(&a.to_string_lossy(), &b.to_string_lossy()));
+    out.insert(0, root.to_path_buf());
+    out
+}
+
 fn collect(dir: &Path, out: &mut Vec<PathBuf>) {
     let Ok(read) = std::fs::read_dir(dir) else {
         return;

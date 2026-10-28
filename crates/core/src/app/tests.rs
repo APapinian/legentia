@@ -2625,7 +2625,7 @@ fn library_is_searched_sorted_and_filtered_by_reading_status() {
 
     // Süzgeç: okunuyor yalnızca açılan kitap.
     tap(&mut app, filters[1].center());
-    assert_eq!(shown_titles(&app), [last.clone()]);
+    assert_eq!(shown_titles(&app), std::slice::from_ref(&last));
 
     // Uzun basma: okuma durumu; "bitti" süzgecinde görünür, kalıcı.
     let (x, y) = LIBRARY.row_rect(W, 0).center();
@@ -2636,9 +2636,73 @@ fn library_is_searched_sorted_and_filtered_by_reading_status() {
     tap(&mut app, finished);
     assert!(shown_titles(&app).is_empty(), "artık okunmuyor");
     tap(&mut app, filters[3].center());
-    assert_eq!(shown_titles(&app), [last.clone()]);
+    assert_eq!(shown_titles(&app), std::slice::from_ref(&last));
     app.draw(&mut c);
 
     let app = restart(&data, &root);
     assert_eq!(shown_titles(&app), [last], "süzgeç ve durum kalıcı");
+}
+
+#[test]
+fn books_are_deleted_after_confirmation_and_moved_to_folders() {
+    let (mut app, data, root) = setup(&[("a.epub", epub3_sample()), ("b.epub", epub2_sample())]);
+    std::fs::create_dir_all(root.join("Romanlar")).unwrap();
+    let hold = |app: &mut App, row: usize| {
+        let (x, y) = LIBRARY.row_rect(W, row).center();
+        app.handle(Event::Hold { x, y });
+        assert!(matches!(app.view, View::BookActions { .. }));
+    };
+    let mut c = Canvas::new(W, LIBRA2_HEIGHT);
+
+    // Taşı: ilk kitap "Romanlar"a.
+    let first = app.library[app.visible_books()[0]].path.clone();
+    hold(&mut app, 0);
+    let at = app.status_rect(super::shelf::MOVE_ROW).center();
+    tap(&mut app, at);
+    assert!(matches!(app.view, View::MoveBook { .. }));
+    app.draw(&mut c);
+    let folders = crate::library::folders(&root);
+    let target = folders
+        .iter()
+        .position(|f| f.ends_with("Romanlar"))
+        .unwrap();
+    tap_row(&mut app, &super::shelf::FOLDERS, target);
+    let moved = root.join("Romanlar").join(first.file_name().unwrap());
+    assert!(moved.exists() && !first.exists());
+    assert!(
+        app.library.iter().any(|e| e.path == moved),
+        "kütüphane yeniden tarandı"
+    );
+
+    // Sil: onaydan "Vazgeç" dosyayı bırakır, "Sil" siler; kayıt kalır.
+    let victim = app.library[app.visible_books()[0]].clone();
+    tap_row(&mut app, &LIBRARY, 0);
+    if session(&app).pages.is_empty() {
+        tap_row(&mut app, &CONTENTS, 0);
+    }
+    menu(&mut app, MenuItem::Library);
+    let row = app
+        .visible_books()
+        .iter()
+        .position(|&i| app.library[i].id == victim.id)
+        .unwrap();
+    hold(&mut app, row);
+    let at = app.status_rect(super::shelf::DELETE_ROW).center();
+    tap(&mut app, at);
+    assert!(matches!(app.view, View::ConfirmDelete { .. }));
+    app.draw(&mut c);
+    let cancel = app.status_rect(1).center();
+    tap(&mut app, cancel);
+    assert!(victim.path.exists());
+    hold(&mut app, row);
+    let at = app.status_rect(super::shelf::DELETE_ROW).center();
+    tap(&mut app, at);
+    let delete = app.status_rect(0).center();
+    tap(&mut app, delete);
+    assert!(!victim.path.exists());
+    assert_eq!(app.library.len(), 1);
+    assert!(
+        data.join(format!("books/{}.json", victim.id)).exists(),
+        "notlar kayıtta kalır"
+    );
 }

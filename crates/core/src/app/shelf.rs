@@ -7,12 +7,15 @@ use serde::{Deserialize, Serialize};
 
 use super::form::{Field, Form, FormKind};
 use super::screens::LIBRARY;
-use super::ui::{HEADER_BOTTOM, MARGIN, ROW_PX, Rect, draw_button, draw_header};
+use super::ui::{
+    BOLD, HEADER_BOTTOM, MARGIN, PLAIN, ROW_PX, Rect, draw_button, draw_header, one_line,
+};
 use super::{App, View, book_file};
 use crate::canvas::Canvas;
 use crate::collate;
 use crate::event::{Event, Refresh};
 use crate::i18n::{Msg, tr};
+use crate::text::Family;
 
 /// Araç çubuğunun yüksekliği; liste altından başlar.
 pub(super) const TOOLBAR_H: i32 = 100;
@@ -61,6 +64,13 @@ const STATUSES: [ReadStatus; 3] = [
     ReadStatus::Reading,
     ReadStatus::Finished,
 ];
+/// Kitap işlemlerinde durumların altındaki satırlar.
+pub(super) const DELETE_ROW: usize = 3;
+pub(super) const MOVE_ROW: usize = 4;
+pub(super) const FOLDERS: super::ui::List = super::ui::List {
+    top: HEADER_BOTTOM,
+    row_h: 90,
+};
 
 /// Kütüphane listesindeki kitabın kayıttan gelen bilgisi (yüzde `progress`'te).
 #[derive(Debug, Clone, Default)]
@@ -253,9 +263,153 @@ impl App {
         };
         if let Some(i) = (0..STATUSES.len()).find(|&i| self.status_rect(i).contains(x, y)) {
             self.set_status(book, STATUSES[i]);
+        } else if self.status_rect(DELETE_ROW).contains(x, y) {
+            self.view = View::ConfirmDelete { book };
+            return Some(self.refresh(true));
+        } else if self.status_rect(MOVE_ROW).contains(x, y) {
+            self.view = View::MoveBook { book, page: 0 };
+            return Some(self.refresh(true));
         }
         self.view = View::Library { page: 0 };
         Some(self.refresh(true))
+    }
+
+    // --- Silme ve taşıma ---
+
+    /// Kitap dosyası değişince kütüphane yeniden taranır.
+    fn rescan(&mut self) {
+        self.library = crate::library::scan(&self.root, &self.store);
+    }
+
+    pub(super) fn handle_confirm_delete(&mut self, book: usize, event: Event) -> Option<Refresh> {
+        let Event::Tap { x, y } = event else {
+            return None;
+        };
+        if self.status_rect(0).contains(x, y)
+            && let Some(e) = self.library.get(book)
+        {
+            let path = e.path.clone();
+            match std::fs::remove_file(&path) {
+                Ok(()) => {
+                    log::info!("deleted {}", path.display());
+                    self.rescan();
+                }
+                Err(err) => {
+                    log::error!("cannot delete {}: {err}", path.display());
+                    self.view = View::Message {
+                        msg: Msg::DeleteFailed,
+                        back: super::Back::Library,
+                    };
+                    return Some(self.refresh(true));
+                }
+            }
+        }
+        self.view = View::Library { page: 0 };
+        Some(self.refresh(true))
+    }
+
+    pub(super) fn draw_confirm_delete(&self, canvas: &mut Canvas, book: usize) {
+        let t = &self.text;
+        let Some(e) = self.library.get(book) else {
+            return;
+        };
+        draw_header(
+            t,
+            canvas,
+            &tr(&Msg::DeleteBookQuestion),
+            &e.display_title(),
+            false,
+        );
+        draw_button(t, canvas, self.status_rect(0), &tr(&Msg::Delete), ROW_PX);
+        draw_button(t, canvas, self.status_rect(1), &tr(&Msg::Cancel), ROW_PX);
+        let y = self.status_rect(2).y + 40;
+        self.draw_message_lines(canvas, &Msg::DeleteKeepsNotes, y);
+    }
+
+    pub(super) fn handle_move_book(
+        &mut self,
+        book: usize,
+        page: usize,
+        event: Event,
+    ) -> Option<Refresh> {
+        let folders = crate::library::folders(&self.root);
+        if let Event::Tap { x, y } = event {
+            if super::ui::back_button(self.width).contains(x, y) {
+                self.view = View::Library { page: 0 };
+                return Some(self.refresh(true));
+            }
+            let row = FOLDERS.row_at(page, folders.len(), y)?;
+            let from = self.library.get(book)?.path.clone();
+            let to = folders[row].join(from.file_name()?);
+            let msg = if to == from {
+                None
+            } else if to.exists() {
+                Some(Msg::MoveTargetExists)
+            } else {
+                match std::fs::rename(&from, &to) {
+                    Ok(()) => {
+                        log::info!("moved {} to {}", from.display(), to.display());
+                        self.rescan();
+                        None
+                    }
+                    Err(err) => {
+                        log::error!("cannot move {}: {err}", from.display());
+                        Some(Msg::MoveFailed)
+                    }
+                }
+            };
+            self.view = match msg {
+                Some(msg) => View::Message {
+                    msg,
+                    back: super::Back::Library,
+                },
+                None => View::Library { page: 0 },
+            };
+            return Some(self.refresh(true));
+        }
+        let page = Self::page_list(page, FOLDERS.pages(folders.len()), event)?;
+        self.view = View::MoveBook { book, page };
+        Some(self.refresh(false))
+    }
+
+    pub(super) fn draw_move_book(&self, canvas: &mut Canvas, book: usize, page: usize) {
+        let t = &self.text;
+        let Some(e) = self.library.get(book) else {
+            return;
+        };
+        draw_header(t, canvas, &tr(&Msg::MoveTo), &e.display_title(), true);
+        let folders = crate::library::folders(&self.root);
+        let current = e.path.parent();
+        for (index, row) in FOLDERS.visible(page, folders.len()) {
+            let r = FOLDERS.row_rect(canvas.width(), row);
+            let f = &folders[index];
+            let name = if index == 0 {
+                tr(&Msg::LibraryRoot)
+            } else {
+                f.strip_prefix(&self.root)
+                    .unwrap_or(f)
+                    .to_string_lossy()
+                    .into_owned()
+            };
+            let style = if Some(f.as_path()) == current {
+                BOLD
+            } else {
+                PLAIN
+            };
+            let name = one_line(
+                t,
+                &name,
+                style,
+                ROW_PX,
+                (canvas.width() as i32 - 2 * MARGIN) as f32,
+            );
+            t.draw_plain(canvas, &name, Family::Ui, style, MARGIN, r.y + 55, ROW_PX);
+        }
+        let footer = Msg::ListFooter {
+            page: page + 1,
+            pages: FOLDERS.pages(folders.len()),
+        };
+        super::ui::draw_footer(t, canvas, &footer, MARGIN);
     }
 
     pub(super) fn draw_book_actions(&self, canvas: &mut Canvas, book: usize) {
@@ -283,7 +437,21 @@ impl App {
                 canvas.stroke_rect(r.x + 6, r.y + 6, (r.w - 12) as u32, (r.h - 12) as u32, 4);
             }
         }
-        let hint_y = self.status_rect(STATUSES.len()).y + 50;
+        draw_button(
+            t,
+            canvas,
+            self.status_rect(DELETE_ROW),
+            &tr(&Msg::DeleteBook),
+            ROW_PX,
+        );
+        draw_button(
+            t,
+            canvas,
+            self.status_rect(MOVE_ROW),
+            &tr(&Msg::MoveBook),
+            ROW_PX,
+        );
+        let hint_y = self.status_rect(MOVE_ROW + 1).y + 50;
         t.draw_msg(canvas, &Msg::TapElsewhereToClose, MARGIN, hint_y, 30.0);
     }
 

@@ -125,6 +125,15 @@ enum View {
     BookActions {
         book: usize,
     },
+    /// Kitap dosyası silinsin mi?
+    ConfirmDelete {
+        book: usize,
+    },
+    /// Kitabın taşınacağı klasör seçiliyor.
+    MoveBook {
+        book: usize,
+        page: usize,
+    },
     /// Bölümdeki görsel (`blocks` sırası) tam ekran.
     Image {
         block: usize,
@@ -483,6 +492,8 @@ impl App {
             View::SearchResults { page } => self.handle_search_results(*page, event),
             View::Image { .. } => self.handle_image_view(event),
             View::BookActions { book } => self.handle_book_actions(*book, event),
+            View::ConfirmDelete { book } => self.handle_confirm_delete(*book, event),
+            View::MoveBook { book, page } => self.handle_move_book(*book, *page, event),
             View::Form(form) => {
                 let form = (**form).clone();
                 self.handle_form(form, event)
@@ -693,6 +704,8 @@ impl App {
             View::SearchResults { page } => self.draw_search_results(canvas, *page),
             View::Image { block } => self.draw_image_view(canvas, *block),
             View::BookActions { book } => self.draw_book_actions(canvas, *book),
+            View::ConfirmDelete { book } => self.draw_confirm_delete(canvas, *book),
+            View::MoveBook { book, page } => self.draw_move_book(canvas, *book, *page),
             View::Downloads { page, .. } => self.draw_downloads(canvas, *page),
             View::Form(form) => self.draw_form(canvas, form),
         }
