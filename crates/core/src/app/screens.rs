@@ -266,6 +266,7 @@ impl App {
                 self.view = View::Menu;
                 return Some(self.refresh(false));
             }
+            _ => return None,
         };
         let s = self.session.as_mut()?;
         // EPUB'da bölüm değişimi tam yenilenir; PDF'te her sayfa bir bölüm olduğundan normal sayaç.

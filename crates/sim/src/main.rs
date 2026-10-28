@@ -1,7 +1,8 @@
 //! Libra 2 masaüstü simülatörü. Kullanım: `legentia-sim <kitap klasörü | kitap.epub>`
 //! Kitap verilirse bulunduğu klasör kütüphane olur ve kitap doğrudan açılır.
 //!
-//! Fare tıklaması (ya da dokunmatik ekran) = dokunma. Okurken sol üçte bir
+//! Fare (ya da dokunmatik ekran) = parmak: tıklama dokunma, yarım saniye basılı
+//! tutmak uzun basma, basılıyken sürüklemek sürükleme. Okurken sol üçte bir
 //! önceki sayfa, sağ üçte bir sonraki sayfa, orta menü.
 //! PageUp / Sol ok = üst sayfa tuşu (geri), PageDown / Sağ ok / Boşluk = alt tuş (ileri).
 //! Esc = çıkış. Tam yenileme, ekranın bir an ters renkte gösterilmesiyle işaretlenir.
@@ -15,6 +16,7 @@ use std::time::Duration;
 use legentia_core::i18n::{self, Msg, tr};
 use legentia_core::{
     App, Canvas, Event, Fonts, LIBRA2_HEIGHT, LIBRA2_WIDTH, PageKey, Refresh, Store, Text,
+    TouchPhase,
 };
 use minifb::{Key, KeyRepeat, MouseButton, MouseMode, Window, WindowOptions};
 
@@ -78,21 +80,32 @@ fn run() -> ExitCode {
     let refresh = app.start();
     present(&mut window, &app, &mut canvas, &mut frame, scale, refresh);
 
-    let mut was_down = false;
+    let clock = std::time::Instant::now();
+    // Basılıyken son bildirilen konum; değişince hareket olayı gönderilir.
+    let mut pressed: Option<(u32, u32)> = None;
     while window.is_open() && !window.is_key_down(Key::Escape) {
         window.update();
 
         let mut events = Vec::new();
         let down = window.get_mouse_down(MouseButton::Left);
-        if down
-            && !was_down
-            && let Some((mx, my)) = window.get_mouse_pos(MouseMode::Discard)
-        {
-            let x = ((mx as u32) * scale).min(LIBRA2_WIDTH - 1);
-            let y = ((my as u32) * scale).min(LIBRA2_HEIGHT - 1);
-            events.push(Event::Tap { x, y });
+        let at = window.get_mouse_pos(MouseMode::Clamp).map(|(mx, my)| {
+            (
+                ((mx as u32) * scale).min(LIBRA2_WIDTH - 1),
+                ((my as u32) * scale).min(LIBRA2_HEIGHT - 1),
+            )
+        });
+        let phase = match (down, pressed) {
+            (true, None) => Some(TouchPhase::Down),
+            (true, Some(last)) if at.is_some_and(|p| p != last) => Some(TouchPhase::Move),
+            (false, Some(_)) => Some(TouchPhase::Up),
+            _ => None,
+        };
+        // Pencere dışında bırakılırsa son bilinen konumda kalkmış sayılır.
+        if let (Some(phase), Some((x, y))) = (phase, at.or(pressed)) {
+            let ms = clock.elapsed().as_millis() as u64;
+            events.push(Event::Touch { phase, x, y, ms });
+            pressed = down.then_some((x, y));
         }
-        was_down = down;
 
         for key in window.get_keys_pressed(KeyRepeat::No) {
             match key {

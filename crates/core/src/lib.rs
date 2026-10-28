@@ -23,7 +23,7 @@ mod text;
 pub use app::{App, BookState, Bookmark, Position, Settings};
 pub use canvas::Canvas;
 pub use epub::{Book, EpubError};
-pub use event::{Event, PageKey, Refresh};
+pub use event::{Event, PageKey, Refresh, TouchPhase};
 pub use storage::Store;
 pub use text::{Family, FontError, Fonts, Span, Style, Text, book_family_count, book_family_name};
 

@@ -217,9 +217,9 @@ Not: PDF'e not yazma, M6'daki ortak konumlandırma modeline bağlıdır; M5'te P
 
 ### İşler
 - [ ] EPUB ve PDF için ortak içerik konumlandırma modeli tasarla.
-- [ ] Metin seçimi, vurgulama ve seçili metne not ekleme/düzenleme.
+- [ ] Metin seçimi, vurgulama ve seçili metne not ekleme/düzenleme. (Kararlar, 2026-10-28: seçim uzun bas + sürükle; not metni Türkçe ekran klavyesiyle. Yapıldı: ham dokunmadan dokunma/uzun basma/sürükleme tanıma (`event.rs`, zamanlayıcısız: uzun basma süre dolduktan sonraki ilk hareket ya da kaldırmada tanınır); simülatörde fare.)
 - [ ] Notları kitap, bölüm ve konum bilgisiyle ilişkilendir.
-- [ ] Notları dışa aktarma ve yedekleme/geri yükleme.
+- [ ] Notları dışa aktarma ve yedekleme/geri yükleme. (Karar: Markdown, PDF'lerde standart PDF açıklamaları (ayrı kopya), JSON yedek.)
 
 ### Kabul ölçütleri
 - Uygulama kapanıp açılınca notlar ve vurgular korunuyor.

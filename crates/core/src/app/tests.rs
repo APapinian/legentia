@@ -503,6 +503,29 @@ fn pdf_columns_are_read_one_after_another() {
 }
 
 #[test]
+fn raw_touches_become_taps_and_holds_do_not_turn_pages() {
+    use crate::event::TouchPhase::{Down, Up};
+    let (mut app, _, _) = setup(&[("belge.pdf", pdf_book())]);
+    tap_row(&mut app, &LIBRARY, 0);
+    let touch = |app: &mut App, phase, x, ms| {
+        app.handle(Event::Touch {
+            phase,
+            x,
+            y: LIBRA2_HEIGHT / 2,
+            ms,
+        })
+    };
+    // Uzun basma sayfa çevirmez.
+    touch(&mut app, Down, W - 50, 0);
+    assert_eq!(touch(&mut app, Up, W - 50, 900), None);
+    assert_eq!(session(&app).spine, 0);
+    // Kısa dokunma sağ üçte birde sonraki sayfa.
+    touch(&mut app, Down, W - 50, 1000);
+    assert!(touch(&mut app, Up, W - 50, 1100).is_some());
+    assert_eq!(session(&app).spine, 1);
+}
+
+#[test]
 fn broken_pdf_shows_turkish_error() {
     let (mut app, _, _) = setup(&[("bozuk.pdf", b"%PDF-1.4 bozuk".to_vec())]);
     tap_row(&mut app, &LIBRARY, 0);

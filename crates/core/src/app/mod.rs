@@ -16,7 +16,7 @@ use std::path::Path;
 
 use crate::canvas::Canvas;
 use crate::epub::Book;
-use crate::event::{Event, Refresh};
+use crate::event::{Event, Gestures, Refresh};
 use crate::i18n::Msg;
 use crate::library::{self, Entry, Format};
 use crate::pdf::{GrayImage, PdfDoc, PdfEdit};
@@ -68,6 +68,7 @@ pub struct App {
     unsaved_turns: u32,
     /// Son çizilen PDF ekranı; menü açılıp kapanınca yeniden çizilmez.
     pdf_frame: RefCell<Option<PdfFrame>>,
+    gestures: Gestures,
 }
 
 /// Ekrana yerleştirilmiş PDF sayfa görüntüsü.
@@ -104,6 +105,7 @@ impl App {
             since_full: 0,
             unsaved_turns: 0,
             pdf_frame: RefCell::new(None),
+            gestures: Gestures::default(),
         }
     }
 
@@ -176,7 +178,16 @@ impl App {
     }
 
     /// Bir olayı işler; ekran değişmediyse `None` döner (E Ink'e boşuna yenileme yok).
+    /// Ham dokunma birden çok harekete dönüşebilir; biri tam yenileme isterse tam yenilenir.
     pub fn handle(&mut self, event: Event) -> Option<Refresh> {
+        if let Event::Touch { phase, x, y, ms } = event {
+            return self
+                .gestures
+                .feed(phase, x, y, ms)
+                .into_iter()
+                .filter_map(|e| self.handle(e))
+                .max_by_key(|r| *r == Refresh::Full);
+        }
         match &self.view {
             View::Library { page } => self.handle_library(*page, event),
             View::Message { back, .. } => {

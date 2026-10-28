@@ -47,6 +47,7 @@ cargo test  -p legentia-core --target armv7-unknown-linux-musleabihf
 | Girdi | Karşılığı |
 |---|---|
 | Fare tıklaması / dokunmatik ekran | Dokunma: içindekilerde satırı açar; okurken sol üçte bir önceki sayfa, sağ üçte bir sonraki sayfa, orta menü |
+| Yarım saniye basılı tutmak, basılıyken sürüklemek | Uzun basma ve sürükleme (metin seçimi için; M6) |
 | PageUp, Sol ok | Üst sayfa tuşu (geri) |
 | PageDown, Sağ ok, Boşluk | Alt sayfa tuşu (ileri) |
 | Esc | Çıkış |
