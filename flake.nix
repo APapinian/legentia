@@ -58,6 +58,12 @@
         LEGENTIA_TESSERACT = "${tesseract}/bin/tesseract";
 
         CARGO_TARGET_ARMV7_UNKNOWN_LINUX_MUSLEABIHF_RUNNER = "qemu-arm";
+
+        # ARMv7 için C/assembly kodu (ring: TLS şifrelemesi) clang ile derlenir.
+        # ring'in C kodu libc'ye ihtiyaç duymaz; çapraz GCC/musl araç zinciri gerekmez.
+        CC_armv7_unknown_linux_musleabihf = "${pkgs.llvmPackages.clang-unwrapped}/bin/clang";
+        CFLAGS_armv7_unknown_linux_musleabihf = "--target=armv7-unknown-linux-musleabihf -ffreestanding";
+        AR_armv7_unknown_linux_musleabihf = "${pkgs.llvmPackages.llvm}/bin/llvm-ar";
       };
     };
 }

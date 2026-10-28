@@ -259,7 +259,7 @@ Not: PDF'e not yazma, M6'daki ortak konumlandırma modeline bağlıdır; M5'te P
 **Amaç:** Kitap keşfi ve indirme için açık ağ protokollerini eklemek. Ana kitap aktarım yolu USB'dir; bu aşama ek bir kolaylıktır.
 
 ### İşler
-- [ ] HTTPS ve TLS sertifika doğrulaması.
+- [x] HTTPS ve TLS sertifika doğrulaması. (Karar, 2026-10-28: rustls + ring; saf Rust sağlayıcı bakımsız alfa olduğu için bırakıldı. ureq istemcisi, gömülü Mozilla kök sertifikaları; ARMv7'de ring flake'teki clang ile derleniyor. Gerçek sunucularda denendi (masaüstü ve qemu-arm): Gutenberg OPDS açılıyor, adı tutmayan sertifika reddediliyor. `net.rs`: zaman aşımları (bağlantı 15 sn, yanıt 30 sn), Basic yetkilendirme, hatalar Türkçe (bağlantı yok, zaman aşımı, sertifika, yetki, sunucu kodu, boyut, disk); indirme geçici dosyaya, iptal ve hatada iz bırakmaz. Not: Standard Ebooks OPDS'i artık üyelik istiyor (401).)
 - [ ] OPDS katalog tarama ve kitap indirme.
 - [ ] Calibre Content Server uyumluluğu.
 - [ ] İndirme kuyruğu, ilerleme, iptal, yeniden deneme ve disk alanı kontrolü.

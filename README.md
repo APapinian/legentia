@@ -37,7 +37,8 @@ cargo run --release -p legentia-core --example pdf_text -- <belge.pdf> [ilk sayf
 # Pencere açmadan ekran görüntüleri (PGM): kütüphane, içindekiler, okuma, menü, ayarlar
 cargo run --release -p legentia-core --example screenshots -- <kütüphane> <çıktı klasörü> [kitap sırası] [reflow] [sutun]
 
-# Kobo hedefi: statik ARMv7 musl; testler qemu-arm ile çalışır
+# Kobo hedefi: statik ARMv7 musl; testler qemu-arm ile çalışır.
+# TLS'in (ring) C kodu flake'teki clang ile derlenir; nix develop dışında CC_armv7_unknown_linux_musleabihf gerekir.
 cargo build -p legentia-core --target armv7-unknown-linux-musleabihf
 cargo test  -p legentia-core --target armv7-unknown-linux-musleabihf
 ```
