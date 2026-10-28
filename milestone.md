@@ -345,7 +345,7 @@ Kullanıcı isteği (2026-10-28): 50 maddelik öneri listesi milestone olarak ka
 - Uygulama dağıtımı için kullanıcının önerisi: Cobalt'ın uygulama mağazası (github.com/BandarLabs/Cobalt). Mağazaya yalnızca Cobalt SDK'sı ve çalışma ortamıyla yazılmış, Cobalt deposuna PR ile giren uygulamalar girebiliyor; Cobalt AGPL-3.0. Bu, M1'deki "Cobalt kodu kullanılmayacak" kararını ve projenin MIT lisansını etkiler. **Karar bekliyor.**
 
 ### Okuma deneyimi
-- [ ] 1. Kitap içinde metin arama, sonuçlar arasında gezinme (O)
+- [x] 1. Kitap içinde metin arama, sonuçlar arasında gezinme (O) (Kullanıcı kararı: sonuç listesi. Üst çubukta "Ara"; bütün bölümler/PDF sayfaları taranır (en çok 300 sonuç), sonuçlar kelimenin çevresi ve bölüm adıyla listelenir; dokununca sayfa açılır, bulunan yer gri işaretli, sol üstte "← Sonuçlar". Büyük/küçük harf ve şapka fark etmez; noktalı/noktasız i aynı sayılır (PDF'in dili bilinmez, İngilizce "Index" Türkçe kuralla bulunamıyordu). Arama eşzamanlı: cihazda büyük kitapta birkaç saniye sürebilir. Testli.)
 - [x] 2. Dipnotlar sayfadan çıkmadan açılır pencerede (O) (`epub:type="noteref"`/`role="doc-noteref"` ya da en çok 5 karakterlik bağlantı metni dipnot sayılır; not altta pencerede, "Notun yerine git" ile notun sayfasına gidilir, dışına dokunmak kapatır. Testli.)
 - [x] 3. Kitap içi bağlantılar ve "geri dön" (O) (Dokunulan bağlantının hedef bölümü açılır, `id`/`<a name>` taşıyan bloğun sayfasına gidilir; sol üstte "← Geri" (en çok 20 adım). Dipnot işaretleri küçük olduğundan bağlantının iki yanına 30 px dokunma payı. Dış bağlantılar açılmaz. Testli.)
 - [ ] 4. EPUB görselleri ve tabloları, dokununca büyütme (B)

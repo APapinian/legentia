@@ -29,6 +29,10 @@ pub(super) const WORDS: List = List {
     top: HEADER_BOTTOM,
     row_h: 120,
 };
+pub(super) const SEARCH: List = List {
+    top: HEADER_BOTTOM,
+    row_h: 120,
+};
 pub(super) const ANNOTATIONS: List = List {
     top: HEADER_BOTTOM,
     row_h: 120,
@@ -41,8 +45,9 @@ const BAR_GAP: i32 = 20;
 const BAR_SIDE_W: i32 = 330;
 const BAR_PX: f32 = 32.0;
 /// Üst çubuğun ikinci satırı ve alt çubuk.
-const NAV_ITEMS: [MenuItem; 4] = [
+const NAV_ITEMS: [MenuItem; 5] = [
     MenuItem::Contents,
+    MenuItem::Search,
     MenuItem::Bookmarks,
     MenuItem::Annotations,
     MenuItem::Words,
@@ -66,6 +71,7 @@ pub(super) fn exit_button(width: u32) -> Rect {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum MenuItem {
     Contents,
+    Search,
     Bookmark,
     Bookmarks,
     Annotations,
@@ -81,6 +87,7 @@ impl App {
     pub(super) fn menu_items(&self) -> Vec<MenuItem> {
         let mut items = vec![
             MenuItem::Contents,
+            MenuItem::Search,
             MenuItem::Bookmark,
             MenuItem::Bookmarks,
             MenuItem::Annotations,
@@ -323,6 +330,10 @@ impl App {
                 if self.link_back_button().is_some_and(|r| r.contains(x, y)) {
                     return self.go_back();
                 }
+                if self.results_button().is_some_and(|r| r.contains(x, y)) {
+                    self.view = View::SearchResults { page: 0 };
+                    return Some(self.refresh(true));
+                }
                 if let Some(index) = self.annotation_at(x, y) {
                     self.view = View::Annotation { index };
                     return Some(self.refresh(false));
@@ -416,6 +427,8 @@ impl App {
                 }
             };
             draw_footer(t, canvas, &self.with_time_left(footer), MARGIN);
+            self.draw_link_back(canvas);
+            self.draw_results_button(canvas);
             return;
         }
         for placed in &page.lines {
@@ -452,6 +465,7 @@ impl App {
             self.settings.margin,
         );
         self.draw_link_back(canvas);
+        self.draw_results_button(canvas);
     }
 
     // --- Menü ---
@@ -494,7 +508,11 @@ impl App {
                 h: BAR_ROW,
             },
             Some(
-                MenuItem::Contents | MenuItem::Bookmarks | MenuItem::Annotations | MenuItem::Words,
+                MenuItem::Contents
+                | MenuItem::Search
+                | MenuItem::Bookmarks
+                | MenuItem::Annotations
+                | MenuItem::Words,
             ) => {
                 let (i, n) = row_of(&NAV_ITEMS);
                 slot(2 * BAR_GAP + BAR_ROW, i, n)
@@ -527,6 +545,7 @@ impl App {
     fn menu_label(&self, item: MenuItem) -> Msg {
         match item {
             MenuItem::Contents => Msg::Contents,
+            MenuItem::Search => Msg::Search,
             MenuItem::Bookmark
                 if self
                     .session
@@ -594,9 +613,18 @@ impl App {
                     back: Back::Reading,
                 };
             }
+            MenuItem::Search => {
+                if self.search.is_some() {
+                    self.view = View::SearchResults { page: 0 };
+                } else {
+                    return self.open_search_form();
+                }
+            }
             MenuItem::Library => {
                 self.session = None;
                 self.link_back.clear();
+                self.search = None;
+                self.search_mark = None;
                 self.use_settings(self.defaults.clone());
                 self.view = View::Library { page: 0 };
             }

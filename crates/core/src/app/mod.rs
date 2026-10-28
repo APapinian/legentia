@@ -19,6 +19,7 @@ mod note;
 mod pace;
 mod pdf_view;
 mod screens;
+mod search;
 mod select;
 mod session;
 mod settings;
@@ -112,6 +113,10 @@ enum View {
     Searching,
     /// Dipnot altta açılır pencerede (`footnote`).
     Footnote,
+    /// Kitap içi arama sonuçları (`search`).
+    SearchResults {
+        page: usize,
+    },
     /// İndirme kuyruğu; `back` katalog listesi ya da katalog sayfası.
     Downloads {
         page: usize,
@@ -176,6 +181,9 @@ pub struct App {
     link_back: Vec<(usize, Position)>,
     /// Açılır penceredeki dipnot.
     footnote: Option<links::Footnote>,
+    /// Açık kitaptaki son arama ve okunan sayfada işaretli sonuç (bölüm, başı, sonu).
+    search: Option<search::BookSearch>,
+    search_mark: Option<(usize, Position, Position)>,
     /// Kullanıcı "Çık"a dokundu; kayıtlar yazıldı, platform uygulamayı kapatmalı.
     exit: bool,
 }
@@ -236,6 +244,8 @@ impl App {
             page_shown: None,
             link_back: Vec::new(),
             footnote: None,
+            search: None,
+            search_mark: None,
             exit: false,
         }
     }
@@ -304,6 +314,8 @@ impl App {
             .map(|n| n.to_string_lossy().into_owned())
             .unwrap_or_default();
         self.link_back.clear();
+        self.search = None;
+        self.search_mark = None;
         let mut session = Session::new(doc, name, id.clone(), state);
         session.path = path.to_path_buf();
         if is_pdf {
@@ -389,6 +401,7 @@ impl App {
             View::Loading => self.handle_loading(event),
             View::Searching => self.handle_searching(event),
             View::Footnote => self.handle_footnote(event),
+            View::SearchResults { page } => self.handle_search_results(*page, event),
             View::Form(form) => {
                 let form = (**form).clone();
                 self.handle_form(form, event)
@@ -590,6 +603,7 @@ impl App {
                 self.draw_reading(canvas);
                 self.draw_footnote(canvas);
             }
+            View::SearchResults { page } => self.draw_search_results(canvas, *page),
             View::Downloads { page, .. } => self.draw_downloads(canvas, *page),
             View::Form(form) => self.draw_form(canvas, form),
         }

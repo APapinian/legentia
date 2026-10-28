@@ -66,13 +66,29 @@ fn key(app: &mut App, forward: bool) -> Option<Refresh> {
     }))
 }
 
+fn view_name(app: &App) -> &'static str {
+    match app.view {
+        View::Reading => "okuma",
+        View::Annotation { .. } => "vurgu",
+        View::Footnote => "dipnot",
+        View::Form(_) => "form",
+        View::SearchResults { .. } => "arama sonuçları",
+        View::Contents { .. } => "içindekiler",
+        _ => "başka",
+    }
+}
+
 fn middle(app: &mut App) -> Option<Refresh> {
     tap(app, (W / 2, LIBRA2_HEIGHT / 2))
 }
 
 fn menu(app: &mut App, item: MenuItem) -> Option<Refresh> {
     middle(app);
-    assert!(matches!(app.view, View::Menu));
+    assert!(
+        matches!(app.view, View::Menu),
+        "menü açılmadı: {}",
+        view_name(app)
+    );
     let index = app.menu_items().iter().position(|m| *m == item).unwrap();
     tap(app, app.menu_rect(index).center())
 }
@@ -2102,4 +2118,86 @@ fn footnotes_open_in_a_popup_without_leaving_the_page() {
     tap(&mut app, at);
     assert!(matches!(app.view, View::Reading));
     assert_eq!(session(&app).spine, 1);
+}
+
+// --- Kitap içi arama ---
+
+fn search_for(app: &mut App, query: &str) {
+    if !matches!(app.view, View::SearchResults { .. }) {
+        menu(app, MenuItem::Search);
+    }
+    if matches!(app.view, View::SearchResults { .. }) {
+        tap(app, super::ui::header_button(W, 260).center()); // Yeni arama
+    }
+    let (count, del) = {
+        let View::Form(f) = &app.view else {
+            panic!("arama formu açık değil");
+        };
+        let del = f
+            .keyboard
+            .keys(W)
+            .into_iter()
+            .find(|(k, _)| *k == keyboard::Key::Backspace)
+            .unwrap()
+            .1
+            .center();
+        (f.fields[0].value.chars().count(), del)
+    };
+    for _ in 0..count {
+        tap(app, del);
+    }
+    type_text(app, query);
+    form_button(app, form::Button::Submit);
+    assert!(matches!(app.view, View::SearchResults { page: 0 }));
+}
+
+#[test]
+fn book_search_lists_hits_and_jumps_to_them() {
+    let (mut app, _, _) = setup(&[("baglanti.epub", linked_book())]);
+    tap_row(&mut app, &LIBRARY, 0);
+    tap_row(&mut app, &CONTENTS, 0);
+    let mut c = Canvas::new(W, LIBRA2_HEIGHT);
+
+    search_for(&mut app, "hedef");
+    let hits = &app.search.as_ref().unwrap().hits;
+    assert_eq!(hits.len(), 1);
+    assert_eq!(hits[0].snippet, "Hedef başlık");
+    app.draw(&mut c);
+
+    tap_row(&mut app, &super::screens::SEARCH, 0);
+    assert!(matches!(app.view, View::Reading));
+    assert_eq!(session(&app).spine, 1);
+    assert!(page_shows_anchor(&app, "hedef"), "sonucun sayfası açıldı");
+    app.draw(&mut c);
+    let results = app.results_button().expect("sonuçlara dönüş düğmesi");
+    tap(&mut app, results.center());
+    assert!(matches!(app.view, View::SearchResults { .. }));
+    tap(&mut app, super::ui::back_button(W).center());
+    assert!(matches!(app.view, View::Reading));
+    assert!(app.results_button().is_none());
+
+    // İki bölüm, büyük harfle başlayan kelime: her bölümde 60 dolgu paragrafı.
+    search_for(&mut app, "dolgu");
+    let hits = &app.search.as_ref().unwrap().hits;
+    assert_eq!(hits.len(), 120);
+    assert_eq!(hits.iter().filter(|h| h.spine == 1).count(), 60);
+
+    search_for(&mut app, "bulunmayan");
+    assert!(app.search.as_ref().unwrap().hits.is_empty());
+    app.draw(&mut c);
+}
+
+#[test]
+fn pdf_pages_are_searched_too() {
+    let (mut app, _, _) = setup(&[("metin.pdf", text_pdf())]);
+    tap_row(&mut app, &LIBRARY, 0);
+    search_for(&mut app, "ikinci");
+    let hits = &app.search.as_ref().unwrap().hits;
+    assert_eq!(hits.len(), 1);
+    assert_eq!(hits[0].spine, 1);
+    tap_row(&mut app, &super::screens::SEARCH, 0);
+    assert_eq!(session(&app).spine, 1, "ikinci sayfa açıldı");
+    assert!(app.search_mark.is_some());
+    let mut c = Canvas::new(W, LIBRA2_HEIGHT);
+    app.draw(&mut c);
 }

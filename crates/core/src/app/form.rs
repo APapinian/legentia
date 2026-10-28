@@ -23,6 +23,8 @@ pub(super) enum FormKind {
     /// `catalogs` içindeki sırası.
     EditCatalog(usize),
     Search(Search),
+    /// Açık kitapta metin araması.
+    BookSearch,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -77,6 +79,7 @@ impl Form {
             FormKind::NewCatalog => Msg::NewCatalog,
             FormKind::EditCatalog(_) => Msg::EditCatalog,
             FormKind::Search(_) => Msg::SearchCatalog,
+            FormKind::BookSearch => Msg::SearchBook,
         }
     }
 
@@ -91,7 +94,7 @@ impl Form {
         match (b, &self.kind) {
             (Button::Cancel, _) => Msg::Cancel,
             (Button::Delete, _) => Msg::Delete,
-            (Button::Submit, FormKind::Search(_)) => Msg::Search,
+            (Button::Submit, FormKind::Search(_) | FormKind::BookSearch) => Msg::Search,
             (Button::Submit, _) => Msg::Save,
         }
     }

@@ -399,6 +399,17 @@ impl App {
         let catalogs_view = View::Catalogs { page: 0 };
         match (button, form.kind.clone()) {
             (Button::Cancel, FormKind::Search(_)) => self.view = View::Feed,
+            (Button::Cancel, FormKind::BookSearch) => self.view = View::Reading,
+            (Button::Submit, FormKind::BookSearch) => {
+                let query = form.fields[0].value.trim().to_string();
+                if query.is_empty() {
+                    form.error = Some(Msg::QueryRequired);
+                    return self.open_form(form);
+                }
+                self.search = self.search_book(&query);
+                self.search_mark = None;
+                self.view = View::SearchResults { page: 0 };
+            }
             (Button::Cancel, _) => self.view = catalogs_view,
             (Button::Delete, FormKind::EditCatalog(i)) => {
                 if i < self.browser.catalogs.len() {

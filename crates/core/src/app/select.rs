@@ -255,6 +255,11 @@ impl App {
             .chain(
                 self.selection
                     .map(|sel| (sel.start, sel.end, SELECTION_GRAY, false)),
+            )
+            .chain(
+                self.search_mark
+                    .filter(|(spine, ..)| *spine == s.spine)
+                    .map(|(_, a, b)| (a, b, SELECTION_GRAY, false)),
             );
         for (a, b, gray, note) in marks {
             let rects = self.range_rects(a, b);
