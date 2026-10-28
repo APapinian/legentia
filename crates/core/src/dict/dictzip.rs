@@ -191,15 +191,21 @@ fn parse_header(h: &[u8]) -> Result<Option<(u32, Vec<u16>, usize)>, DictError> {
 pub(crate) fn compress(data: &[u8], chunk_len: usize) -> Vec<u8> {
     use flate2::{Compress, Compression, FlushCompress};
     let mut c = Compress::new(Compression::default(), false);
+    let parts: Vec<&[u8]> = data.chunks(chunk_len).collect();
     let mut chunks = Vec::new();
-    for part in data.chunks(chunk_len) {
+    for (i, part) in parts.iter().enumerate() {
+        // Gerçek dictzip gibi: parçalar tam boşaltmayla, son parça akışı bitirerek.
+        let flush = if i + 1 == parts.len() {
+            FlushCompress::Finish
+        } else {
+            FlushCompress::Full
+        };
         let mut out = Vec::with_capacity(part.len() + 64);
         let before = c.total_in();
-        let mut input = part;
+        let mut input = *part;
         loop {
             out.reserve(1024);
-            c.compress_vec(input, &mut out, FlushCompress::Full)
-                .unwrap();
+            c.compress_vec(input, &mut out, flush).unwrap();
             let used = (c.total_in() - before) as usize;
             input = &part[used..];
             if input.is_empty() && out.len() < out.capacity() {
@@ -223,6 +229,10 @@ pub(crate) fn compress(data: &[u8], chunk_len: usize) -> Vec<u8> {
     for ch in &chunks {
         out.extend_from_slice(ch);
     }
+    let mut crc = flate2::Crc::new();
+    crc.update(data);
+    out.extend_from_slice(&crc.sum().to_le_bytes());
+    out.extend_from_slice(&(data.len() as u32).to_le_bytes());
     out
 }
 

@@ -8,6 +8,7 @@
 use std::path::{Path, PathBuf};
 
 pub(crate) mod dictzip;
+pub mod dsl;
 mod index;
 pub mod render;
 pub mod stardict;
@@ -97,8 +98,13 @@ impl Dictionaries {
         let mut out = Self::default();
         let mut failed = Vec::new();
         for path in files {
-            match stardict::StarDict::open(&path) {
-                Ok(d) => out.dicts.push(Box::new(d)),
+            let opened: Result<Box<dyn Dictionary>, DictError> = if is_dsl(&path) {
+                dsl::Dsl::open(&path).map(|d| Box::new(d) as _)
+            } else {
+                stardict::StarDict::open(&path).map(|d| Box::new(d) as _)
+            };
+            match opened {
+                Ok(d) => out.dicts.push(d),
                 Err(e) => failed.push((path, e)),
             }
         }
@@ -135,7 +141,17 @@ impl Dictionaries {
     }
 }
 
-/// Sözlük dosyalarını (StarDict .ifo) toplar; gizli klasörler dahil, derinlik sınırlı.
+/// DSL sözlüğü mü? Kısaltma dosyaları (`_abrv.dsl`) sözlük değildir.
+fn is_dsl(path: &Path) -> bool {
+    let name = path
+        .file_name()
+        .map(|n| n.to_string_lossy().to_lowercase())
+        .unwrap_or_default();
+    (name.ends_with(".dsl") || name.ends_with(".dsl.dz"))
+        && !name.trim_end_matches(".dz").ends_with("_abrv.dsl")
+}
+
+/// Sözlük dosyalarını (StarDict .ifo, DSL) toplar; gizli klasörler dahil, derinlik sınırlı.
 fn collect(dir: &Path, depth: usize, out: &mut Vec<PathBuf>) {
     if depth > 4 {
         return;
@@ -147,7 +163,7 @@ fn collect(dir: &Path, depth: usize, out: &mut Vec<PathBuf>) {
         let path = e.path();
         if path.is_dir() {
             collect(&path, depth + 1, out);
-        } else if path.extension().is_some_and(|x| x == "ifo") {
+        } else if path.extension().is_some_and(|x| x == "ifo") || is_dsl(&path) {
             out.push(path);
         }
     }
@@ -175,8 +191,17 @@ mod tests {
         );
         stardict(&sub, "iki", &[("Kitap", "book")], &[], false);
         std::fs::write(dir.join("bozuk.ifo"), "değil").unwrap();
+        super::testutil::dsl(
+            &sub,
+            "uc",
+            "#NAME \"üç\"\nkitap\n\t[trn]livre[/trn]\n",
+            true,
+            false,
+            false,
+        );
+        std::fs::write(sub.join("uc_abrv.dsl"), "kısaltmalar").unwrap();
         let (dicts, failed) = Dictionaries::open(std::slice::from_ref(&dir));
-        assert_eq!(dicts.names(), vec!["bir sözlüğü", "iki sözlüğü"]);
+        assert_eq!(dicts.names(), vec!["bir sözlüğü", "iki sözlüğü", "üç"]);
         assert_eq!(failed.len(), 1, "bozuk sözlük ötekileri engellemez");
 
         let d = dicts.define("Kitaplarımızdan").unwrap();
@@ -188,7 +213,11 @@ mod tests {
             .collect();
         assert_eq!(
             texts,
-            vec![("bir sözlüğü", "basılı eser"), ("iki sözlüğü", "book")]
+            vec![
+                ("bir sözlüğü", "basılı eser"),
+                ("iki sözlüğü", "book"),
+                ("üç", "[trn]livre[/trn]")
+            ]
         );
         assert_eq!(dicts.define("geliyorum").unwrap().form, "gelmek");
         assert!(dicts.define("qwxz").is_none());

@@ -65,3 +65,30 @@ pub fn stardict(
     }
     ifo
 }
+
+/// DSL sözlüğü yazar: varsayılan UTF-16 LE (BOM'lu); `utf8` ya da `be` seçilebilir;
+/// `dictzip` ise `.dsl.dz`. Yolu döner.
+pub fn dsl(dir: &Path, name: &str, source: &str, utf8: bool, be: bool, dictzip: bool) -> PathBuf {
+    let bytes: Vec<u8> = if utf8 {
+        [&[0xef, 0xbb, 0xbf][..], source.as_bytes()].concat()
+    } else if be {
+        [0xfe, 0xff]
+            .into_iter()
+            .chain(source.encode_utf16().flat_map(u16::to_be_bytes))
+            .collect()
+    } else {
+        [0xff, 0xfe]
+            .into_iter()
+            .chain(source.encode_utf16().flat_map(u16::to_le_bytes))
+            .collect()
+    };
+    if dictzip {
+        let path = dir.join(format!("{name}.dsl.dz"));
+        std::fs::write(&path, super::dictzip::compress(&bytes, 64)).unwrap();
+        path
+    } else {
+        let path = dir.join(format!("{name}.dsl"));
+        std::fs::write(&path, bytes).unwrap();
+        path
+    }
+}
