@@ -15,7 +15,7 @@ use std::path::Path;
 
 use crate::i18n::Msg;
 pub(crate) use xhtml::push_ref;
-pub use xhtml::{Block, BlockKind};
+pub use xhtml::{Block, BlockKind, Link};
 
 /// Tek bir XML/XHTML girdisi için üst sınır (açılmış boyut).
 const MAX_ENTRY_BYTES: u64 = 16 * 1024 * 1024;

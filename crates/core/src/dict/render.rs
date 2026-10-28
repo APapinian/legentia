@@ -69,6 +69,7 @@ impl Builder {
                 kind,
                 text: std::mem::take(&mut self.text),
                 spans: std::mem::take(&mut self.spans),
+                ..Block::default()
             });
         }
         self.text.clear();

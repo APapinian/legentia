@@ -1979,3 +1979,72 @@ fn text_settings_belong_to_each_book_until_made_default() {
     open(&mut app, b_row);
     assert_eq!(app.settings().font_px, 36.0);
 }
+
+// --- Bağlantılar ---
+
+fn linked_book() -> Vec<u8> {
+    let filler =
+        "<p>Dolgu paragrafı: sayfaları doldurmak için yazılmış uzunca bir cümle.</p>".repeat(60);
+    let one = format!(
+        r##"<html><body><p>Bkz. <a href="c2.xhtml#hedef">ikinci</a> bölüm, <a href="#asagi">aşağısı</a> ve <a href="https://ornek.org">dışarısı</a>.</p>{filler}<p id="asagi">Aşağıdaki paragraf.</p></body></html>"##
+    );
+    let two =
+        format!(r#"<html><body>{filler}<h2 id="hedef">Hedef başlık</h2><p>Son.</p></body></html>"#);
+    let opf = opf_doc(
+        r#"<item id="a" href="c1.xhtml" media-type="application/xhtml+xml"/><item id="b" href="c2.xhtml" media-type="application/xhtml+xml"/>"#,
+        r#"<itemref idref="a"/><itemref idref="b"/>"#,
+    );
+    zip_of(&[
+        ("mimetype", "application/epub+zip"),
+        ("META-INF/container.xml", &container("OEBPS/content.opf")),
+        ("OEBPS/content.opf", &opf),
+        ("OEBPS/c1.xhtml", &one),
+        ("OEBPS/c2.xhtml", &two),
+    ])
+}
+
+/// Okunan sayfada `anchor` kimliğini taşıyan blok var mı?
+fn page_shows_anchor(app: &App, anchor: &str) -> bool {
+    let s = session(app);
+    s.pages[s.page]
+        .lines
+        .iter()
+        .any(|l| s.blocks[l.block].anchors.iter().any(|a| a == anchor))
+}
+
+#[test]
+fn links_jump_to_their_targets_and_back() {
+    let (mut app, _, _) = setup(&[("baglanti.epub", linked_book())]);
+    tap_row(&mut app, &LIBRARY, 0);
+    tap_row(&mut app, &CONTENTS, 0);
+    assert_eq!(session(&app).spine, 0);
+    assert!(app.link_back_button().is_none());
+
+    // Başka bölümdeki kimlik.
+    let at = word_point(&app, "ikinci");
+    tap(&mut app, at);
+    assert_eq!(session(&app).spine, 1);
+    assert!(session(&app).page > 0, "hedef bölümün başında değil");
+    assert!(page_shows_anchor(&app, "hedef"));
+    let mut c = Canvas::new(W, LIBRA2_HEIGHT);
+    app.draw(&mut c);
+    let back = app.link_back_button().expect("geri düğmesi görünür");
+    tap(&mut app, back.center());
+    assert_eq!((session(&app).spine, session(&app).page), (0, 0));
+    assert!(app.link_back_button().is_none());
+
+    // Aynı bölümün ilerisi.
+    let at = word_point(&app, "aşağısı");
+    tap(&mut app, at);
+    assert_eq!(session(&app).spine, 0);
+    assert!(page_shows_anchor(&app, "asagi"));
+    let back = app.link_back_button().unwrap().center();
+    tap(&mut app, back);
+    assert_eq!(session(&app).page, 0);
+
+    // Dış bağlantı izlenmez.
+    let at = word_point(&app, "dışarısı");
+    tap(&mut app, at);
+    assert_eq!(session(&app).spine, 0);
+    assert!(app.link_back_button().is_none());
+}

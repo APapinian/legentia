@@ -326,7 +326,12 @@ fn block(text: String, size: f32, body: f32) -> Block {
         end: text.len(),
         style: Style::default(),
     }];
-    Block { kind, text, spans }
+    Block {
+        kind,
+        text,
+        spans,
+        ..Block::default()
+    }
 }
 
 /// Karakter sayısına göre en yaygın yazı boyutu (gövde metni).

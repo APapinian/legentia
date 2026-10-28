@@ -13,6 +13,7 @@ mod export;
 mod form;
 mod jobs;
 mod keyboard;
+mod links;
 mod lookup;
 mod note;
 mod pace;
@@ -169,6 +170,8 @@ pub struct App {
     pace_dirty: bool,
     /// Okunan sayfanın ekrana geldiği an; sayfada geçen süre ölçülür.
     page_shown: Option<std::time::Instant>,
+    /// Bağlantı izlenmeden önceki yerler (bölüm, konum); "← Geri" ile dönülür.
+    link_back: Vec<(usize, Position)>,
     /// Kullanıcı "Çık"a dokundu; kayıtlar yazıldı, platform uygulamayı kapatmalı.
     exit: bool,
 }
@@ -227,6 +230,7 @@ impl App {
             pace,
             pace_dirty: false,
             page_shown: None,
+            link_back: Vec::new(),
             exit: false,
         }
     }
@@ -294,6 +298,7 @@ impl App {
             .file_stem()
             .map(|n| n.to_string_lossy().into_owned())
             .unwrap_or_default();
+        self.link_back.clear();
         let mut session = Session::new(doc, name, id.clone(), state);
         session.path = path.to_path_buf();
         if is_pdf {

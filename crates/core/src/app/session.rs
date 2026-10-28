@@ -79,6 +79,8 @@ pub(super) enum Target {
     Start,
     End,
     At(Position),
+    /// Kimliği (`id`) taşıyan bloğun sayfası; bulunamazsa bölüm başı.
+    Anchor(String),
 }
 
 pub(super) enum Doc {
@@ -249,6 +251,10 @@ impl Session {
             // Yeniden akıtılmış metindeki konumun (blok > 0) görüntüde karşılığı yok.
             Target::At(pos) if image.is_some() && pos.block > 0 => 0,
             Target::At(pos) => page_of(&pages, pos),
+            Target::Anchor(id) => blocks
+                .iter()
+                .position(|b| b.anchors.contains(&id))
+                .map_or(0, |block| page_of(&pages, Position { block, offset: 0 })),
         };
         self.spine = spine;
         self.blocks = blocks;

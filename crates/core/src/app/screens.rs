@@ -320,9 +320,17 @@ impl App {
             Event::HoldMove { x, y } => return self.extend_selection(x, y),
             Event::HoldEnd { .. } => return self.finish_selection(),
             Event::Tap { x, y } => {
+                if self.link_back_button().is_some_and(|r| r.contains(x, y)) {
+                    return self.go_back();
+                }
                 if let Some(index) = self.annotation_at(x, y) {
                     self.view = View::Annotation { index };
                     return Some(self.refresh(false));
+                }
+                if let Some(href) = self.link_at(x, y)
+                    && let Some(refresh) = self.follow_link(&href)
+                {
+                    return Some(refresh);
                 }
             }
             _ => {}
@@ -443,6 +451,7 @@ impl App {
             &self.with_time_left(footer),
             self.settings.margin,
         );
+        self.draw_link_back(canvas);
     }
 
     // --- Menü ---
@@ -587,6 +596,7 @@ impl App {
             }
             MenuItem::Library => {
                 self.session = None;
+                self.link_back.clear();
                 self.use_settings(self.defaults.clone());
                 self.view = View::Library { page: 0 };
             }

@@ -108,6 +108,7 @@ mod tests {
                 kind: BlockKind::Paragraph,
                 text: t.to_string(),
                 spans: Vec::new(),
+                ..Block::default()
             })
             .collect()
     }

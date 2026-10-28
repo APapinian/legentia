@@ -179,7 +179,12 @@ pub fn blocks_of(words: &[OcrWord]) -> Vec<Block> {
                 end: text.len(),
                 style: Style::default(),
             }];
-            out.push(Block { kind, text, spans });
+            out.push(Block {
+                kind,
+                text,
+                spans,
+                ..Block::default()
+            });
             i = j;
         }
         out

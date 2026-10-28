@@ -400,5 +400,6 @@ fn italic(text: &str) -> Block {
                 ..Style::default()
             },
         }],
+        ..Block::default()
     }
 }

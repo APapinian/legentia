@@ -25,6 +25,7 @@ pub enum Msg {
     Back,
     // Kitap
     Contents,
+    LinkBack,
     UnknownAuthor,
     ChapterNumber(usize),
     EmptyChapter,
@@ -283,6 +284,7 @@ pub fn tr(msg: &Msg) -> String {
         Msg::ListFooter { page, pages } => format!("Sayfa {page}/{pages}"),
         Msg::Back => "Geri".into(),
         Msg::Contents => "İçindekiler".into(),
+        Msg::LinkBack => "← Geri".into(),
         Msg::UnknownAuthor => "Yazarı bilinmiyor".into(),
         Msg::ChapterNumber(n) => format!("Bölüm {n}"),
         Msg::EmptyChapter => "Bu bölümde gösterilecek metin yok (yalnızca görsel olabilir).".into(),
@@ -511,6 +513,7 @@ mod tests {
             Percent(45),
             ListFooter { page: 1, pages: 2 },
             Back,
+            LinkBack,
             Contents,
             UnknownAuthor,
             ChapterNumber(3),

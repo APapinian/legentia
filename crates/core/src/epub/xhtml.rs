@@ -5,8 +5,9 @@ use unicode_normalization::UnicodeNormalization;
 use super::{EpubError, attr, lenient_reader};
 use crate::text::{Span, Style};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
 pub enum BlockKind {
+    #[default]
     Paragraph,
     /// 1–6, `<h1>`–`<h6>`.
     Heading(u8),
@@ -14,11 +15,24 @@ pub enum BlockKind {
 
 /// Bir paragraf ya da başlık. `spans` metnin tamamını sırayla kaplar ve
 /// satır içi biçimi (kalın, italik, bağlantı) taşır. CSS okunmaz.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
 pub struct Block {
     pub kind: BlockKind,
     pub text: String,
     pub spans: Vec<Span>,
+    /// Bağlantılar: metindeki bayt aralığı ve `href` (bölüm dosyasına göreli, olduğu gibi).
+    #[serde(default)]
+    pub links: Vec<Link>,
+    /// Blokta başlayan öğelerin kimlikleri (`id`, eski `<a name>`); bağlantı hedefi.
+    #[serde(default)]
+    pub anchors: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct Link {
+    pub start: usize,
+    pub end: usize,
+    pub href: String,
 }
 
 /// Blok başlatan/bitiren öğeler. Diğerleri (span, b, i, a…) satır içidir.
@@ -66,8 +80,8 @@ fn heading_level(name: &str) -> Option<u8> {
 struct Open {
     bold: u32,
     italic: u32,
-    /// Her açık `<a>` için: `href` taşıyor mu.
-    links: Vec<bool>,
+    /// Her açık `<a>` için `href`'i (yoksa `None`).
+    links: Vec<Option<String>>,
 }
 
 impl Open {
@@ -75,9 +89,22 @@ impl Open {
         Style {
             bold: self.bold > 0,
             italic: self.italic > 0,
-            link: self.links.iter().any(|&l| l),
+            link: self.href().is_some(),
         }
     }
+
+    /// En içteki açık bağlantının hedefi.
+    fn href(&self) -> Option<&str> {
+        self.links.iter().rev().find_map(|l| l.as_deref())
+    }
+}
+
+/// Biçimi ve varsa bağlantı hedefi aynı olan ardışık metin.
+type Piece = (String, Style, Option<String>);
+
+/// Öğenin kimliği: `id`, eski EPUB'larda `<a name>`.
+fn element_id(e: &quick_xml::events::BytesStart, name: &str) -> Option<String> {
+    attr(e, "id").or_else(|| (name == "a").then(|| attr(e, "name")).flatten())
 }
 
 /// XHTML belgesini metin bloklarına ayırır. Kapanmamış ya da uyuşmayan
@@ -86,7 +113,9 @@ pub(super) fn blocks(text: &str, path: &str) -> Result<Vec<Block>, EpubError> {
     let mut reader = lenient_reader(text);
 
     let mut out = Vec::new();
-    let mut pieces: Vec<(String, Style)> = Vec::new();
+    let mut pieces: Vec<Piece> = Vec::new();
+    // Henüz bir bloğa bağlanmamış kimlikler; ilk metinli bloğa eklenir.
+    let mut ids: Vec<String> = Vec::new();
     let mut heading: Option<u8> = None;
     let mut skip = 0u32;
     let mut open = Open::default();
@@ -103,22 +132,32 @@ pub(super) fn blocks(text: &str, path: &str) -> Result<Vec<Block>, EpubError> {
                 if SKIP_TAGS.contains(&name) {
                     skip += 1;
                 } else if let Some(level) = heading_level(name) {
-                    flush(&mut out, &mut pieces, heading);
+                    flush(&mut out, &mut pieces, &mut ids, heading);
                     heading = Some(level);
                 } else if BLOCK_TAGS.contains(&name) {
-                    flush(&mut out, &mut pieces, heading);
+                    flush(&mut out, &mut pieces, &mut ids, heading);
                 } else if BOLD_TAGS.contains(&name) {
                     open.bold += 1;
                 } else if ITALIC_TAGS.contains(&name) {
                     open.italic += 1;
                 } else if name == "a" {
-                    open.links.push(attr(&e, "href").is_some());
+                    open.links.push(attr(&e, "href"));
+                }
+                if skip == 0
+                    && let Some(id) = element_id(&e, name)
+                {
+                    ids.push(id);
                 }
             }
             Event::Empty(e) => {
                 let name = e.local_name().as_ref().to_ascii_lowercase();
                 if BLOCK_TAGS.contains(&name.as_str()) {
-                    flush(&mut out, &mut pieces, heading);
+                    flush(&mut out, &mut pieces, &mut ids, heading);
+                }
+                if skip == 0
+                    && let Some(id) = element_id(&e, &name)
+                {
+                    ids.push(id);
                 }
             }
             Event::End(e) => {
@@ -127,10 +166,10 @@ pub(super) fn blocks(text: &str, path: &str) -> Result<Vec<Block>, EpubError> {
                 if SKIP_TAGS.contains(&name) {
                     skip = skip.saturating_sub(1);
                 } else if heading_level(name).is_some() {
-                    flush(&mut out, &mut pieces, heading);
+                    flush(&mut out, &mut pieces, &mut ids, heading);
                     heading = None;
                 } else if BLOCK_TAGS.contains(&name) {
-                    flush(&mut out, &mut pieces, heading);
+                    flush(&mut out, &mut pieces, &mut ids, heading);
                 } else if BOLD_TAGS.contains(&name) {
                     open.bold = open.bold.saturating_sub(1);
                 } else if ITALIC_TAGS.contains(&name) {
@@ -139,36 +178,45 @@ pub(super) fn blocks(text: &str, path: &str) -> Result<Vec<Block>, EpubError> {
                     open.links.pop();
                 }
             }
-            Event::Text(t) if skip == 0 => push(&mut pieces, &t.xml10_content(), open.style()),
-            Event::CData(t) if skip == 0 => push(&mut pieces, &t.xml10_content(), open.style()),
+            Event::Text(t) if skip == 0 => push(&mut pieces, &t.xml10_content(), &open),
+            Event::CData(t) if skip == 0 => push(&mut pieces, &t.xml10_content(), &open),
             Event::GeneralRef(r) if skip == 0 => {
                 let mut s = String::new();
                 push_ref(&mut s, &r);
-                push(&mut pieces, &s, open.style());
+                push(&mut pieces, &s, &open);
             }
             Event::Eof => break,
             _ => {}
         }
     }
-    flush(&mut out, &mut pieces, heading);
+    flush(&mut out, &mut pieces, &mut ids, heading);
     Ok(out)
 }
 
-fn push(pieces: &mut Vec<(String, Style)>, text: &str, style: Style) {
+fn push(pieces: &mut Vec<Piece>, text: &str, open: &Open) {
+    let (style, href) = (open.style(), open.href());
     match pieces.last_mut() {
-        Some((s, st)) if *st == style => s.push_str(text),
-        _ => pieces.push((text.to_string(), style)),
+        Some((s, st, h)) if *st == style && h.as_deref() == href => s.push_str(text),
+        _ => pieces.push((text.to_string(), style, href.map(str::to_string))),
     }
 }
 
 /// Parçaları tek metinde birleştirir: boşlukları tek boşluğa indirir, NFC'ye
 /// çevirir, yumuşak tire ve sıfır genişlikli boşluğu atar (heceleme bizde).
-fn flush(out: &mut Vec<Block>, pieces: &mut Vec<(String, Style)>, heading: Option<u8>) {
+fn flush(
+    out: &mut Vec<Block>,
+    pieces: &mut Vec<Piece>,
+    ids: &mut Vec<String>,
+    heading: Option<u8>,
+) {
     let mut text = String::new();
     let mut spans: Vec<Span> = Vec::new();
+    let mut links: Vec<Link> = Vec::new();
     // Bekleyen boşluk: bir sonraki görünür karakterden önce, ilk boşluğun biçimiyle yazılır.
     let mut pending: Option<Style> = None;
-    for (piece, style) in pieces.drain(..) {
+    for (piece, style, href) in pieces.drain(..) {
+        // Parçanın ilk görünür karakteri (önündeki boşluk bağlantıya girmez).
+        let mut first = None;
         for c in piece
             .nfc()
             .filter(|c| !matches!(c, '\u{00AD}' | '\u{200B}'))
@@ -182,14 +230,32 @@ fn flush(out: &mut Vec<Block>, pieces: &mut Vec<(String, Style)>, heading: Optio
             if let Some(space_style) = pending.take() {
                 append(&mut text, &mut spans, ' ', space_style);
             }
+            first.get_or_insert(text.len());
             append(&mut text, &mut spans, c, style);
+        }
+        if let (Some(href), Some(start)) = (href, first) {
+            match links.last_mut() {
+                // Aynı bağlantının farklı biçimli parçaları birleşir.
+                Some(last) if last.href == href && start <= last.end + 1 => last.end = text.len(),
+                _ => links.push(Link {
+                    start,
+                    end: text.len(),
+                    href,
+                }),
+            }
         }
     }
     if text.is_empty() {
         return;
     }
     let kind = heading.map_or(BlockKind::Paragraph, BlockKind::Heading);
-    out.push(Block { kind, text, spans });
+    out.push(Block {
+        kind,
+        text,
+        spans,
+        links,
+        anchors: std::mem::take(ids),
+    });
 }
 
 fn append(text: &mut String, spans: &mut Vec<Span>, c: char, style: Style) {
@@ -274,6 +340,34 @@ mod tests {
         // Gerçek bir kitaptan: "BİRİNCİ BEŞİNCİ" ayrışık yazılmış.
         let html = "<h1>BI\u{0307}RI\u{0307}NCI\u{0307} BES\u{0327}I\u{0307}NCI\u{0307}</h1>";
         assert_eq!(texts(html)[0].1, "BİRİNCİ BEŞİNCİ");
+    }
+
+    #[test]
+    fn links_keep_their_targets_and_ids_mark_blocks() {
+        let html = r##"<html><body>
+            <h2 id="b3">Bölüm</h2>
+            <p>Metin<a href="notlar.xhtml#n1" id="r1"><sup>1</sup></a> ve
+               <a href="#yer"><i>iç</i> bağlantı</a> burada.</p>
+            <p><a name="eski"></a>Eski çapa.</p>
+            <div id="bos"></div>
+            <p id="yer">Hedef.</p>
+        </body></html>"##;
+        let b = blocks(html, "x.xhtml").unwrap();
+        assert_eq!(b[0].anchors, ["b3"]);
+        let p = &b[1];
+        assert_eq!(p.anchors, ["r1"], "satır içi kimlik bloğa bağlanır");
+        let texts: Vec<(&str, &str)> = p
+            .links
+            .iter()
+            .map(|l| (&p.text[l.start..l.end], l.href.as_str()))
+            .collect();
+        assert_eq!(texts, [("1", "notlar.xhtml#n1"), ("iç bağlantı", "#yer")]);
+        assert_eq!(b[2].anchors, ["eski"]);
+        assert_eq!(
+            b[3].anchors,
+            ["bos", "yer"],
+            "boş öğenin kimliği sonraki bloğa geçer"
+        );
     }
 
     #[test]

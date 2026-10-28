@@ -347,7 +347,7 @@ Kullanıcı isteği (2026-10-28): 50 maddelik öneri listesi milestone olarak ka
 ### Okuma deneyimi
 - [ ] 1. Kitap içinde metin arama, sonuçlar arasında gezinme (O)
 - [ ] 2. Dipnotlar sayfadan çıkmadan açılır pencerede (O)
-- [ ] 3. Kitap içi bağlantılar ve "geri dön" (O)
+- [x] 3. Kitap içi bağlantılar ve "geri dön" (O) (Dokunulan bağlantının hedef bölümü açılır, `id`/`<a name>` taşıyan bloğun sayfasına gidilir; sol üstte "← Geri" (en çok 20 adım). Dipnot işaretleri küçük olduğundan bağlantının iki yanına 30 px dokunma payı. Dış bağlantılar açılmaz. Testli.)
 - [ ] 4. EPUB görselleri ve tabloları, dokununca büyütme (B)
 - [x] 5. Kitaba özel yazı ayarı (K) (Kullanıcı kararı: her değişiklik kitaba özel. Kitap açıkken ayarlar ekranındaki yazı ve PDF görünüm ayarları yalnız o kitaba yazılır (`BookState.layout`, yedeğe girer); gece modu, dokunma düzeni, internet ve çevrimiçi sözlük genel kalır. Başlıktaki "Varsayılan yap" ayarları bütün kitapların varsayılanı yapar ve kitabın kendi ayarını siler. Testli.)
 - [x] 6. Yazı kalınlığı ayarı (K) (Yazı ayarlarında Normal / Biraz kalın / Kalın / Çok kalın; yalnızca kitap metni. Çizilmiş glifin kenarları koyulaştırılır (gamma), en üst düzeyde bir piksel genişletilir. swash'ın kontur kalınlaştırması denendi, bileşik gliflerde (Literata'nın "i"si) bileşenleri atladığı için bırakıldı. "Gece modu" üçüncü sayfaya taşındı (yazı sayfasında önizleme düğmelere biniyordu). Testli; E Ink'te görünüşü cihazda değerlendirilecek.)
