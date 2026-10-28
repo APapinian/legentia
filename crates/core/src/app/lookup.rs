@@ -199,7 +199,7 @@ pub(super) struct Lookup {
 
 impl App {
     /// Sözlükler ilk aramada açılır (dizin kurmak büyük sözlükte zaman alır).
-    fn dictionaries(&mut self) -> &Dictionaries {
+    pub(super) fn dictionaries(&mut self) -> &Dictionaries {
         self.dicts.get_or_insert_with(|| {
             let dirs: Vec<PathBuf> = DICT_DIRS.iter().map(|d| self.root.join(d)).collect();
             let started = std::time::Instant::now();

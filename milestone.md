@@ -386,7 +386,7 @@ Kullanıcı isteği (2026-10-28): 50 maddelik öneri listesi milestone olarak ka
 ### Not ve öğrenme
 - [ ] 34. Vurgu türleri: altı çizili, çerçeveli, etiketli (K)
 - [ ] 35. Notlarda ve vurgularda arama (K)
-- [ ] 36. Kelime listesinden Anki kartları (CSV) (K)
+- [x] 36. Kelime listesinden Anki kartları (CSV) (K) (Kelime listesi başlığında "Anki'ye aktar": kütüphane klasörüne "Legentia kelimeler.csv" (Anki başlık satırlarıyla, noktalı virgüllü). Ön yüz kelime; arka yüz cihazdaki sözlüklerden ilk tanım (en çok 600 karakter), metindeki biçim ve kitap. Testli; Anki'de içe aktarma elle denenmedi.)
 - [ ] 37. Cihazda aralıklı tekrarlı kelime çalışması (O)
 - [ ] 38. Seçili cümleyi çevrimiçi çevirme (O)
 - [ ] 39. Seçili kelimeyi Türkçe Vikipedi'de arama (K)

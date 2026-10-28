@@ -5,7 +5,8 @@ use serde::{Deserialize, Serialize};
 
 use super::screens::WORDS;
 use super::ui::{
-    MARGIN, PLAIN, ROW_PX, Rect, back_button, draw_button, draw_footer, draw_header, one_line,
+    MARGIN, PLAIN, ROW_PX, Rect, back_button, draw_button, draw_footer, draw_header, header_button,
+    one_line,
 };
 use super::{App, View};
 use crate::LIBRA2_HEIGHT;
@@ -16,6 +17,10 @@ use crate::i18n::{Msg, tr};
 use crate::text::Family;
 
 pub(super) const WORDS_FILE: &str = "words.json";
+/// Anki'nin içe aktardığı kart dosyası (kütüphane klasöründe).
+pub(super) const ANKI_FILE: &str = "Legentia kelimeler.csv";
+/// Kartın arka yüzündeki tanımın en fazla karakter sayısı.
+const ANKI_DEFINITION_CHARS: usize = 600;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SavedWord {
@@ -68,10 +73,80 @@ impl App {
         }
     }
 
+    /// Başlıktaki "Anki'ye aktar" düğmesi.
+    fn anki_button(&self) -> Rect {
+        header_button(self.width, 280)
+    }
+
+    /// Kelime listesini Anki kartları olarak (CSV: kelime; tanım ve kaynak)
+    /// kütüphane klasörüne yazar. Tanım cihazdaki sözlüklerden gelir.
+    pub(super) fn export_anki(&mut self) -> Msg {
+        let words = self.words.clone();
+        let mut csv = String::from("#separator:Semicolon\n#html:false\n#columns:Ön;Arka\n");
+        for w in &words {
+            let definition = self.plain_definition(&w.word);
+            let mut back = definition;
+            let source =
+                if w.seen.is_empty() || crate::dict::key(&w.seen) == crate::dict::key(&w.word) {
+                    w.book.clone()
+                } else {
+                    format!("“{}” · {}", w.seen, w.book)
+                };
+            if !source.is_empty() {
+                if !back.is_empty() {
+                    back.push_str(" — ");
+                }
+                back.push_str(&source);
+            }
+            csv.push_str(&format!("{};{}\n", csv_field(&w.word), csv_field(&back)));
+        }
+        match std::fs::write(self.root.join(ANKI_FILE), csv) {
+            Ok(()) => Msg::AnkiExported(words.len()),
+            Err(e) => {
+                log::error!("cannot write {ANKI_FILE}: {e}");
+                Msg::ExportFailed
+            }
+        }
+    }
+
+    /// Kelimenin cihazdaki sözlüklerdeki ilk tanımı, tek satır düz metin.
+    fn plain_definition(&mut self, word: &str) -> String {
+        let dicts = self.dictionaries();
+        let Some(def) = dicts.define(word) else {
+            return String::new();
+        };
+        let Some((name, article)) = def.articles.first() else {
+            return String::new();
+        };
+        let text: Vec<String> = crate::dict::render::article_blocks(name, article)
+            .into_iter()
+            .skip(2) // madde başı ve sözlük adı
+            .map(|b| b.text)
+            .collect();
+        let text = text
+            .join(" ")
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ");
+        if text.chars().count() > ANKI_DEFINITION_CHARS {
+            text.chars().take(ANKI_DEFINITION_CHARS).collect::<String>() + "…"
+        } else {
+            text
+        }
+    }
+
     pub(super) fn handle_words(&mut self, page: usize, event: Event) -> Option<Refresh> {
         if let Event::Tap { x, y } = event {
             if back_button(self.width).contains(x, y) {
                 self.view = View::Reading;
+                return Some(self.refresh(true));
+            }
+            if !self.words.is_empty() && self.anki_button().contains(x, y) {
+                let msg = self.export_anki();
+                self.view = View::Message {
+                    msg,
+                    back: super::Back::Reading,
+                };
                 return Some(self.refresh(true));
             }
             let index = WORDS.row_at(page, self.words.len(), y)?;
@@ -92,6 +167,9 @@ impl App {
             &tr(&Msg::WordCount(self.words.len())),
             true,
         );
+        if !self.words.is_empty() {
+            draw_button(t, canvas, self.anki_button(), &tr(&Msg::ExportAnki), ROW_PX);
+        }
         if self.words.is_empty() {
             self.draw_message_lines(canvas, &Msg::NoWords, super::ui::HEADER_BOTTOM + 80);
         }
@@ -131,5 +209,14 @@ impl App {
             Msg::SaveWord
         };
         draw_button(&self.text, canvas, self.word_button(), &tr(&label), 34.0);
+    }
+}
+/// CSV alanı: noktalı virgül, tırnak ya da satır sonu içeriyorsa tırnaklanır.
+fn csv_field(s: &str) -> String {
+    let s = s.replace(['\n', '\r'], " ");
+    if s.contains([';', '"']) {
+        format!("\"{}\"", s.replace('"', "\"\""))
+    } else {
+        s
     }
 }

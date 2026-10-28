@@ -2706,3 +2706,39 @@ fn books_are_deleted_after_confirmation_and_moved_to_folders() {
         "notlar kayıtta kalır"
     );
 }
+
+#[test]
+fn word_list_exports_anki_cards_with_definitions() {
+    let (mut app, _, root) = setup(&[("uzun.epub", long_book())]);
+    let dir = root.join("Sözlükler");
+    std::fs::create_dir_all(&dir).unwrap();
+    crate::dict::testutil::stardict(
+        &dir,
+        "deneme",
+        &[("ağaç", "Gövdeli bitki; odunsu.")],
+        &[],
+        false,
+    );
+    tap_row(&mut app, &LIBRARY, 0);
+    tap_row(&mut app, &CONTENTS, 0);
+    select_and(&mut app, "ağaçlar", 2);
+    let at = app.word_button().center();
+    tap(&mut app, at);
+    tap(&mut app, (W / 2, LIBRA2_HEIGHT / 2));
+    menu(&mut app, MenuItem::Words);
+    tap(&mut app, super::ui::header_button(W, 280).center());
+    assert!(matches!(
+        app.view,
+        View::Message {
+            msg: Msg::AnkiExported(1),
+            ..
+        }
+    ));
+    let csv = std::fs::read_to_string(root.join(super::words::ANKI_FILE)).unwrap();
+    let lines: Vec<&str> = csv.lines().collect();
+    assert_eq!(lines[0], "#separator:Semicolon");
+    assert_eq!(
+        lines[3], "ağaç;\"Gövdeli bitki; odunsu. — “ağaçlar” · Deneme\"",
+        "noktalı virgüllü alan tırnaklanır"
+    );
+}
