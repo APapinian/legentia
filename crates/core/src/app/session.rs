@@ -56,6 +56,10 @@ pub struct BookState {
     /// Bu kitapta değiştirilmiş yazı ayarları; yalnızca kitaba özel alanları
     /// kullanılır (`Settings::with_book_fields`). Yoksa varsayılanlar geçerli.
     pub layout: Option<Settings>,
+    /// Son açılma (Unix saniyesi); kütüphanede "son okunan" sıralaması için.
+    pub opened: u64,
+    /// Elle seçilen okuma durumu; yoksa ilerlemeden çıkar.
+    pub status: Option<super::shelf::ReadStatus>,
 }
 
 pub(super) struct PlacedLine {

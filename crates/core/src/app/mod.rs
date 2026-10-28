@@ -26,6 +26,7 @@ mod search;
 mod select;
 mod session;
 mod settings;
+mod shelf;
 mod ui;
 mod words;
 
@@ -120,6 +121,10 @@ enum View {
     SearchResults {
         page: usize,
     },
+    /// Kitabın okuma durumu seçimi (kütüphanede uzun basınca; `library` sırası).
+    BookActions {
+        book: usize,
+    },
     /// Bölümdeki görsel (`blocks` sırası) tam ekran.
     Image {
         block: usize,
@@ -152,6 +157,10 @@ pub struct App {
     portrait_width: u32,
     /// İvmeölçere göre cihaz yatay tutuluyor.
     tilted: bool,
+    /// Kitap kimliği → son açılma ve elle seçilen okuma durumu.
+    shelf: HashMap<String, shelf::Shelved>,
+    /// Kütüphanede arama (başlık/yazar); yoksa hepsi.
+    library_query: Option<String>,
     /// Otomatik sayfa çevirme açıksa son çevirmenin anı.
     auto_turn: Option<std::time::Instant>,
     store: Store,
@@ -225,12 +234,22 @@ impl App {
             .load(catalog::CATALOGS_FILE)
             .unwrap_or_else(catalog::default_catalogs);
         let library = library::scan(library_root, &store);
-        let progress = library
+        let states: Vec<(String, BookState)> = library
             .iter()
-            .filter_map(|e| {
-                store
-                    .load::<BookState>(&book_file(&e.id))
-                    .map(|s| (e.id.clone(), s.percent))
+            .filter_map(|e| Some((e.id.clone(), store.load::<BookState>(&book_file(&e.id))?)))
+            .collect();
+        let progress = states
+            .iter()
+            .map(|(id, s)| (id.clone(), s.percent))
+            .collect();
+        let shelf = states
+            .into_iter()
+            .map(|(id, s)| {
+                let info = shelf::Shelved {
+                    opened: s.opened,
+                    status: s.status,
+                };
+                (id, info)
             })
             .collect();
         text.set_weight(settings.weight);
@@ -241,6 +260,8 @@ impl App {
             portrait_width: width,
             tilted: false,
             auto_turn: None,
+            shelf,
+            library_query: None,
             store,
             defaults: settings.clone(),
             root: library_root.to_path_buf(),
@@ -326,7 +347,10 @@ impl App {
             }
         };
         let is_pdf = matches!(doc, Doc::Pdf(_));
-        let state: BookState = self.store.load(&book_file(&id)).unwrap_or_default();
+        let mut state: BookState = self.store.load(&book_file(&id)).unwrap_or_default();
+        state.opened = annotations::now();
+        self.store.save(&book_file(&id), &state);
+        self.shelf.entry(id.clone()).or_default().opened = state.opened;
         let last = state.last;
         self.use_settings(
             self.defaults
@@ -458,6 +482,7 @@ impl App {
             View::Footnote => self.handle_footnote(event),
             View::SearchResults { page } => self.handle_search_results(*page, event),
             View::Image { .. } => self.handle_image_view(event),
+            View::BookActions { book } => self.handle_book_actions(*book, event),
             View::Form(form) => {
                 let form = (**form).clone();
                 self.handle_form(form, event)
@@ -667,6 +692,7 @@ impl App {
             }
             View::SearchResults { page } => self.draw_search_results(canvas, *page),
             View::Image { block } => self.draw_image_view(canvas, *block),
+            View::BookActions { book } => self.draw_book_actions(canvas, *book),
             View::Downloads { page, .. } => self.draw_downloads(canvas, *page),
             View::Form(form) => self.draw_form(canvas, form),
         }

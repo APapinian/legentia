@@ -206,7 +206,7 @@ mod tests {
             percent: 40,
             bookmarks: vec![],
             annotations: vec![ann(0, Some("yeni not")), ann(10, None)],
-            layout: None,
+            ..BookState::default()
         };
         let saved = BookState {
             last: Some((1, Position::default())),
@@ -221,7 +221,7 @@ mod tests {
                 ann(10, Some("yedekteki")),
                 ann(20, None),
             ],
-            layout: None,
+            ..BookState::default()
         };
         merge(&mut local, saved);
         assert_eq!(

@@ -371,10 +371,10 @@ Kullanıcı isteği (2026-10-28): 50 maddelik öneri listesi milestone olarak ka
 - [ ] 22. Ekran görüntüsü alma (K)
 
 ### Kütüphane
-- [ ] 23. Kütüphanede arama ve sıralama (K)
+- [x] 23. Kütüphanede arama ve sıralama (K) (Kullanıcı kararı: başlığın altında araç çubuğu. Ara (başlık/yazar; büyük/küçük harf, şapka, noktalı i fark etmez; yeniden dokununca kaldırılır), sıra: son okunan / başlık / yazar / eklenme (dokundukça değişir, kalıcı). Testli.)
 - [ ] 24. Kapaklı ızgara görünümü (O)
 - [ ] 25. Koleksiyonlar ve raflar (O)
-- [ ] 26. Okuma durumu: okunacak / okunuyor / bitti (K)
+- [x] 26. Okuma durumu: okunacak / okunuyor / bitti (K) (Araç çubuğunda süzgeç: hepsi / okunuyor / okunacak / bitti. Kitaba uzun basınca durum seçilir; seçilmediyse ilerlemeden çıkar (açılmamış okunacak, açılmış okunuyor, %100 bitti). Kitap kaydında, yedeğe girer. Testli.)
 - [ ] 27. Seri bilgisi ve seri sırası (O)
 - [ ] 28. Cihazdan kitap silme ve taşıma (K)
 - [ ] 29. Kitap bilgilerini düzenleme (O)

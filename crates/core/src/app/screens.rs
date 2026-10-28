@@ -14,7 +14,7 @@ use crate::library::Format;
 use crate::text::{Family, Style};
 
 pub(super) const LIBRARY: List = List {
-    top: HEADER_BOTTOM,
+    top: HEADER_BOTTOM + super::shelf::TOOLBAR_H,
     row_h: 120,
 };
 pub(super) const CONTENTS: List = List {
@@ -146,25 +146,40 @@ impl App {
                 self.exit = true;
                 return None;
             }
-            let index = LIBRARY.row_at(page, self.library.len(), y)?;
-            let path = self.library[index].path.clone();
+            if let Some(refresh) = self.handle_toolbar(x, y) {
+                return Some(refresh);
+            }
+            let books = self.visible_books();
+            let row = LIBRARY.row_at(page, books.len(), y)?;
+            let path = self.library[books[row]].path.clone();
             self.open_book(&path);
             return Some(self.refresh(true));
         }
-        let page = Self::page_list(page, LIBRARY.pages(self.library.len()), event)?;
+        if let Event::Hold { y, .. } = event {
+            return self.open_book_actions(page, y);
+        }
+        let page = Self::page_list(page, LIBRARY.pages(self.visible_books().len()), event)?;
         self.view = View::Library { page };
         Some(self.refresh(false))
     }
 
     pub(super) fn draw_library(&self, canvas: &mut Canvas, page: usize) {
         let t = &self.text;
+        let books = self.visible_books();
         let catalogs = header_button(canvas.width(), CATALOGS_BUTTON_W);
         let exit = exit_button(canvas.width());
         draw_header_until(
             t,
             canvas,
             &tr(&Msg::Library),
-            &tr(&Msg::BookCount(self.library.len())),
+            &tr(&if books.len() == self.library.len() {
+                Msg::BookCount(books.len())
+            } else {
+                Msg::BookCountShown {
+                    shown: books.len(),
+                    total: self.library.len(),
+                }
+            }),
             exit.x - 30,
         );
         draw_button(t, canvas, exit, &tr(&Msg::Exit), ROW_PX);
@@ -177,12 +192,15 @@ impl App {
             ROW_PX,
         );
         draw_button(t, canvas, catalogs, &tr(&Msg::Catalogs), ROW_PX);
+        self.draw_toolbar(canvas);
         if self.library.is_empty() {
-            self.draw_message_lines(canvas, &Msg::LibraryEmpty, HEADER_BOTTOM + 80);
+            self.draw_message_lines(canvas, &Msg::LibraryEmpty, LIBRARY.top + 80);
+        } else if books.is_empty() {
+            self.draw_message_lines(canvas, &Msg::NoMatchingBooks, LIBRARY.top + 80);
         }
         let max_w = (canvas.width() as i32 - 2 * MARGIN) as f32;
-        for (index, row) in LIBRARY.visible(page, self.library.len()) {
-            let entry = &self.library[index];
+        for (index, row) in LIBRARY.visible(page, books.len()) {
+            let entry = &self.library[books[index]];
             let r = LIBRARY.row_rect(canvas.width(), row);
             let title = one_line(t, &entry.display_title(), BOLD, ROW_PX, max_w);
             t.draw_plain(canvas, &title, Family::Ui, BOLD, MARGIN, r.y + 50, ROW_PX);
@@ -198,12 +216,17 @@ impl App {
             } else if let Some(&p) = self.progress.get(&entry.id).filter(|&&p| p > 0) {
                 second = format!("{second} · {}", tr(&Msg::Percent(p)));
             }
+            if entry.readable
+                && let Some(note) = self.status_note(&entry.id)
+            {
+                second = format!("{second} · {}", tr(&note));
+            }
             let second = one_line(t, &second, PLAIN, 30.0, max_w);
             t.draw_plain(canvas, &second, Family::Ui, PLAIN, MARGIN, r.y + 95, 30.0);
         }
         let footer = Msg::ListFooter {
             page: page + 1,
-            pages: LIBRARY.pages(self.library.len()),
+            pages: LIBRARY.pages(books.len()),
         };
         draw_footer(t, canvas, &footer, MARGIN);
     }

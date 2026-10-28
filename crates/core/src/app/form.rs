@@ -25,6 +25,8 @@ pub(super) enum FormKind {
     Search(Search),
     /// Açık kitapta metin araması.
     BookSearch,
+    /// Kütüphanede başlık/yazar araması.
+    LibrarySearch,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -80,6 +82,7 @@ impl Form {
             FormKind::EditCatalog(_) => Msg::EditCatalog,
             FormKind::Search(_) => Msg::SearchCatalog,
             FormKind::BookSearch => Msg::SearchBook,
+            FormKind::LibrarySearch => Msg::SearchLibrary,
         }
     }
 
@@ -94,7 +97,10 @@ impl Form {
         match (b, &self.kind) {
             (Button::Cancel, _) => Msg::Cancel,
             (Button::Delete, _) => Msg::Delete,
-            (Button::Submit, FormKind::Search(_) | FormKind::BookSearch) => Msg::Search,
+            (
+                Button::Submit,
+                FormKind::Search(_) | FormKind::BookSearch | FormKind::LibrarySearch,
+            ) => Msg::Search,
             (Button::Submit, _) => Msg::Save,
         }
     }

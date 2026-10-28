@@ -400,6 +400,12 @@ impl App {
         match (button, form.kind.clone()) {
             (Button::Cancel, FormKind::Search(_)) => self.view = View::Feed,
             (Button::Cancel, FormKind::BookSearch) => self.view = View::Reading,
+            (Button::Cancel, FormKind::LibrarySearch) => self.view = View::Library { page: 0 },
+            (Button::Submit, FormKind::LibrarySearch) => {
+                let query = form.fields[0].value.trim().to_string();
+                self.library_query = (!query.is_empty()).then_some(query);
+                self.view = View::Library { page: 0 };
+            }
             (Button::Submit, FormKind::BookSearch) => {
                 let query = form.fields[0].value.trim().to_string();
                 if query.is_empty() {

@@ -1944,11 +1944,13 @@ fn font_weight_darkens_book_text_but_not_the_interface() {
 #[test]
 fn text_settings_belong_to_each_book_until_made_default() {
     let (mut app, data, root) = setup(&[("a.epub", long_book()), ("b.epub", epub3_sample())]);
+    // `row`: kitabın `library` sırası; kütüphanede görünen satırı sıralamaya göre değişir.
     let open = |app: &mut App, row: usize| {
         if app.session.is_some() {
             menu(app, MenuItem::Library);
         }
-        tap_row(app, &LIBRARY, row);
+        let shown = app.visible_books().iter().position(|&i| i == row).unwrap();
+        tap_row(app, &LIBRARY, shown);
         if matches!(app.view, View::Contents { .. }) {
             tap_row(app, &CONTENTS, 0);
         }
@@ -2574,4 +2576,69 @@ fn auto_turn_turns_pages_until_touched() {
     assert_eq!(app.handle(Event::Tick), None);
     app.auto_turn = Some(Instant::now() - Duration::from_secs(31));
     assert!(app.handle(Event::Tick).is_some());
+}
+
+// --- Kütüphane araç çubuğu ---
+
+fn shown_titles(app: &App) -> Vec<String> {
+    app.visible_books()
+        .iter()
+        .map(|&i| app.library[i].display_title())
+        .collect()
+}
+
+#[test]
+fn library_is_searched_sorted_and_filtered_by_reading_status() {
+    let (mut app, data, root) = setup(&[
+        ("a.epub", epub3_sample()),
+        ("b.epub", epub2_sample()),
+        ("c.epub", long_book()),
+    ]);
+    let all = shown_titles(&app);
+    assert_eq!(all.len(), 3);
+    let mut c = Canvas::new(W, LIBRA2_HEIGHT);
+    app.draw(&mut c);
+
+    // Son okunan önce.
+    let last = all[2].clone();
+    tap_row(&mut app, &LIBRARY, 2);
+    if session(&app).pages.is_empty() {
+        tap_row(&mut app, &CONTENTS, 0);
+    }
+    menu(&mut app, MenuItem::Library);
+    assert_eq!(shown_titles(&app)[0], last);
+
+    // Sıra: başlık (Türk alfabesi).
+    let (search, sort, filters) = app.tool_rects();
+    tap(&mut app, sort.center());
+    assert_eq!(app.settings().library_sort, super::shelf::Sort::Title);
+    assert_eq!(shown_titles(&app), all);
+
+    // Arama: yazar ya da başlık, büyük/küçük harf fark etmez.
+    tap(&mut app, search.center());
+    type_text(&mut app, "kuyucak");
+    form_button(&mut app, form::Button::Submit);
+    assert_eq!(shown_titles(&app), ["Kuyucaklı Yusuf"]);
+    app.draw(&mut c);
+    tap(&mut app, search.center());
+    assert_eq!(shown_titles(&app).len(), 3, "arama kaldırıldı");
+
+    // Süzgeç: okunuyor yalnızca açılan kitap.
+    tap(&mut app, filters[1].center());
+    assert_eq!(shown_titles(&app), [last.clone()]);
+
+    // Uzun basma: okuma durumu; "bitti" süzgecinde görünür, kalıcı.
+    let (x, y) = LIBRARY.row_rect(W, 0).center();
+    app.handle(Event::Hold { x, y });
+    assert!(matches!(app.view, View::BookActions { .. }));
+    app.draw(&mut c);
+    let finished = app.status_rect(2).center();
+    tap(&mut app, finished);
+    assert!(shown_titles(&app).is_empty(), "artık okunmuyor");
+    tap(&mut app, filters[3].center());
+    assert_eq!(shown_titles(&app), [last.clone()]);
+    app.draw(&mut c);
+
+    let app = restart(&data, &root);
+    assert_eq!(shown_titles(&app), [last], "süzgeç ve durum kalıcı");
 }

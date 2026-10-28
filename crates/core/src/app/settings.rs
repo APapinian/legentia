@@ -89,6 +89,9 @@ pub struct Settings {
     pub swap_keys: bool,
     /// Otomatik sayfa çevirme aralığı (saniye; 0 = okuma hızına göre).
     pub auto_turn: u32,
+    /// Kütüphane araç çubuğunun sıralaması ve süzgeci.
+    pub library_sort: super::shelf::Sort,
+    pub library_filter: super::shelf::Filter,
 }
 
 impl Default for Settings {
@@ -115,6 +118,8 @@ impl Default for Settings {
             two_columns: true,
             swap_keys: false,
             auto_turn: 30,
+            library_sort: Default::default(),
+            library_filter: Default::default(),
         }
     }
 }
