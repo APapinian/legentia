@@ -7,6 +7,8 @@ use crate::text::{book_family_count, book_family_name};
 pub const FONT_SIZES: &[f32] = &[28.0, 32.0, 36.0, 40.0, 44.0, 48.0, 54.0, 60.0, 68.0, 76.0];
 pub const LINE_SPACINGS: &[f32] = &[1.2, 1.3, 1.4, 1.5, 1.6, 1.8, 2.0];
 pub const MARGINS: &[i32] = &[30, 50, 70, 100, 130, 160];
+/// Otomatik sayfa çevirme aralıkları (saniye); 0 = okuma hızına göre.
+pub const AUTO_TURNS: &[u32] = &[0, 10, 15, 20, 30, 45, 60, 90, 120];
 /// PDF yakınlaştırma adımları (yüzde).
 pub const PDF_ZOOMS: &[u32] = &[100, 125, 150, 200];
 
@@ -85,6 +87,8 @@ pub struct Settings {
     pub two_columns: bool,
     /// Sayfa tuşlarının anlamı ters: üst tuş ileri, alt tuş geri.
     pub swap_keys: bool,
+    /// Otomatik sayfa çevirme aralığı (saniye; 0 = okuma hızına göre).
+    pub auto_turn: u32,
 }
 
 impl Default for Settings {
@@ -110,6 +114,7 @@ impl Default for Settings {
             orientation: Orientation::Auto,
             two_columns: true,
             swap_keys: false,
+            auto_turn: 30,
         }
     }
 }
@@ -137,6 +142,7 @@ pub enum Field {
     Orientation,
     TwoColumns,
     PageKeys,
+    AutoTurn,
 }
 
 /// Ayarlar ekranının sayfaları: yazı; PDF ve internet; okuma ve ekran. Hepsi
@@ -164,6 +170,7 @@ pub const FIELD_PAGES: [&[Field]; 3] = [
     &[
         Field::TapZones,
         Field::PageKeys,
+        Field::AutoTurn,
         Field::Night,
         Field::Orientation,
         Field::TwoColumns,
@@ -196,6 +203,7 @@ impl Field {
             Field::Orientation => Msg::SettingOrientation,
             Field::TwoColumns => Msg::SettingTwoColumns,
             Field::PageKeys => Msg::SettingPageKeys,
+            Field::AutoTurn => Msg::SettingAutoTurn,
         }
     }
 }
@@ -287,6 +295,18 @@ impl Settings {
             }
             Field::TwoColumns => s.two_columns = !s.two_columns,
             Field::PageKeys => s.swap_keys = !s.swap_keys,
+            Field::AutoTurn => {
+                let i = AUTO_TURNS
+                    .iter()
+                    .position(|v| *v == s.auto_turn)
+                    .unwrap_or(4);
+                let i = if up {
+                    (i + 1).min(AUTO_TURNS.len() - 1)
+                } else {
+                    i.saturating_sub(1)
+                };
+                s.auto_turn = AUTO_TURNS[i];
+            }
             Field::TapZones => {
                 const ZONES: [TapZones; 3] =
                     [TapZones::Standard, TapZones::Reversed, TapZones::OneHand];
@@ -338,6 +358,10 @@ impl Settings {
                 Orientation::Auto => &Msg::OrientationAuto,
                 Orientation::Portrait => &Msg::OrientationPortrait,
                 Orientation::Landscape => &Msg::OrientationLandscape,
+            }),
+            Field::AutoTurn => tr(&match self.auto_turn {
+                0 => Msg::AutoTurnPace,
+                secs => Msg::Seconds(secs),
             }),
             Field::PageKeys => tr(if self.swap_keys {
                 &Msg::KeysUpForward

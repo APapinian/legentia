@@ -356,7 +356,7 @@ Kullanıcı isteği (2026-10-28): 50 maddelik öneri listesi milestone olarak ka
 - [x] 9. Kaydırarak sayfa çevirme, iki parmakla punto değiştirme (O) (Okurken yatay kaydırma (en az 150 px, dikeyin iki katından fazla) sola ileri, sağa geri; liste ekranlarında sayfa değiştirir. İki parmak 1,15 kattan fazla açılınca punto bir adım büyür, 0,87'den fazla kapanınca küçülür (PDF görüntüsünde yakınlaştırma); kitaba özel ayar olarak. Kobo girdisi ilk iki yuvayı izler. Simülatörde + / - tuşları. Testli; Libra 2'nin iki parmağı bildirdiği cihazda doğrulanmadı.)
 - [x] 10. Dokunma bölgelerini özelleştirme (K) (Ayarlara üçüncü sayfa "Okuma ve ekran"; "Dokunma düzeni": sol geri/sağ ileri, ters, tek el (sol kenar şeridi geri, üst şerit menü, gerisi ileri). Testli.)
 - [x] 11. Sayfa tuşlarının yönünü ayardan değiştirme (K) ("Okuma ve ekran" sayfasında "Sayfa tuşları": üst geri / üst ileri; bütün ekranlarda geçerli. Testli.)
-- [ ] 12. Otomatik sayfa çevirme zamanlayıcısı (K)
+- [x] 12. Otomatik sayfa çevirme zamanlayıcısı (K) (Kullanıcı kararı: menüden başlat, süre ayarlı. Alt çubukta "Otomatik çevir" / "Otomatiği durdur"; aralık ayarlarda 10–120 sn ya da "okuma hızıma göre" (sayfadaki karakter ÷ öğrenilen hız; hız bilinmiyorsa 30 sn). Dokunma/tuş durdurur, kitap sonunda durur; otomatik çevirmeler okuma hızına katılmaz. Testli.)
 - [ ] 13. Sağdan sola yazı (Osmanlıca, Arapça) (B)
 - [ ] 14. Japonca dikey yazı ve furigana (B)
 - [ ] 15. İngilizce ve diğer diller için heceleme (O)

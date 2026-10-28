@@ -6,6 +6,7 @@
 //! PDF'ler aynı ekranlarla okunur; sayfa görüntüsü çizilip önbellekte tutulur.
 
 mod annotations;
+mod autoturn;
 mod backup;
 mod catalog;
 mod downloads;
@@ -151,6 +152,8 @@ pub struct App {
     portrait_width: u32,
     /// İvmeölçere göre cihaz yatay tutuluyor.
     tilted: bool,
+    /// Otomatik sayfa çevirme açıksa son çevirmenin anı.
+    auto_turn: Option<std::time::Instant>,
     store: Store,
     /// Bütün kitapların varsayılan ayarları (`settings.json`). `settings` bunun
     /// açık kitabın kendi yazı ayarlarıyla birleşmiş hâlidir.
@@ -237,6 +240,7 @@ impl App {
             height: crate::LIBRA2_HEIGHT,
             portrait_width: width,
             tilted: false,
+            auto_turn: None,
             store,
             defaults: settings.clone(),
             root: library_root.to_path_buf(),
@@ -369,7 +373,8 @@ impl App {
             let feed = self.poll_job();
             let downloads = self.poll_downloads();
             let online = self.poll_online();
-            return [feed, downloads, online]
+            let turned = self.poll_auto_turn();
+            return [feed, downloads, online, turned]
                 .into_iter()
                 .flatten()
                 .max_by_key(|r| *r == Refresh::Full);
@@ -385,6 +390,17 @@ impl App {
         if let Event::Tilt { landscape } = event {
             self.tilted = landscape;
             return self.fit_orientation().then(|| self.refresh(true));
+        }
+        // Otomatik çevirme sürerken dokunma ya da tuş yalnızca durdurur.
+        if self.auto_turn.is_some()
+            && matches!(self.view, View::Reading)
+            && matches!(
+                event,
+                Event::Tap { .. } | Event::Key(_) | Event::Swipe { .. } | Event::Hold { .. }
+            )
+        {
+            self.stop_auto_turn();
+            return None;
         }
         let refresh = self.dispatch(event);
         self.pause_dwell();

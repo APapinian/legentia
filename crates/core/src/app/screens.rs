@@ -52,8 +52,9 @@ const NAV_ITEMS: [MenuItem; 5] = [
     MenuItem::Annotations,
     MenuItem::Words,
 ];
-const ACTION_ITEMS: [MenuItem; 3] = [
+const ACTION_ITEMS: [MenuItem; 4] = [
     MenuItem::Settings,
+    MenuItem::AutoTurn,
     MenuItem::ExportNotes,
     MenuItem::SaveSearchable,
 ];
@@ -79,6 +80,7 @@ pub(super) enum MenuItem {
     Words,
     Settings,
     SaveSearchable,
+    AutoTurn,
     Library,
 }
 
@@ -94,6 +96,7 @@ impl App {
             MenuItem::ExportNotes,
             MenuItem::Words,
             MenuItem::Settings,
+            MenuItem::AutoTurn,
         ];
         if self.session.as_ref().is_some_and(|s| s.pdf().is_some()) {
             items.push(MenuItem::SaveSearchable);
@@ -588,6 +591,8 @@ impl App {
             MenuItem::ExportNotes => Msg::ExportNotes,
             MenuItem::Settings => Msg::TextSettings,
             MenuItem::SaveSearchable => Msg::SaveSearchable,
+            MenuItem::AutoTurn if self.auto_turn.is_some() => Msg::AutoTurnStop,
+            MenuItem::AutoTurn => Msg::AutoTurnStart,
             MenuItem::Library => Msg::BackToLibrary,
         }
     }
@@ -639,6 +644,14 @@ impl App {
                     msg,
                     back: Back::Reading,
                 };
+            }
+            MenuItem::AutoTurn => {
+                if self.auto_turn.is_some() {
+                    self.stop_auto_turn();
+                } else {
+                    self.start_auto_turn();
+                }
+                self.view = View::Reading;
             }
             MenuItem::Search => {
                 if self.search.is_some() {

@@ -2544,3 +2544,34 @@ fn page_keys_can_be_swapped() {
     key(&mut app, false);
     assert_eq!(session(&app).page, 1);
 }
+
+#[test]
+fn auto_turn_turns_pages_until_touched() {
+    use std::time::{Duration, Instant};
+    let (mut app, _, _) = reading_long_book();
+    app.settings.auto_turn = 10;
+    menu(&mut app, MenuItem::AutoTurn);
+    assert!(matches!(app.view, View::Reading));
+    assert!(app.wants_ticks(), "çalışırken Tick ister");
+    assert_eq!(app.handle(Event::Tick), None, "süre dolmadı");
+    for page in 1..=2 {
+        app.auto_turn = Some(Instant::now() - Duration::from_secs(11));
+        assert!(app.handle(Event::Tick).is_some());
+        assert_eq!(session(&app).page, page);
+    }
+    assert_eq!(app.pace.text_samples, 0, "otomatik çevirme hıza katılmaz");
+
+    // Dokunma yalnızca durdurur (menü açmaz, sayfa çevirmez).
+    tap(&mut app, (W / 2, LIBRA2_HEIGHT / 2));
+    assert!(matches!(app.view, View::Reading));
+    assert_eq!(session(&app).page, 2);
+    assert!(app.auto_turn.is_none() && !app.wants_ticks());
+
+    // Okuma hızına göre: hız bilinmiyorsa 30 sn.
+    app.settings.auto_turn = 0;
+    menu(&mut app, MenuItem::AutoTurn);
+    app.auto_turn = Some(Instant::now() - Duration::from_secs(20));
+    assert_eq!(app.handle(Event::Tick), None);
+    app.auto_turn = Some(Instant::now() - Duration::from_secs(31));
+    assert!(app.handle(Event::Tick).is_some());
+}

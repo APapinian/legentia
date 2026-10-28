@@ -199,6 +199,7 @@ impl App {
         self.browser.job.is_some()
             || self.downloads.iter().any(Download::active)
             || self.online.is_some()
+            || self.auto_turn.is_some()
     }
 
     fn download_of(&self, dest: &Path) -> Option<usize> {
