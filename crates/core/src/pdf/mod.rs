@@ -37,8 +37,6 @@ pub enum PdfError {
     PageMissing(usize),
     /// Çizim sırasında motor hata verdi ya da paniğe kapıldı.
     Render(String),
-    /// CBR, ZIP değil RAR arşivi.
-    Rar,
 }
 
 impl PdfError {
@@ -49,7 +47,6 @@ impl PdfError {
             PdfError::Encrypted => Msg::PdfEncrypted,
             PdfError::Invalid(_) | PdfError::PageMissing(_) => Msg::PdfDamaged,
             PdfError::Render(_) => Msg::PdfPageFailed,
-            PdfError::Rar => Msg::ComicRar,
         }
     }
 }
@@ -83,8 +80,8 @@ pub struct PdfDoc {
 }
 
 impl PdfDoc {
-    /// PDF'i, ya da çizgi roman arşivini (CBZ; ZIP olan CBR) sayfaları
-    /// görsel olan bir PDF'e çevirerek açar.
+    /// PDF'i, ya da çizgi roman arşivini (CBZ, CBR) sayfaları görsel olan bir
+    /// PDF'e çevirerek açar.
     pub fn open(path: &Path) -> Result<PdfDoc, PdfError> {
         let size = std::fs::metadata(path).map_err(PdfError::Io)?.len();
         if size > MAX_FILE_BYTES {
@@ -96,8 +93,7 @@ impl PdfDoc {
             .map(|e| e.to_string_lossy().to_ascii_lowercase())
             .unwrap_or_default();
         match ext.as_str() {
-            "cbz" | "cbr" if comic::is_zip(&data) => Self::from_bytes(comic::to_pdf(data)?),
-            "cbr" => Err(PdfError::Rar),
+            "cbz" | "cbr" => Self::from_bytes(comic::to_pdf(data)?),
             _ => Self::from_bytes(data),
         }
     }

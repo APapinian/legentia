@@ -17,6 +17,7 @@ lopdf = { version = "0.46.0", default-features = false }
 md-5 = "0.11.0"
 nix = { version = "0.31.3", default-features = false, features = ["fs"] }
 quick-xml = { version = "0.42.0", features = ["escape-html"] }
+rars = { version = "0.12.3", default-features = false }
 ripemd = "0.1.3"
 rustybuzz = "0.20.1"
 serde = { version = "1.0.229", features = ["derive"] }
@@ -26,3 +27,7 @@ unicode-linebreak = "0.1.5"
 unicode-normalization = "0.1.26"
 ureq = { version = "3.5.0", default-features = false, features = ["rustls"] }
 zip = { version = "9.1.2", default-features = false, features = ["deflate-flate2-zlib-rs"] }
+
+[dev-dependencies]
+# Yalnız testlerde: örnek RAR arşivleri üretmek için.
+rars = { version = "0.12.3", default-features = false, features = ["write"] }

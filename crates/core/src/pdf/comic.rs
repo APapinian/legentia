@@ -1,5 +1,6 @@
-//! Çizgi roman arşivi (CBZ): içindeki görseller ad sırasıyla (sayılar sayı
-//! gibi: 2, 10'dan önce) birer sayfa olur. Açılırken bellekte her görseli bir
+//! Çizgi roman arşivi (CBZ ya da CBR): içindeki görseller ad sırasıyla (sayılar
+//! sayı gibi: 2, 10'dan önce) birer sayfa olur. RAR, saf Rust `rars` ile açılır
+//! (genç bir kitaplık; paniği yakalanır, açılamadı denir). Açılırken bellekte her görseli bir
 //! sayfaya koyan bir PDF kurulur; böylece PDF görüntüleyicinin sığdırma,
 //! yakınlaştırma, kırpma ve yatayda iki sayfa özellikleri aynen çalışır.
 //! JPEG'ler yeniden kodlanmadan gömülür (açılış hızlı); PNG gri tonlara
@@ -9,9 +10,116 @@ use std::io::{Cursor, Read, Write};
 
 use super::{MAX_FILE_BYTES, PdfError};
 
-/// Arşiv mi: ZIP imzası.
-pub(super) fn is_zip(bytes: &[u8]) -> bool {
-    bytes.starts_with(b"PK\x03\x04")
+/// Sayfa sayılan dosya: gizli olmayan JPEG ya da PNG.
+fn is_page(name: &str) -> bool {
+    let l = name.to_lowercase();
+    let hidden = l
+        .split(['/', '\\'])
+        .any(|p| p.starts_with('.') || p == "__macosx");
+    !hidden && [".jpg", ".jpeg", ".png"].iter().any(|e| l.ends_with(e))
+}
+
+/// Arşivdeki sayfa görselleri (ad, baytlar); ZIP ya da RAR. Toplam boyut sınırlı.
+pub(super) fn pages(bytes: Vec<u8>) -> Result<Pages, PdfError> {
+    let mut pages = if bytes.starts_with(b"PK\x03\x04") {
+        zip_pages(bytes)?
+    } else if bytes.starts_with(b"Rar!") {
+        // Genç kitaplık: beklenmedik bir panik uygulamayı düşürmesin.
+        std::panic::catch_unwind(|| rar_pages(bytes))
+            .map_err(|_| PdfError::Invalid("rar reader panicked".into()))??
+    } else {
+        return Err(PdfError::Invalid("not a comic archive".into()));
+    };
+    pages.sort_by_key(|(n, _)| natural_key(n));
+    Ok(pages)
+}
+
+fn zip_pages(bytes: Vec<u8>) -> Result<Pages, PdfError> {
+    let mut archive =
+        zip::ZipArchive::new(Cursor::new(bytes)).map_err(|e| PdfError::Invalid(e.to_string()))?;
+    let names: Vec<String> = archive
+        .file_names()
+        .flatten()
+        .filter(|n| is_page(n))
+        .map(|n| n.into_owned())
+        .collect();
+    let mut out = Vec::new();
+    let mut total = 0u64;
+    for name in names {
+        let Ok(entry) = archive.by_name(&name) else {
+            continue;
+        };
+        let mut data = Vec::new();
+        entry
+            .take(MAX_FILE_BYTES + 1)
+            .read_to_end(&mut data)
+            .map_err(PdfError::Io)?;
+        total += data.len() as u64;
+        if total > MAX_FILE_BYTES {
+            return Err(PdfError::TooLarge(total));
+        }
+        out.push((name, data));
+    }
+    Ok(out)
+}
+
+/// Arşivden çıkan sayfalar: (ad, baytlar).
+type Pages = Vec<(String, Vec<u8>)>;
+
+/// RAR üyesini belleğe yazan; bırakılınca (ad, baytlar) listeye eklenir.
+struct Collect {
+    name: String,
+    data: Vec<u8>,
+    into: std::sync::Arc<std::sync::Mutex<Pages>>,
+}
+
+impl Write for Collect {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        self.data.extend_from_slice(buf);
+        Ok(buf.len())
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+impl Drop for Collect {
+    fn drop(&mut self) {
+        if let Ok(mut v) = self.into.lock() {
+            v.push((
+                std::mem::take(&mut self.name),
+                std::mem::take(&mut self.data),
+            ));
+        }
+    }
+}
+
+/// Bütün üyeler tek geçişte çıkarılır (solid arşivde üye üye okumak her
+/// seferinde öncekileri yeniden çözer). Sayfa olmayanlar atılır.
+fn rar_pages(bytes: Vec<u8>) -> Result<Pages, PdfError> {
+    let bad = |e: rars::Error| match e.kind() {
+        rars::error::ErrorKind::PasswordRequired => PdfError::Encrypted,
+        _ => PdfError::Invalid(e.to_string()),
+    };
+    let archive = rars::ArchiveReader::read_owned(bytes).map_err(bad)?;
+    let out = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    let options = rars::ArchiveReadOptions::new().with_max_total_output_bytes(MAX_FILE_BYTES);
+    archive
+        .extract_to_with_options(options, |meta| {
+            let name = meta.name_lossy();
+            Ok(if meta.is_directory || !is_page(&name) {
+                Box::new(std::io::sink())
+            } else {
+                Box::new(Collect {
+                    name,
+                    data: Vec::new(),
+                    into: out.clone(),
+                })
+            })
+        })
+        .map_err(bad)?;
+    let pages = std::mem::take(&mut *out.lock().map_err(|_| PdfError::Invalid("lock".into()))?);
+    Ok(pages)
 }
 
 /// Ad sıralaması için parçalar: sayılar sayı, gerisi küçük harfli metin.
@@ -90,40 +198,14 @@ fn image_object(bytes: &[u8]) -> Option<(u32, u32, String, Vec<u8>)> {
     Some((w, h, dict, z.finish().ok()?))
 }
 
-/// CBZ baytlarından PDF.
+/// Arşiv baytlarından (CBZ/CBR) PDF.
 pub(super) fn to_pdf(bytes: Vec<u8>) -> Result<Vec<u8>, PdfError> {
-    let mut archive =
-        zip::ZipArchive::new(Cursor::new(bytes)).map_err(|e| PdfError::Invalid(e.to_string()))?;
-    let mut names: Vec<String> = archive
-        .file_names()
-        .flatten()
-        .filter(|n| {
-            let l = n.to_lowercase();
-            let hidden = l.split('/').any(|p| p.starts_with('.') || p == "__macosx");
-            !hidden && [".jpg", ".jpeg", ".png"].iter().any(|e| l.ends_with(e))
-        })
-        .map(|n| n.into_owned())
-        .collect();
-    names.sort_by_key(|n| natural_key(n));
-
+    let pages = pages(bytes)?;
     // Nesneler: 1 katalog, 2 sayfa ağacı, sonra her sayfa için sayfa, görsel, içerik.
     let mut objects: Vec<Vec<u8>> = vec![Vec::new(), Vec::new()];
     let mut kids = Vec::new();
-    let mut total = 0u64;
-    for name in &names {
-        let Ok(entry) = archive.by_name(name) else {
-            continue;
-        };
-        let mut data = Vec::new();
-        entry
-            .take(MAX_FILE_BYTES + 1)
-            .read_to_end(&mut data)
-            .map_err(PdfError::Io)?;
-        total += data.len() as u64;
-        if total > MAX_FILE_BYTES {
-            return Err(PdfError::TooLarge(total));
-        }
-        let Some((w, h, dict, stream)) = image_object(&data) else {
+    for (name, data) in &pages {
+        let Some((w, h, dict, stream)) = image_object(data) else {
             log::warn!("comic page not shown: {name}");
             continue;
         };
@@ -219,6 +301,32 @@ mod tests {
         let light = doc.render(0, 1.0).unwrap();
         assert!(light.pixels.iter().all(|&p| p > 225));
         assert_eq!(jpeg_info(&a), Some((60, 90, 1)));
+    }
+
+    #[test]
+    fn rar4_and_rar5_comics_including_solid_ones_open() {
+        use rars::version::ArchiveVersion;
+        for (version, solid) in [
+            (ArchiveVersion::Rar29, false),
+            (ArchiveVersion::Rar50, true),
+            (ArchiveVersion::Rar70, false),
+        ] {
+            let mut b = rars::Builder::new(version).solid(solid);
+            b.add_bytes(b"cilt/sayfa10.jpg".to_vec(), jpeg(60, 90, 255), None, None)
+                .unwrap();
+            b.add_bytes(b"cilt/sayfa2.jpg".to_vec(), jpeg(80, 50, 255), None, None)
+                .unwrap();
+            b.add_bytes(b"cilt/oku.txt".to_vec(), b"x".to_vec(), None, None)
+                .unwrap();
+            let rar = b.to_bytes().unwrap();
+            let doc = super::super::PdfDoc::from_bytes(to_pdf(rar).unwrap()).unwrap();
+            assert_eq!(doc.page_count(), 2, "{version:?}");
+            assert_eq!(doc.page_size(0), Some((80.0, 50.0)), "sayfa2 önce");
+        }
+        // Bozuk RAR hata verir, çökmez.
+        let mut rar = b"Rar!\x1a\x07\x01\x00".to_vec();
+        rar.extend_from_slice(&[0xFF; 64]);
+        assert!(to_pdf(rar).is_err());
     }
 
     #[test]
