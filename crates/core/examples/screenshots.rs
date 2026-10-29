@@ -5,7 +5,7 @@
 //!     cargo run --release -p legentia-core --example screenshots -- <kütüphane> <çıktı klasörü> [kitap sırası] [reflow] [sutun]
 //!
 //! `reflow` verilirse PDF'ler yeniden akıtılmış, `sutun` verilirse sütun sütun açılır,
-//! `webtoon` verilirse PDF/çizgi roman kesintisiz şerit olarak, `izgara` verilirse kütüphane kapak ızgarası olarak (kapaklar beklenir), `raf`
+//! `english` verilirse arayüz İngilizce, `webtoon` verilirse PDF/çizgi roman kesintisiz şerit olarak, `izgara` verilirse kütüphane kapak ızgarası olarak (kapaklar beklenir), `raf`
 //! verilirse raflar olarak çekilir.
 #![allow(clippy::print_stdout, clippy::print_stderr)]
 
@@ -45,6 +45,9 @@ fn main() {
     }
     if flag("sutun") {
         settings.push(r#""pdf_view": "Columns""#);
+    }
+    if flag("english") {
+        settings.push(r#""language": "English""#);
     }
     if flag("webtoon") {
         settings.push(r#""pdf_view": "Strip""#);

@@ -290,6 +290,7 @@ impl App {
             })
             .collect();
         text.set_weight(settings.weight);
+        crate::i18n::set_language(settings.language);
         let mut app = Self {
             text,
             width,
@@ -678,6 +679,7 @@ impl App {
     fn use_settings(&mut self, settings: Settings) {
         self.settings = settings;
         self.text.set_weight(self.settings.weight);
+        crate::i18n::set_language(self.settings.language);
     }
 
     /// Ayarlar ekranında "Tamam": kitap açıksa yazı ayarları yalnız bu kitaba

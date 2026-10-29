@@ -95,6 +95,8 @@ pub struct Settings {
     /// Sayfa yönü sağdan sola (manga): dokunma, kaydırma, yan yana sayfalar
     /// ve yakınlaştırılmış sayfanın parçaları ters sırada. Kitaba özel.
     pub rtl: bool,
+    /// Arayüz dili (genel).
+    pub language: crate::i18n::Language,
     /// Kütüphane araç çubuğunun sıralaması, süzgeci ve görünümü.
     pub library_sort: super::shelf::Sort,
     pub library_filter: super::shelf::Filter,
@@ -128,6 +130,7 @@ impl Default for Settings {
             swap_keys: false,
             auto_turn: 30,
             rtl: false,
+            language: Default::default(),
             library_sort: Default::default(),
             library_filter: Default::default(),
             library_view: Default::default(),
@@ -161,6 +164,7 @@ pub enum Field {
     PageKeys,
     AutoTurn,
     Rtl,
+    Language,
 }
 
 /// Ayarlar ekranının sayfaları: yazı; PDF ve internet; okuma ve ekran. Hepsi
@@ -193,6 +197,7 @@ pub const FIELD_PAGES: [&[Field]; 3] = [
         Field::Night,
         Field::Orientation,
         Field::TwoColumns,
+        Field::Language,
     ],
 ];
 
@@ -222,6 +227,7 @@ impl Field {
             Field::Orientation => Msg::SettingOrientation,
             Field::TwoColumns => Msg::SettingTwoColumns,
             Field::Rtl => Msg::SettingRtl,
+            Field::Language => Msg::SettingLanguage,
             Field::PageKeys => Msg::SettingPageKeys,
             Field::AutoTurn => Msg::SettingAutoTurn,
         }
@@ -300,6 +306,13 @@ impl Settings {
             }
             Field::PdfCrop => s.pdf_crop = !s.pdf_crop,
             Field::Rtl => s.rtl = !s.rtl,
+            Field::Language => {
+                use crate::i18n::Language;
+                s.language = match s.language {
+                    Language::Turkish => Language::English,
+                    Language::English => Language::Turkish,
+                }
+            }
             Field::PdfReflow => s.pdf_reflow = !s.pdf_reflow,
             Field::Ocr => s.ocr = !s.ocr,
             Field::Network => s.network = !s.network,
@@ -371,6 +384,7 @@ impl Settings {
                 PdfView::Columns => &Msg::PdfViewColumns,
                 PdfView::Strip => &Msg::PdfViewStrip,
             }),
+            Field::Language => tr(&Msg::LanguageName(self.language)),
             Field::Rtl => tr(if self.rtl {
                 &Msg::RightToLeft
             } else {

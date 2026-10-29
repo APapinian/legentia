@@ -403,7 +403,7 @@ Kullanıcı isteği (2026-10-28): 50 maddelik öneri listesi milestone olarak ka
 
 ### Sistem
 - [ ] 48. Uygulama içinden güncelleme (O)
-- [ ] 49. İngilizce arayüz (K)
+- [x] 49. İngilizce arayüz (K) ("Okuma ve ekran" ayarlarında "Arayüz dili: Türkçe / English" (genel ayar). `i18n.rs`'de Türkçe `turkish` yanında aynı `match`'le `english`; eksik çeviri derleme hatası, test her mesajın İngilizcesinin dolu olduğunu ve Türkçe harf kalmadığını denetler (klasör/dosya adları hariç). İngilizcede yüzde "45%", ondalık nokta, süre "3 h 20 min". Kitap metni, sözlükler ve klavye düzeni etkilenmez. Masaüstünde ekran görüntüleriyle bakıldı.)
 - [x] 50. Tek komutla kurma ve kaldırma betiği (K) (`tools/kobo/kur.sh`: aygıtın Kobo olduğunu denetler (Libra 2 değilse sorar), paketler, yalnızca Legentia dosyalarını kopyalar ve doğrular; güncellemede `veri/` korunur. `--kaldir` (veri/ kalır), `--verileri-de-sil`. Sahte Kobo klasöründe denendi; diğer eklentilerin dosyalarına dokunmadığı doğrulandı.)
 
 ---

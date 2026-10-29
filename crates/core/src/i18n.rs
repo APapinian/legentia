@@ -385,6 +385,8 @@ pub enum Msg {
     ScreenFailed,
     Restarting,
     Crashed,
+    SettingLanguage,
+    LanguageName(Language),
 }
 
 /// Süre: 45 → "45 dk", 200 → "3 sa 20 dk", 120 → "2 sa".
@@ -406,8 +408,53 @@ fn megabytes(bytes: u64) -> String {
     decimal((bytes * 10 / (1 << 20)) as u32)
 }
 
-/// Türkçe metin.
+/// Arayüz dili (ayarlardan). Kitap metni ve sözlükler etkilenmez.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+pub enum Language {
+    #[default]
+    Turkish,
+    English,
+}
+
+// Testler paralel koştuğu için dil testlerde iş parçacığına özeldir.
+#[cfg(not(test))]
+static LANGUAGE: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(0);
+#[cfg(test)]
+thread_local! {
+    static LANGUAGE: std::cell::Cell<u8> = const { std::cell::Cell::new(0) };
+}
+
+/// Bundan sonra çizilen arayüz metinlerinin dili.
+pub fn set_language(language: Language) {
+    let v = language as u8;
+    #[cfg(not(test))]
+    LANGUAGE.store(v, std::sync::atomic::Ordering::Relaxed);
+    #[cfg(test)]
+    LANGUAGE.with(|l| l.set(v));
+}
+
+fn language() -> Language {
+    #[cfg(not(test))]
+    let v = LANGUAGE.load(std::sync::atomic::Ordering::Relaxed);
+    #[cfg(test)]
+    let v = LANGUAGE.with(|l| l.get());
+    if v == Language::English as u8 {
+        Language::English
+    } else {
+        Language::Turkish
+    }
+}
+
+/// Seçili arayüz dilinde metin.
 pub fn tr(msg: &Msg) -> String {
+    match language() {
+        Language::Turkish => turkish(msg),
+        Language::English => english(msg),
+    }
+}
+
+/// Türkçe metin.
+fn turkish(msg: &Msg) -> String {
     match msg {
         Msg::WindowTitle => "Legentia — Libra 2 simülatörü".into(),
         Msg::Usage => "Kullanım: legentia-sim <kitap klasörü ya da kitap.epub>".into(),
@@ -445,7 +492,7 @@ pub fn tr(msg: &Msg) -> String {
         Msg::SearchAnnotations => "Notlarda ara".into(),
         Msg::SearchLibrary => "Kütüphanede ara".into(),
         Msg::NoMatchingBooks => "Aramaya ya da süzgece uyan kitap yok.".into(),
-        Msg::SortBy(m) => format!("Sıra: {}", tr(m)),
+        Msg::SortBy(m) => format!("Sıra: {}", turkish(m)),
         Msg::BookCountShown { shown, total } => format!("{shown}/{total} kitap"),
         Msg::BookCount(n) => format!("{n} kitap"),
         Msg::LibraryEmpty => "Kütüphanede kitap yok. EPUB dosyalarını USB ile cihaza kopyalayın.".into(),
@@ -474,7 +521,7 @@ pub fn tr(msg: &Msg) -> String {
         Msg::PageNumber(n) => format!("Sayfa {n}"),
         Msg::TimeLeft { footer, chapter, book } => format!(
             "{} · bölüm {} · kitap {}",
-            tr(footer),
+            turkish(footer),
             duration(*chapter),
             duration(*book)
         ),
@@ -487,7 +534,7 @@ pub fn tr(msg: &Msg) -> String {
         Msg::TextSettings => "Yazı ayarları".into(),
         Msg::PdfSettings => "PDF ve internet".into(),
         Msg::ReadingSettings => "Okuma ve ekran".into(),
-        Msg::NextSettingsPage(title) => format!("{} →", tr(title)),
+        Msg::NextSettingsPage(title) => format!("{} →", turkish(title)),
         Msg::BackToLibrary => "← Kütüphane".into(),
         Msg::NotesShort => "Notlar".into(),
         Msg::SaveSearchable => "Aranabilir PDF".into(),
@@ -549,7 +596,7 @@ pub fn tr(msg: &Msg) -> String {
         Msg::Duration(secs) => duration((secs / 60) as u32),
         Msg::RemovedBook => "(kütüphanede yok)".into(),
         Msg::TagLine(tag) => format!("Etiket: {tag}"),
-        Msg::MarkKind(m) => format!("Tür: {}", tr(m)),
+        Msg::MarkKind(m) => format!("Tür: {}", turkish(m)),
         Msg::MarkGray => "gri".into(),
         Msg::MarkUnderline => "çizgi".into(),
         Msg::MarkFrame => "çerçeve".into(),
@@ -742,6 +789,377 @@ pub fn tr(msg: &Msg) -> String {
         Msg::Restarting => "Legentia kapandı. Kobo yeniden başlatılıyor; birkaç saniye bekleyin.".into(),
         Msg::ScreenFailed => "Ekrana erişilemedi ya da ekran beklenen biçimde değil (1264×1680, dikey). Ayrıntılar legentia.log dosyasında.".into(),
         Msg::Crashed => "Beklenmeyen bir hata oluştu ve uygulama kapandı. Ayrıntılar kayıt dosyasında.".into(),
+        Msg::SettingLanguage => "Arayüz dili".into(),
+        Msg::LanguageName(l) => language_name(*l).into(),
+    }
+}
+
+/// İngilizce süre: 45 → "45 min", 200 → "3 h 20 min".
+fn duration_en(minutes: u32) -> String {
+    match (minutes / 60, minutes % 60) {
+        (0, m) => format!("{m} min"),
+        (h, 0) => format!("{h} h"),
+        (h, m) => format!("{h} h {m} min"),
+    }
+}
+
+/// İngilizce ondalık, noktayla: 14 → "1.4".
+fn decimal_en(tenths: u32) -> String {
+    format!("{}.{}", tenths / 10, tenths % 10)
+}
+
+fn megabytes_en(bytes: u64) -> String {
+    decimal_en((bytes * 10 / (1 << 20)) as u32)
+}
+
+/// İngilizce metin.
+fn english(msg: &Msg) -> String {
+    match msg {
+        Msg::WindowTitle => "Legentia — Libra 2 simulator".into(),
+        Msg::Usage => "Usage: legentia-sim <book folder or book.epub>".into(),
+        Msg::Library => "Library".into(),
+        Msg::Exit => "Exit".into(),
+        Msg::ClearLibrarySearch => "× Search".into(),
+        Msg::SortRecent => "recent".into(),
+        Msg::SortTitle => "title".into(),
+        Msg::SortAuthor => "author".into(),
+        Msg::SortAdded => "added".into(),
+        Msg::ShowCovers => "Covers".into(),
+        Msg::ShowList => "List".into(),
+        Msg::ShowShelves => "Shelves".into(),
+        Msg::FilterAll => "All".into(),
+        Msg::StatusReading => "Reading".into(),
+        Msg::StatusToRead => "To read".into(),
+        Msg::StatusFinished => "Finished".into(),
+        Msg::BookActionsHint => "Reading status, delete and move".into(),
+        Msg::DeleteBook => "Delete book".into(),
+        Msg::MoveBook => "Move to folder".into(),
+        Msg::DeleteBookQuestion => "Delete this book?".into(),
+        Msg::DeleteKeepsNotes => "Only the book file is deleted. Reading position, notes and highlights stay saved and come back if the book is added again.".into(),
+        Msg::DeleteFailed => "The book could not be deleted.".into(),
+        Msg::MoveTo => "Which folder?".into(),
+        Msg::LibraryRoot => "Library (main folder)".into(),
+        Msg::MoveTargetExists => "A file with the same name is already in that folder; not moved.".into(),
+        Msg::MoveFailed => "The book could not be moved.".into(),
+        Msg::ChooseStatus => "Reading status".into(),
+        Msg::MarkToRead => "Mark as to read".into(),
+        Msg::MarkReading => "Mark as reading".into(),
+        Msg::MarkFinished => "Mark as finished".into(),
+        Msg::TapElsewhereToClose => "Tap elsewhere to close.".into(),
+        Msg::StatusFinishedShort => "finished".into(),
+        Msg::StatusToReadShort => "to read".into(),
+        Msg::SearchAnnotations => "Search notes".into(),
+        Msg::SearchLibrary => "Search library".into(),
+        Msg::NoMatchingBooks => "No books match the search or filter.".into(),
+        Msg::SortBy(m) => format!("Sort: {}", english(m)),
+        Msg::BookCountShown { shown, total } => format!("{shown}/{total} books"),
+        Msg::BookCount(1) => "1 book".into(),
+        Msg::BookCount(n) => format!("{n} books"),
+        Msg::LibraryEmpty => "No books in the library. Copy EPUB files to the device over USB.".into(),
+        Msg::Unreadable => "Cannot be opened".into(),
+        Msg::Percent(p) => format!("{p}%"),
+        Msg::ListFooter { page, pages } => format!("Page {page}/{pages}"),
+        Msg::Back => "Back".into(),
+        Msg::Contents => "Contents".into(),
+        Msg::LinkBack => "← Back".into(),
+        Msg::ImageNotShown => "[Image cannot be shown]".into(),
+        Msg::GoToNote => "Go to the note".into(),
+        Msg::UnknownAuthor => "Unknown author".into(),
+        Msg::ChapterNumber(n) => format!("Chapter {n}"),
+        Msg::EmptyChapter => "This chapter has no text to show (it may contain only images).".into(),
+        Msg::ReadingFooter { chapter, chapters, page, pages, percent } => {
+            format!("Chapter {chapter}/{chapters} · Page {page}/{pages} · {percent}%")
+        }
+        Msg::PdfFooter { page, pages, percent } => format!("Page {page}/{pages} · {percent}%"),
+        Msg::PdfSpreadFooter { page, pages, percent } => {
+            format!("Pages {page}–{}/{pages} · {percent}%", page + 1)
+        }
+        Msg::PdfScreenFooter { page, pages, screen, screens, percent } => {
+            format!("Page {page}/{pages} ({screen}/{screens}) · {percent}%")
+        }
+        Msg::PageNumber(n) => format!("Page {n}"),
+        Msg::TimeLeft { footer, chapter, book } => format!(
+            "{} · chapter {} · book {}",
+            english(footer),
+            duration_en(*chapter),
+            duration_en(*book)
+        ),
+        Msg::PdfDocument => "PDF document".into(),
+        Msg::Comic => "Comic".into(),
+        Msg::AddBookmark => "Add bookmark".into(),
+        Msg::RemoveBookmark => "Remove bookmark".into(),
+        Msg::Bookmarks => "Bookmarks".into(),
+        Msg::NoBookmarks => "No bookmarks yet. While reading, tap the middle of the screen and add one from the menu.".into(),
+        Msg::TextSettings => "Text settings".into(),
+        Msg::PdfSettings => "PDF and internet".into(),
+        Msg::ReadingSettings => "Reading and screen".into(),
+        Msg::NextSettingsPage(title) => format!("{} →", english(title)),
+        Msg::BackToLibrary => "← Library".into(),
+        Msg::NotesShort => "Notes".into(),
+        Msg::SaveSearchable => "Searchable PDF".into(),
+        Msg::SearchableSaved { pages, name } => {
+            format!("Searchable PDF saved: “{name}”. A text layer was added to {pages} pages; the original file is unchanged.")
+        }
+        Msg::NothingToOcr => "Every page of this PDF already has text; no searchable copy is needed.".into(),
+        Msg::SearchableFailed => "The searchable PDF could not be saved. Details are in the log file.".into(),
+        Msg::Highlight => "Highlight".into(),
+        Msg::RemoveHighlight => "Remove highlight".into(),
+        Msg::Note => "Note".into(),
+        Msg::AddNote => "Add note".into(),
+        Msg::EditNote => "Edit note".into(),
+        Msg::Save => "Save".into(),
+        Msg::KeyShift => "↑".into(),
+        Msg::KeyDelete => "Del".into(),
+        Msg::KeySpace => "space".into(),
+        Msg::KeyLetters => "abc".into(),
+        Msg::KeySymbols => "123".into(),
+        Msg::Annotations => "Highlights and notes".into(),
+        Msg::NoAnnotations => "No highlights in this book yet. Press and hold on the text, then drag to select.".into(),
+        Msg::ExportNotes => "Export notes".into(),
+        Msg::NotesExported { count, files } => {
+            format!("{count} highlights exported: {files}. The files are next to the book; the original book is unchanged.")
+        }
+        Msg::ExportFailed => "Notes could not be exported. Details are in the log file.".into(),
+        Msg::NoteLine(note) => format!("Note: {note}"),
+        Msg::Upload => "Wireless upload".into(),
+        Msg::UploadHint => "Your computer or phone must be on the same Wi-Fi network as this device. Open the address below in a browser, enter the code and drop your books. Books are saved to the İndirilenler (downloads) folder. Leaving this screen turns uploading off.".into(),
+        Msg::UploadPageHint => "Drop or choose books here (EPUB, PDF, FB2, TXT, HTML, CBZ, CBR). The code is shown on the Legentia screen.".into(),
+        Msg::UploadCode => "Code".into(),
+        Msg::UploadDrop => "Drop files here".into(),
+        Msg::UploadWrongCode => "Wrong code.".into(),
+        Msg::UploadSaved => "saved".into(),
+        Msg::UploadBadFile => "This file type is not accepted (books only).".into(),
+        Msg::UploadTooLarge => "The file is too large (at most 1 GB).".into(),
+        Msg::UploadNoSpace => "Not enough free space on the device.".into(),
+        Msg::UploadFailed => "The file could not be saved.".into(),
+        Msg::UploadNoNetwork => "No network connection found; wireless upload could not start. Is Wi-Fi connected?".into(),
+        Msg::UploadLocked => "Too many wrong codes were tried; uploading was turned off for safety. Tap Back and open it again to restart.".into(),
+        Msg::UploadCodeLine(c) => format!("Code: {c}"),
+        Msg::UploadCount(n) => format!("Books received: {n}"),
+        Msg::Tools => "Tools".into(),
+        Msg::Stats => "Reading statistics".into(),
+        Msg::StatToday { secs, pages } => {
+            format!("Today: {} · {pages} pages", duration_en((secs / 60) as u32))
+        }
+        Msg::StatWeek { secs, pages } => {
+            format!("Last 7 days: {} · {pages} pages", duration_en((secs / 60) as u32))
+        }
+        Msg::StatTotal { secs, pages } => {
+            format!("Total: {} · {pages} pages", duration_en((secs / 60) as u32))
+        }
+        Msg::StatStreak(n) => format!("Days read in a row: {n}"),
+        Msg::StatSpeed(n) => format!("Reading speed: about {n} words per minute"),
+        Msg::StatChart => "Last 14 days (minutes)".into(),
+        Msg::StatBooks => "Most read books".into(),
+        Msg::Minutes(m) => duration_en(*m),
+        Msg::Duration(secs) => duration_en((secs / 60) as u32),
+        Msg::RemovedBook => "(not in the library)".into(),
+        Msg::TagLine(tag) => format!("Tag: {tag}"),
+        Msg::MarkKind(m) => format!("Style: {}", english(m)),
+        Msg::MarkGray => "gray".into(),
+        Msg::MarkUnderline => "underline".into(),
+        Msg::MarkFrame => "frame".into(),
+        Msg::Tag => "Tag".into(),
+        Msg::TagTitle => "Highlight tag".into(),
+        Msg::FieldTag => "Tag (leave empty to remove)".into(),
+        Msg::BackupButton => "Tools".into(),
+        Msg::Backup => "Backup".into(),
+        Msg::BackupHint => "Settings, the word list, reading positions, bookmarks, highlights and notes are written to “Legentia yedek.json” in the library folder. Restoring never deletes existing records; it merges them with the backup.".into(),
+        Msg::BackupNow => "Back up".into(),
+        Msg::RestoreNow => "Restore from backup".into(),
+        Msg::BackupSaved { books } => format!("Backup saved: records of {books} books and the settings, “Legentia yedek.json”."),
+        Msg::RestoreDone { books } => format!("Merged the records of {books} books from the backup; settings restored."),
+        Msg::NoBackup => "“Legentia yedek.json” was not found in the library folder.".into(),
+        Msg::BackupFailed => "The backup file could not be written or read. Details are in the log file.".into(),
+        Msg::Dictionary => "Dictionary".into(),
+        Msg::NoDictionaries => "No dictionaries found. Copy StarDict dictionaries into the “Sözlükler” folder in the library; KOReader's dictionaries are used automatically too.".into(),
+        Msg::NotInDictionary(word) => format!("“{word}” was not found in the dictionaries."),
+        Msg::LookupForm { word, form } => format!("“{word}” → {form}"),
+        Msg::LookupFooter { page, pages } => format!("Dictionary · Page {page}/{pages} · tap the middle to close"),
+        Msg::SaveWord => "Add to list".into(),
+        Msg::UnsaveWord => "Remove from list".into(),
+        Msg::ReviewButton(n) => format!("Review ({n})"),
+        Msg::ReviewTitle => "Word review".into(),
+        Msg::ReviewLeft(n) => format!("Left today: {n}"),
+        Msg::ReviewDone(n) => format!("Done for today. {n} cards known this session. Tap to go back."),
+        Msg::ReviewTapToShow => "Tap to see the meaning.".into(),
+        Msg::ReviewNoDefinition => "No definition found in the dictionaries on the device.".into(),
+        Msg::GradeAgain => "Didn't know".into(),
+        Msg::GradeHard => "Hard".into(),
+        Msg::GradeGood => "Knew it".into(),
+        Msg::Words => "My words".into(),
+        Msg::WordCount(1) => "1 word".into(),
+        Msg::WordCount(n) => format!("{n} words"),
+        Msg::ExportAnki => "Export to Anki".into(),
+        Msg::AnkiExported(n) => format!("{n} words written to “Legentia kelimeler.csv” in the library folder. Open it in Anki with File → Import."),
+        Msg::NoWords => "No words in the list. Open a word in the dictionary and tap “Add to list”.".into(),
+        Msg::NetOffline => "Could not reach the server. Check the Wi-Fi connection and the address.".into(),
+        Msg::NetTimeout => "The server did not answer in time. Try again a little later.".into(),
+        Msg::NetTls => "A secure connection could not be made: the server's certificate could not be verified. The connection was refused for your safety.".into(),
+        Msg::NetUnauthorized => "Wrong user name or password, or this catalog requires an account.".into(),
+        Msg::NetStatus(code) => format!("The server returned an error (code {code})."),
+        Msg::NetTooLarge => "The file is larger than allowed.".into(),
+        Msg::NetInvalid => "The server's answer could not be understood.".into(),
+        Msg::NetDisk => "The file could not be saved. Check that the device has enough space.".into(),
+        Msg::NetCancelled => "Download cancelled.".into(),
+        Msg::Catalogs => "Catalogs".into(),
+        Msg::CatalogCount(n) => format!("{n} catalogs · press and hold to edit"),
+        Msg::AddCatalog => "Add".into(),
+        Msg::NoCatalogs => "No catalogs. Use “Add” to add an OPDS catalog address.".into(),
+        Msg::MembersOnly => "account required".into(),
+        Msg::NewCatalog => "Add catalog".into(),
+        Msg::EditCatalog => "Edit catalog".into(),
+        Msg::FormHint => "Tap a field to type.".into(),
+        Msg::FieldName => "Name".into(),
+        Msg::FieldTitle => "Title (leave empty for the book's own title)".into(),
+        Msg::FieldAuthors => "Authors (separate with commas)".into(),
+        Msg::FieldSeries => "Series".into(),
+        Msg::FieldSeriesIndex => "Number in series (e.g. 2)".into(),
+        Msg::EditBookInfo => "Edit details".into(),
+        Msg::BadSeriesIndex => "The number in series must be a number (e.g. 2 or 2.5).".into(),
+        Msg::FieldUrl => "Address (OPDS or Calibre, e.g. 192.168.1.5:8080)".into(),
+        Msg::FieldUser => "User name (optional)".into(),
+        Msg::FieldPassword => "Password".into(),
+        Msg::FieldQuery => "Search for".into(),
+        Msg::Delete => "Delete".into(),
+        Msg::NameRequired => "Enter a name for the catalog.".into(),
+        Msg::InvalidUrl => "Invalid address. Enter the server name (e.g. 192.168.1.5:8080 or https://example.org/opds); the address cannot contain spaces.".into(),
+        Msg::QueryRequired => "Enter a word to search for.".into(),
+        Msg::Loading => "Loading…".into(),
+        Msg::Search => "Search".into(),
+        Msg::SearchCatalog => "Search catalog".into(),
+        Msg::SearchBook => "Search book".into(),
+        Msg::SearchTitle(q) => format!("“{q}”"),
+        Msg::SearchHits(1) => "1 result".into(),
+        Msg::SearchHits(n) => format!("{n} results"),
+        Msg::SearchHitsTruncated(n) => format!("First {n} results (there are more; narrow the search)"),
+        Msg::NoSearchHits => "Not found in this book.".into(),
+        Msg::NewSearch => "New search".into(),
+        Msg::BackToResults => "← Results".into(),
+        Msg::FeedEmpty => "Nothing to show on this page.".into(),
+        Msg::NextPage => "Next page →".into(),
+        Msg::Unavailable => "Not in a downloadable format".into(),
+        Msg::EntryUnavailable => "This book is not offered in a downloadable format (EPUB or PDF); it may be for sale or in another format.".into(),
+        Msg::NotOpds => "This address did not return an OPDS catalog. Check the address.".into(),
+        Msg::SearchUnsupported => "This catalog's search information could not be read.".into(),
+        Msg::NetworkOff => "Internet is off. Open a book, then turn it on from the menu: “Text settings” → “PDF and internet”.".into(),
+        Msg::EntryCount(n) => format!("{n} entries"),
+        Msg::Formats(f) => format!("Format: {f}"),
+        Msg::Downloads => "Downloads".into(),
+        Msg::NoDownloads => "The download list is empty.".into(),
+        Msg::Download => "Download".into(),
+        Msg::OpenBook => "Open".into(),
+        Msg::Retry => "Retry".into(),
+        Msg::Queued => "Queued".into(),
+        Msg::CancelQueued => "Queued · Cancel".into(),
+        Msg::CancelDownload => "Cancel".into(),
+        Msg::Downloaded => "Downloaded; in the library.".into(),
+        Msg::NoSpace => "Not enough free disk space; the download was stopped.".into(),
+        Msg::UntitledBook => "Untitled book".into(),
+        Msg::DownloadsButton(0) => "Downloads".into(),
+        Msg::DownloadsButton(n) => format!("Downloads ({n})"),
+        Msg::DownloadCount(n) => format!("{n} downloads"),
+        Msg::CancelDownloading(Some(p)) => format!("Downloading {p}% · Cancel"),
+        Msg::CancelDownloading(None) => "Downloading · Cancel".into(),
+        Msg::Progress { done, total: Some(total) } => {
+            format!("{}% · {} / {} MB", done * 100 / (*total).max(1), megabytes_en(*done), megabytes_en(*total))
+        }
+        Msg::Progress { done, total: None } => format!("{} MB", megabytes_en(*done)),
+        Msg::CompoundWords => "Compound words".into(),
+        Msg::Idioms => "Proverbs, idioms and compound verbs".into(),
+        Msg::SourceTdk => "TDK Turkish Dictionary (online)".into(),
+        Msg::SourceWikipedia => "Wikipedia (online, CC BY-SA)".into(),
+        Msg::Wikipedia => "Wikipedia".into(),
+        Msg::NotOnWikipedia(w) => format!("No Wikipedia article was found for “{w}”."),
+        Msg::WikipediaFailed(reason) => format!("Wikipedia could not be reached. {reason}"),
+        Msg::SourceWiktionary => "Wiktionary (online, CC BY-SA)".into(),
+        Msg::SearchingDictionary => "Searching the online dictionary…".into(),
+        Msg::OnlineFailed { word, reason } => {
+            format!("“{word}” is not in the dictionaries on the device, and the online dictionary could not be reached. {reason}")
+        }
+        Msg::SettingTdk => "Online dictionary: TDK".into(),
+        Msg::SettingWiktionary => "Online dictionary: Wiktionary".into(),
+        Msg::SettingTapZones => "Tap layout".into(),
+        Msg::SettingWeight => "Text weight".into(),
+        Msg::SettingOrientation => "Screen orientation while reading".into(),
+        Msg::OrientationAuto => "Automatic (as the device turns)".into(),
+        Msg::OrientationPortrait => "Portrait".into(),
+        Msg::OrientationLandscape => "Landscape".into(),
+        Msg::SettingTwoColumns => "EPUB in landscape".into(),
+        Msg::SettingPageKeys => "Page keys".into(),
+        Msg::SettingAutoTurn => "Auto page turn interval".into(),
+        Msg::AutoTurnPace => "By my reading speed".into(),
+        Msg::Seconds(n) => format!("{n} s"),
+        Msg::AutoTurnStart => "Auto turn".into(),
+        Msg::AutoTurnStop => "Stop auto turn".into(),
+        Msg::KeysUpBack => "Top back, bottom forward".into(),
+        Msg::KeysUpForward => "Top forward, bottom back".into(),
+        Msg::ColumnsTwo => "Two columns".into(),
+        Msg::ColumnsOne => "One column".into(),
+        Msg::Weight(0) => "Normal".into(),
+        Msg::Weight(1) => "Slightly bold".into(),
+        Msg::Weight(2) => "Bold".into(),
+        Msg::Weight(_) => "Very bold".into(),
+        Msg::TapStandard => "Left back, right forward".into(),
+        Msg::TapReversed => "Left forward, right back".into(),
+        Msg::TapOneHand => "One hand (left edge back)".into(),
+        Msg::SettingsHintBook => "For this book only; applied with “OK”.".into(),
+        Msg::MakeDefault => "Make default".into(),
+        Msg::SettingsHint => "Changes are applied when you tap “OK”.".into(),
+        Msg::SettingFont => "Typeface".into(),
+        Msg::SettingSize => "Text size".into(),
+        Msg::SettingLineSpacing => "Line spacing".into(),
+        Msg::SettingMargin => "Margins".into(),
+        Msg::SettingAlign => "Alignment".into(),
+        Msg::SettingHyphenate => "Hyphenation".into(),
+        Msg::SettingNight => "Night mode (inverted)".into(),
+        Msg::SettingPdfView => "PDF view".into(),
+        Msg::PdfViewPage => "Fit page".into(),
+        Msg::PdfViewWidth => "Fit width".into(),
+        Msg::PdfViewColumns => "Column by column".into(),
+        Msg::PdfViewStrip => "Webtoon (continuous)".into(),
+        Msg::SettingRtl => "Page direction".into(),
+        Msg::LeftToRight => "Left to right".into(),
+        Msg::RightToLeft => "Right to left (manga)".into(),
+        Msg::SettingPdfZoom => "PDF zoom".into(),
+        Msg::SettingPdfCrop => "Crop PDF margins".into(),
+        Msg::SettingPdfReflow => "Reflow PDF text".into(),
+        Msg::SettingOcr => "Read scanned pages with OCR".into(),
+        Msg::SettingNetwork => "Internet (catalogs, downloads)".into(),
+        Msg::Points { tenths } => format!("{} pt", decimal_en(*tenths)),
+        Msg::Decimal { tenths } => decimal_en(*tenths),
+        Msg::Millimeters(mm) => format!("{mm} mm"),
+        Msg::AlignJustify => "Justified".into(),
+        Msg::AlignLeft => "Left".into(),
+        Msg::On => "On".into(),
+        Msg::Off => "Off".into(),
+        Msg::PreviewSample => "As we drank our tea in the shade of the trees, light filtered through the leaves.".into(),
+        Msg::Ok => "OK".into(),
+        Msg::Cancel => "Cancel".into(),
+        Msg::TapToReturn => "Tap the screen to go back.".into(),
+        Msg::BookFileUnreadable => "The book file could not be opened. Make sure the file exists and is readable.".into(),
+        Msg::BookNotEpub => "This file is not an EPUB book, or it is damaged.".into(),
+        Msg::BookDamaged => "The book file is damaged: a required part is missing or unreadable.".into(),
+        Msg::BookTooLarge => "Part of the book exceeds the safe size limit; it was not opened.".into(),
+        Msg::BookUnsafe => "The book contains an unsafe file path that points outside the package; it was not opened.".into(),
+        Msg::PdfEncrypted => "This PDF is password protected and cannot be opened yet.".into(),
+        Msg::PdfDamaged => "The PDF file is damaged or in an unsupported format.".into(),
+        Msg::PdfPageFailed => "This page could not be drawn. You can go on to other pages.".into(),
+        Msg::FontMissing => "Fonts were not found or could not be read. The LEGENTIA_FONTS environment variable must point to the font folder (nix develop sets it).".into(),
+        Msg::WindowFailed => "The simulator window could not be opened.".into(),
+        Msg::Restarting => "Legentia closed. The Kobo is restarting; please wait a few seconds.".into(),
+        Msg::ScreenFailed => "The screen could not be accessed or is not as expected (1264×1680, portrait). Details are in legentia.log.".into(),
+        Msg::Crashed => "An unexpected error occurred and the app closed. Details are in the log file.".into(),
+        Msg::SettingLanguage => "Interface language".into(),
+        Msg::LanguageName(l) => language_name(*l).into(),
+    }
+}
+
+/// Dilin kendi dilindeki adı (seçenek her iki arayüzde de tanınsın).
+fn language_name(l: Language) -> &'static str {
+    match l {
+        Language::Turkish => "Türkçe",
+        Language::English => "English",
     }
 }
 
@@ -1117,8 +1535,48 @@ mod tests {
             WindowFailed,
             ScreenFailed,
             Restarting,
+            SettingLanguage,
+            LanguageName(Language::Turkish),
+            LanguageName(Language::English),
             Crashed,
         ]
+    }
+
+    #[test]
+    fn every_message_has_english_text_without_turkish_letters() {
+        // Klasör ve dosya adları ile dilin kendi adı Türkçe kalır.
+        const KEPT: [&str; 6] = [
+            "İndirilenler",
+            "Sözlükler",
+            "Legentia yedek.json",
+            "Legentia kelimeler.csv",
+            "Türkçe",
+            "TDK",
+        ];
+        const TURKISH: [char; 12] = ['ı', 'İ', 'ğ', 'Ğ', 'ş', 'Ş', 'ç', 'Ç', 'ö', 'Ö', 'ü', 'Ü'];
+        for m in all() {
+            let mut text = english(&m);
+            assert!(!text.trim().is_empty(), "boş çeviri: {m:?}");
+            // Örnek verisi (kelime, kitap adı) Türkçe olan mesaj denetlenemez.
+            if format!("{m:?}").contains(TURKISH) {
+                continue;
+            }
+            for k in KEPT {
+                text = text.replace(k, "");
+            }
+            assert!(!text.contains(TURKISH), "çevrilmemiş: {m:?} → {text}");
+        }
+    }
+
+    #[test]
+    fn language_switch_and_english_numbers() {
+        set_language(Language::English);
+        assert_eq!(tr(&Msg::Percent(45)), "45%");
+        assert_eq!(tr(&Msg::Decimal { tenths: 14 }), "1.4");
+        assert_eq!(tr(&Msg::Minutes(200)), "3 h 20 min");
+        assert_eq!(tr(&Msg::SortBy(Box::new(Msg::SortTitle))), "Sort: title");
+        set_language(Language::Turkish);
+        assert_eq!(tr(&Msg::Percent(45)), "%45");
     }
 
     #[test]
