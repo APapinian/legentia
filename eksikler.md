@@ -55,7 +55,7 @@ Yeni bir eksik bulununca bu dosyaya eklenir; giderilen madde silinir ve ne yapı
 - **Yatayda (rotasyon 0) dokunma 180° tersti:** "Otomatik çevir"e basınca "İçindekiler". 0 ve 2'nin formülleri yer değiştirdi.
 - **Cihaz yolları:** ışık `backlight/mxc_msp430.0/brightness` (0–100), sıcaklık `leds/aw99703-bl_FL1|FL2/color` (0–10), pil `power_supply/battery/capacity|status`, saat UTC (RTC bd70528).
 
-- **Uyku:** Wi-Fi açıkken çekirdek uyutulmuyor (yalnız ekran/ışık); askıya alma ve uyanma cihazda denenmedi. Bekçi (15 dk) hâlâ açık: uzun okumada program kapanabilir; uyku doğrulanınca kapatılacak. Sayfa tuşları bırakılınca çeviriyor (çok kısa gecikme).
+- **Uyku:** Wi-Fi açıkken çekirdek uyutulmuyor (yalnız ekran/ışık); askıya alma ve uyanma cihazda denenmedi. 6. denemede uyku çalıştı ama Nickel kapandıktan sonra Wi-Fi açık kaldığı için çekirdek hiç uyutulmadı (pil korunmuyor); Wi-Fi kapatma (madde 20) gerekiyor. Bekçi kullanıcı kararıyla kapatıldı. Sayfa tuşları bırakılınca çeviriyor (çok kısa gecikme).
 
 ## İşlev eksikleri
 

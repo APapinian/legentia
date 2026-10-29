@@ -37,6 +37,54 @@ fn exe_dir() -> PathBuf {
         .unwrap_or_else(|| PathBuf::from("."))
 }
 
+/// Tanı (M11 20–21 için): Nickel'dan gelen ortam, yüklü çekirdek modülleri,
+/// ağ arabirimleri ve ağ süreçleri; yalnız okunur.
+fn log_network_setup() {
+    for var in [
+        "PLATFORM",
+        "PRODUCT",
+        "MODEL_NUMBER",
+        "WIFI_MODULE",
+        "INTERFACE",
+        "LD_LIBRARY_PATH",
+    ] {
+        log::info!("env {var}={}", std::env::var(var).unwrap_or_default());
+    }
+    let modules: Vec<String> = std::fs::read_to_string("/proc/modules")
+        .unwrap_or_default()
+        .lines()
+        .filter_map(|l| l.split_whitespace().next().map(str::to_string))
+        .collect();
+    log::info!("modules: {}", modules.join(" "));
+    if let Ok(entries) = std::fs::read_dir("/sys/class/net") {
+        for e in entries.flatten() {
+            let state = std::fs::read_to_string(e.path().join("operstate")).unwrap_or_default();
+            log::info!("net {}: {}", e.file_name().to_string_lossy(), state.trim());
+        }
+    }
+    let mut procs = Vec::new();
+    if let Ok(entries) = std::fs::read_dir("/proc") {
+        for e in entries.flatten() {
+            let comm = std::fs::read_to_string(e.path().join("comm")).unwrap_or_default();
+            let comm = comm.trim();
+            if ["wpa", "dhcp", "udhcpc", "nickel", "hindenburg", "sickel"]
+                .iter()
+                .any(|n| comm.contains(n))
+            {
+                procs.push(comm.to_string());
+            }
+        }
+    }
+    log::info!("network processes: {}", procs.join(" "));
+    for f in [
+        "/etc/wpa_supplicant/wpa_supplicant.conf",
+        "/usr/local/Kobo/udhcpc.d",
+        "/etc/udhcpc.d",
+    ] {
+        log::info!("exists {f}: {}", std::path::Path::new(f).exists());
+    }
+}
+
 /// Tanı (M11 16–22 için): ışık, LED ve güç kaynağı aygıtları ve kısa
 /// değerleri günlüğe; yalnız okunur.
 fn log_device_classes() {
@@ -149,6 +197,7 @@ fn run() -> ExitCode {
     app.set_update_dir(exe_dir());
     log::info!("library scanned in {:?}", started.elapsed());
     log_device_classes();
+    log_network_setup();
 
     // Dikey dönüş (Nickel'ın bıraktığı: 1 ya da ters dikey 3) ve okuma yataya
     // dönünce kullanılacak dönüş. Yatayın hangi yana olduğu ivmeölçerden gelir;

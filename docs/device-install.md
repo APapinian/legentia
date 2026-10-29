@@ -32,14 +32,14 @@ Program çalışırken kendisi şunları oluşturur: `.adds/legentia/veri/` (aya
 - Ana ekranın sağ altındaki NickelMenu'den **Legentia**'yı seçin. Betik Nickel'ı durdurur ve Legentia'yı başlatır.
 - **Çıkış:** kütüphanedeki **Çık** düğmesi ya da **güç tuşu**. İkisi de okuma konumunu kaydeder.
 - **Çıkıştan sonra cihaz yeniden başlar** (yaklaşık yarım dakika). Program nasıl biterse bitsin (çıkış, çökme, bekçi) bu olur. Nickel'ı elle geri başlatmak Wi-Fi ve USB durumuna bağlı ayrıntılar istiyor; bunlar doğrulanana kadar yeniden başlatmak en güvenli yol.
-- **Bekçi:** ilk denemelerde program 15 dakika sonra kendiliğinden durdurulur ve cihaz yeniden başlar. Ekran ya da dokunma çalışmazsa cihaz böylece kendiliğinden kurtulur. Süre `legentia.sh`'deki `DENEME_SURESI` ile değişir (0 = sınırsız).
+- **Bekçi:** ilk denemelerde program bir süre sonra kendiliğinden durduruluyordu; 2026-10-29'da kullanıcı kararıyla kapatıldı (`DENEME_SURESI=0`) ve cihaz yeniden başlar. Ekran ya da dokunma çalışmazsa cihaz böylece kendiliğinden kurtulur. Süre `legentia.sh`'deki `DENEME_SURESI` ile değişir (0 = sınırsız).
 
 ## Kurtarma
 
 Sırasıyla:
 
 1. **Ekran değişmiyor ya da dokunma çalışmıyor:** güç tuşuna basın; program kaydedip çıkar, cihaz yeniden başlar.
-2. **Güç tuşu da işe yaramıyor:** en çok 15 dakika bekleyin; bekçi programı durdurur, cihaz yeniden başlar.
+2. **Güç tuşu da işe yaramıyor:** güç tuşunu ~20 sn basılı tutup cihazı kapatın ve açın (bekçi kapalı).
 3. **Cihaz hiç tepki vermiyor:** güç tuşunu uzun süre (yaklaşık 15–20 sn) basılı tutarak kapatın, sonra açın. Legentia kendiliğinden başlamaz; cihaz her zamanki gibi Nickel'a açılır. *(Libra 2'de bu sürenin tam değeri doğrulanmadı.)*
 4. **Sorun tekrarlıyor:** Legentia'yı kaldırın (aşağıda). Günlükleri saklayın: `.adds/legentia/legentia.log` ve `betik.log`.
 
