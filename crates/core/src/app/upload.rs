@@ -346,11 +346,7 @@ impl Server {
 
 impl App {
     pub(super) fn upload_button(&self) -> super::ui::Rect {
-        let s = self.stats_button();
-        super::ui::Rect {
-            y: s.y + s.h + 40,
-            ..s
-        }
+        self.tool_row(3)
     }
 
     pub(super) fn open_upload(&mut self) -> Option<Refresh> {

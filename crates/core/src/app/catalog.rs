@@ -412,6 +412,25 @@ impl App {
             (Button::Cancel, FormKind::AnnotationTag(_)) => self.view = View::Reading,
             (Button::Cancel, FormKind::BookInfo(book)) => self.view = View::BookActions { book },
             (Button::Cancel, FormKind::DeeplKey | FormKind::WebDav) => self.view = View::Backup,
+            (Button::Cancel, FormKind::NewFeed | FormKind::EditFeed(_)) => {
+                self.view = View::NewsFeeds { page: 0 }
+            }
+            (Button::Delete, FormKind::EditFeed(i)) => {
+                self.delete_feed(i);
+                self.view = View::NewsFeeds { page: 0 };
+            }
+            (Button::Submit, kind @ (FormKind::NewFeed | FormKind::EditFeed(_))) => {
+                let edit = match kind {
+                    FormKind::EditFeed(i) => Some(i),
+                    _ => None,
+                };
+                let url = form.fields[0].value.clone();
+                if let Err(msg) = self.save_feed(edit, &url) {
+                    form.error = Some(msg);
+                    return self.open_form(form);
+                }
+                self.view = View::NewsFeeds { page: 0 };
+            }
             (Button::Submit, FormKind::WebDav) => {
                 if let Err(msg) = self.save_dav_account(&form) {
                     form.error = Some(msg);

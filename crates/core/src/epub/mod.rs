@@ -196,6 +196,20 @@ impl Book {
     }
 }
 
+/// HTML parçasından (ör. RSS yazısı) metin blokları; görseller atılır
+/// (kitap paketi yok), boş bloklar kalmaz.
+pub(crate) fn html_blocks(html: &str) -> Vec<Block> {
+    let doc = format!("<html><body>{html}</body></html>");
+    xhtml::blocks(&doc, "yazi.xhtml")
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|mut b| {
+            b.image = None;
+            (!b.text.trim().is_empty()).then_some(b)
+        })
+        .collect()
+}
+
 /// JPEG/PNG görselin boyutu, yalnızca başlığından.
 fn image_size(bytes: &[u8]) -> Option<(u32, u32)> {
     image::ImageReader::new(std::io::Cursor::new(bytes))

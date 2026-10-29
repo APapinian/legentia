@@ -399,7 +399,7 @@ Kullanıcı isteği (2026-10-28): 50 maddelik öneri listesi milestone olarak ka
 - [x] 44. WebDAV / Nextcloud kütüphanesi (O) (Kullanıcı kararı: ikisi de. Araçlar → WebDAV: hesap (adres, kullanıcı, şifre; `webdav.json`, yedeğe girmez); "Yedeği gönder" yerel yedekle aynı biçimde "Legentia yedek.json"u `PUT` eder, "Yedeği al" indirip yerel kayıtlarla birleştirir; "Kitaplara göz at" `PROPFIND` (Depth 1) ile klasörler ve kitaplar, kitaplar indirme kuyruğuyla İndirilenler'e. Şifre yalnız 401'den sonra ve yalnız hesabın sunucusuna; Digest artık yönteme göre (PUT/PROPFIND). Yetki isteyen sahte WebDAV sunucusuyla uçtan uca denendi; gerçek Nextcloud'la denenmedi.)
 - [ ] 45. Dropbox (uygulamaya özel klasör; şartlar doğrulanacak) (O–B)
 - [ ] 46. Web makalelerini EPUB olarak okuma (Wallabag) (O)
-- [ ] 47. RSS haber okuyucu (O)
+- [x] 47. RSS haber okuyucu (O) (Kullanıcı kararı: ayrı okuyucu ekranı. Araçlar → Haberler (RSS): besleme ekle/düzenle/sil (uzun basma), "Güncelle" bütün beslemeleri arka planda indirir (RSS 2.0, Atom; `content:encoded` yoksa özet). Yazılar `haberler.json`'da (besleme başına en çok 100), çevrimdışı okunur; okunmamış kalın, "Tümü okundu". Yazı okuma ayarlarıyla sayfalanır, kenarlara dokunma/tuşlarla sayfa, ortaya dokunma listeye döner. Görseller gösterilmez. Sahte besleme sunucusuyla denendi.)
 
 ### Sistem
 - [ ] 48. Uygulama içinden güncelleme (O)

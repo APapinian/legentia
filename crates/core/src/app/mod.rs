@@ -19,6 +19,7 @@ mod jobs;
 mod keyboard;
 mod links;
 mod lookup;
+mod news;
 mod note;
 mod orientation;
 mod pace;
@@ -91,6 +92,21 @@ enum View {
     WebDav,
     /// WebDAV klasörü (`dav.dirs` sonuncusu).
     DavBrowse {
+        page: usize,
+    },
+    /// Haber beslemeleri (`news`).
+    NewsFeeds {
+        page: usize,
+    },
+    /// Beslemenin yazıları.
+    NewsItems {
+        feed: usize,
+        page: usize,
+    },
+    /// Açık yazı (`news.article` sayfaları).
+    NewsArticle {
+        feed: usize,
+        item: usize,
         page: usize,
     },
     /// Sözlük sonucu (`lookup`), sayfası.
@@ -195,6 +211,8 @@ pub struct App {
     /// ve eksikleri üreten iş.
     covers: HashMap<String, Option<covers::Thumb>>,
     cover_job: Option<covers::CoverJob>,
+    /// Haber beslemeleri ve yazılar.
+    news: news::NewsState,
     /// WebDAV hesabı, işi ve açılan klasörleri.
     dav: webdav::Dav,
     /// Kullanıcının DeepL API anahtarı (`deepl.json`); yoksa çeviri yok.
@@ -320,6 +338,10 @@ impl App {
             cover_job: None,
             upload: None,
             deepl_key,
+            news: news::NewsState {
+                news: store.load(news::NEWS_FILE).unwrap_or_default(),
+                ..Default::default()
+            },
             dav: webdav::Dav {
                 account: dav_account,
                 ..Default::default()
@@ -470,7 +492,8 @@ impl App {
             let covers = self.poll_covers();
             let upload = self.poll_upload();
             let dav = self.poll_dav();
-            return [feed, downloads, online, turned, covers, upload, dav]
+            let news = self.poll_news();
+            return [feed, downloads, online, turned, covers, upload, dav, news]
                 .into_iter()
                 .flatten()
                 .max_by_key(|r| *r == Refresh::Full);
@@ -534,6 +557,11 @@ impl App {
             View::Upload => self.handle_upload(event),
             View::WebDav => self.handle_webdav(event),
             View::DavBrowse { page } => self.handle_dav_browse(*page, event),
+            View::NewsFeeds { page } => self.handle_news_feeds(*page, event),
+            View::NewsItems { feed, page } => self.handle_news_items(*feed, *page, event),
+            View::NewsArticle { feed, item, page } => {
+                self.handle_news_article(*feed, *item, *page, event)
+            }
             View::Lookup { page } => self.handle_lookup(*page, event),
             View::Words { page } => self.handle_words(*page, event),
             View::Review { card, answer, done } => {
@@ -761,6 +789,9 @@ impl App {
             View::Upload => self.draw_upload(canvas),
             View::WebDav => self.draw_webdav(canvas),
             View::DavBrowse { page } => self.draw_dav_browse(canvas, *page),
+            View::NewsFeeds { page } => self.draw_news_feeds(canvas, *page),
+            View::NewsItems { feed, page } => self.draw_news_items(canvas, *feed, *page),
+            View::NewsArticle { page, .. } => self.draw_news_article(canvas, *page),
             View::Lookup { page } => self.draw_lookup(canvas, *page),
             View::Words { page } => self.draw_words(canvas, *page),
             View::Review { card, answer, done } => {

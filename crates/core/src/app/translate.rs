@@ -132,11 +132,7 @@ impl App {
     }
 
     pub(super) fn deepl_button(&self) -> super::ui::Rect {
-        let u = self.upload_button();
-        super::ui::Rect {
-            y: u.y + u.h + 40,
-            ..u
-        }
+        self.tool_row(4)
     }
 
     pub(super) fn open_deepl_form(&mut self) -> Option<Refresh> {

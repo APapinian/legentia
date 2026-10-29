@@ -20,6 +20,7 @@ pub mod net;
 pub mod ocr;
 pub mod opds;
 pub mod pdf;
+pub mod rss;
 mod storage;
 mod text;
 

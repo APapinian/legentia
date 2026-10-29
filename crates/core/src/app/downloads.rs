@@ -203,6 +203,7 @@ impl App {
             || self.cover_job.is_some()
             || self.upload.is_some()
             || self.dav.job.is_some()
+            || self.news.job.is_some()
     }
 
     fn download_of(&self, dest: &Path) -> Option<usize> {

@@ -294,11 +294,7 @@ impl App {
     }
 
     pub(super) fn webdav_button(&self) -> Rect {
-        let d = self.deepl_button();
-        Rect {
-            y: d.y + d.h + 40,
-            ..d
-        }
+        self.tool_row(5)
     }
 
     pub(super) fn open_webdav(&mut self) -> Option<Refresh> {

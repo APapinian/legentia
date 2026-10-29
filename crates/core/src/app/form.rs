@@ -37,6 +37,10 @@ pub(super) enum FormKind {
     DeeplKey,
     /// WebDAV hesabı: adres, kullanıcı, şifre.
     WebDav,
+    /// Yeni haber beslemesi.
+    NewFeed,
+    /// Beslemenin (`news.feeds` sırası) adresi.
+    EditFeed(usize),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -98,12 +102,16 @@ impl Form {
             FormKind::BookInfo(_) => Msg::EditBookInfo,
             FormKind::DeeplKey => Msg::DeeplKeyButton,
             FormKind::WebDav => Msg::DavAccount,
+            FormKind::NewFeed => Msg::NewFeed,
+            FormKind::EditFeed(_) => Msg::EditFeed,
         }
     }
 
     pub fn buttons(&self) -> Vec<Button> {
         match self.kind {
-            FormKind::EditCatalog(_) => vec![Button::Cancel, Button::Delete, Button::Submit],
+            FormKind::EditCatalog(_) | FormKind::EditFeed(_) => {
+                vec![Button::Cancel, Button::Delete, Button::Submit]
+            }
             _ => vec![Button::Cancel, Button::Submit],
         }
     }

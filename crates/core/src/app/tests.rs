@@ -3524,3 +3524,81 @@ fn webdav_sends_and_merges_backups_and_downloads_books() {
         assert!(pair[0].ends_with("false"), "{log:?}");
     }
 }
+
+#[test]
+fn news_feeds_are_added_updated_read_and_kept_offline() {
+    let url = crate::net::testserver::serve(|path, _| match path {
+        "/rss" => (
+            200,
+            r#"<rss version="2.0"><channel><title>Gazete</title>
+<item><title>Birinci haber</title><guid>h1</guid><pubDate>Thu, 29 Oct 2026</pubDate>
+<description>&lt;p&gt;Ağaçların &lt;b&gt;gölgesinde&lt;/b&gt; çay.&lt;/p&gt;</description></item>
+<item><title>İkinci haber</title><guid>h2</guid><description>Kısa.</description></item>
+</channel></rss>"#
+                .as_bytes()
+                .to_vec(),
+        ),
+        _ => (200, b"<html><body>sayfa</body></html>".to_vec()),
+    });
+    let (mut app, data, root) = setup(&[]);
+    app.view = View::Backup;
+    let at = app.news_button().center();
+    tap(&mut app, at);
+    assert!(matches!(app.view, View::NewsFeeds { page: 0 }));
+    let mut c = Canvas::new(W, LIBRA2_HEIGHT);
+    app.draw(&mut c);
+    // Besleme olmayan adres: güncellemede hata işareti.
+    for u in [format!("{url}/rss"), format!("{url}/sayfa")] {
+        tap(&mut app, news_button("add"));
+        fill_form(&mut app, &[&u]);
+        form_button(&mut app, form::Button::Submit);
+    }
+    assert_eq!(app.news.news.feeds.len(), 2);
+    tap(&mut app, news_button("update"));
+    settle(&mut app);
+    let feeds = &app.news.news.feeds;
+    assert_eq!(feeds[0].title, "Gazete");
+    assert_eq!(feeds[0].items.len(), 2);
+    assert_eq!(app.news.failed, [format!("{url}/sayfa")]);
+    app.draw(&mut c);
+
+    // Yazı açılır, okundu işaretlenir; ortaya dokununca listeye dönülür.
+    tap_row(&mut app, &super::news::NEWS_LIST, 0);
+    assert!(matches!(app.view, View::NewsItems { feed: 0, page: 0 }));
+    app.draw(&mut c);
+    tap_row(&mut app, &super::news::NEWS_LIST, 0);
+    assert!(matches!(
+        app.view,
+        View::NewsArticle {
+            feed: 0,
+            item: 0,
+            page: 0
+        }
+    ));
+    assert!(!app.news.article[0].lines.is_empty(), "yazı sayfalandı");
+    app.draw(&mut c);
+    assert!(app.news.news.read.contains("h1"));
+    tap(&mut app, (W / 2, LIBRA2_HEIGHT / 2));
+    assert!(matches!(app.view, View::NewsItems { .. }));
+
+    // Uzun basınca düzenle; sil.
+    tap(&mut app, super::ui::back_button(W).center());
+    let (x, y) = super::news::NEWS_LIST.row_rect(W, 1).center();
+    app.handle(Event::Hold { x, y });
+    form_button(&mut app, form::Button::Delete);
+    assert_eq!(app.news.news.feeds.len(), 1);
+
+    // Çevrimdışı: yazılar ve okundu bilgisi kayıtta.
+    let app = restart(&data, &root);
+    assert_eq!(app.news.news.feeds[0].items.len(), 2);
+    assert!(app.news.news.read.contains("h1"));
+}
+
+/// Haber ekranının başlık düğmeleri.
+fn news_button(which: &str) -> (u32, u32) {
+    let add = super::ui::header_button(W, 170);
+    match which {
+        "add" => add.center(),
+        _ => super::ui::left_of(add, 220).center(),
+    }
+}

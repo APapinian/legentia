@@ -150,23 +150,24 @@ impl App {
         Msg::RestoreDone { books: count }
     }
 
-    /// (Yedekle, Geri yükle) düğmeleri.
-    pub(super) fn backup_buttons(&self) -> (Rect, Rect) {
-        let r = |i: i32| Rect {
+    /// Araçlar ekranının `i`. satırı (yedekle, geri yükle, istatistik,
+    /// kablosuz yükleme, DeepL, WebDAV, haberler).
+    pub(super) fn tool_row(&self, i: i32) -> Rect {
+        Rect {
             x: MARGIN,
-            y: HEADER_BOTTOM + 260 + i * (BUTTON_H + 40),
+            y: HEADER_BOTTOM + 250 + i * (BUTTON_H + 22),
             w: self.width as i32 - 2 * MARGIN,
             h: BUTTON_H,
-        };
-        (r(0), r(1))
+        }
+    }
+
+    /// (Yedekle, Geri yükle) düğmeleri.
+    pub(super) fn backup_buttons(&self) -> (Rect, Rect) {
+        (self.tool_row(0), self.tool_row(1))
     }
 
     pub(super) fn stats_button(&self) -> Rect {
-        let (_, restore) = self.backup_buttons();
-        Rect {
-            y: restore.y + 2 * (BUTTON_H + 40),
-            ..restore
-        }
+        self.tool_row(2)
     }
 
     pub(super) fn handle_backup(&mut self, event: Event) -> Option<Refresh> {
@@ -178,6 +179,8 @@ impl App {
             self.save_backup()
         } else if restore.contains(x, y) {
             self.restore_backup()
+        } else if self.news_button().contains(x, y) {
+            return self.open_news();
         } else if self.webdav_button().contains(x, y) {
             return self.open_webdav();
         } else if self.deepl_button().contains(x, y) {
@@ -216,6 +219,7 @@ impl App {
         };
         draw_button(t, canvas, self.deepl_button(), &tr(&deepl), ROW_PX);
         draw_button(t, canvas, self.webdav_button(), "WebDAV", ROW_PX);
+        draw_button(t, canvas, self.news_button(), &tr(&Msg::News), ROW_PX);
     }
 }
 
