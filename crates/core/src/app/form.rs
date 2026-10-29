@@ -41,6 +41,8 @@ pub(super) enum FormKind {
     NewFeed,
     /// Beslemenin (`news.feeds` sırası) adresi.
     EditFeed(usize),
+    /// Wallabag hesabı.
+    Wallabag,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -104,6 +106,7 @@ impl Form {
             FormKind::WebDav => Msg::DavAccount,
             FormKind::NewFeed => Msg::NewFeed,
             FormKind::EditFeed(_) => Msg::EditFeed,
+            FormKind::Wallabag => Msg::WallabagAccount,
         }
     }
 

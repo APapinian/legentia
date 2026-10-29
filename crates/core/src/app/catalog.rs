@@ -411,7 +411,15 @@ impl App {
             }
             (Button::Cancel, FormKind::AnnotationTag(_)) => self.view = View::Reading,
             (Button::Cancel, FormKind::BookInfo(book)) => self.view = View::BookActions { book },
-            (Button::Cancel, FormKind::DeeplKey | FormKind::WebDav) => self.view = View::Backup,
+            (Button::Cancel, FormKind::DeeplKey | FormKind::WebDav | FormKind::Wallabag) => {
+                self.view = View::Services
+            }
+            (Button::Submit, FormKind::Wallabag) => {
+                if let Err(msg) = self.submit_wallabag(&form) {
+                    form.error = Some(msg);
+                    return self.open_form(form);
+                }
+            }
             (Button::Cancel, FormKind::NewFeed | FormKind::EditFeed(_)) => {
                 self.view = View::NewsFeeds { page: 0 }
             }
@@ -439,12 +447,12 @@ impl App {
                 self.view = if self.dav.account.is_some() {
                     View::WebDav
                 } else {
-                    View::Backup
+                    View::Services
                 };
             }
             (Button::Submit, FormKind::DeeplKey) => {
                 self.save_deepl_key(&form.fields[0].value);
-                self.view = View::Backup;
+                self.view = View::Services;
             }
             (Button::Submit, FormKind::BookInfo(book)) => {
                 if let Err(msg) = self.save_book_info(book, &form) {

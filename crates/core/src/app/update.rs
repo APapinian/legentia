@@ -160,7 +160,7 @@ impl App {
     }
 
     pub(super) fn update_button(&self) -> Rect {
-        self.tool_row(7)
+        self.tool_row(6)
     }
 
     pub(super) fn check_update(&mut self) -> Option<Refresh> {

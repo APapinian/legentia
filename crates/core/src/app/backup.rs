@@ -151,7 +151,7 @@ impl App {
     }
 
     /// Araçlar ekranının `i`. satırı (yedekle, geri yükle, istatistik,
-    /// kablosuz yükleme, DeepL, WebDAV, haberler).
+    /// kablosuz yükleme, hesaplar ve servisler, haberler, güncelleme).
     pub(super) fn tool_row(&self, i: i32) -> Rect {
         Rect {
             x: MARGIN,
@@ -183,10 +183,8 @@ impl App {
             return self.check_update();
         } else if self.news_button().contains(x, y) {
             return self.open_news();
-        } else if self.webdav_button().contains(x, y) {
-            return self.open_webdav();
-        } else if self.deepl_button().contains(x, y) {
-            return self.open_deepl_form();
+        } else if self.services_button().contains(x, y) {
+            return self.open_services();
         } else if self.upload_button().contains(x, y) {
             return self.open_upload();
         } else if self.stats_button().contains(x, y) {
@@ -214,13 +212,13 @@ impl App {
         draw_button(t, canvas, restore, &tr(&Msg::RestoreNow), ROW_PX);
         draw_button(t, canvas, self.stats_button(), &tr(&Msg::Stats), ROW_PX);
         draw_button(t, canvas, self.upload_button(), &tr(&Msg::Upload), ROW_PX);
-        let deepl = if self.deepl_key.is_some() {
-            Msg::DeeplKeySet
-        } else {
-            Msg::DeeplKeyButton
-        };
-        draw_button(t, canvas, self.deepl_button(), &tr(&deepl), ROW_PX);
-        draw_button(t, canvas, self.webdav_button(), "WebDAV", ROW_PX);
+        draw_button(
+            t,
+            canvas,
+            self.services_button(),
+            &tr(&Msg::Services),
+            ROW_PX,
+        );
         draw_button(t, canvas, self.news_button(), &tr(&Msg::News), ROW_PX);
         draw_button(
             t,

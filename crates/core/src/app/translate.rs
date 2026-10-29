@@ -132,7 +132,7 @@ impl App {
     }
 
     pub(super) fn deepl_button(&self) -> super::ui::Rect {
-        self.tool_row(4)
+        self.service_row(0)
     }
 
     pub(super) fn open_deepl_form(&mut self) -> Option<Refresh> {

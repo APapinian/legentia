@@ -27,6 +27,7 @@ mod pdf_view;
 mod screens;
 mod search;
 mod select;
+mod services;
 mod session;
 mod settings;
 mod shelf;
@@ -35,6 +36,7 @@ mod translate;
 mod ui;
 mod update;
 mod upload;
+mod wallabag;
 mod webdav;
 mod words;
 
@@ -97,6 +99,10 @@ enum View {
     },
     /// Güncelleme denetleniyor, bulundu ya da indiriliyor (`update`).
     Update,
+    /// Hesaplar ve servisler (DeepL, WebDAV, Wallabag, Dropbox).
+    Services,
+    /// Arka plan işi sürüyor (ör. Wallabag eşitlemesi); bitince sonuç gösterilir.
+    Working,
     /// Haber beslemeleri (`news`).
     NewsFeeds {
         page: usize,
@@ -214,6 +220,9 @@ pub struct App {
     /// ve eksikleri üreten iş.
     covers: HashMap<String, Option<covers::Thumb>>,
     cover_job: Option<covers::CoverJob>,
+    /// Wallabag hesabı ve indirilen yazılar; sürmekte olan iş.
+    wallabag: Option<wallabag::Wallabag>,
+    wallabag_job: Option<wallabag::WallabagJob>,
     /// Programın klasörü (yalnız cihazda); güncelleme buraya iner.
     update_dir: Option<PathBuf>,
     /// Sürmekte olan güncelleme adımı.
@@ -345,6 +354,8 @@ impl App {
             cover_job: None,
             upload: None,
             deepl_key,
+            wallabag: store.load(wallabag::WALLABAG_FILE),
+            wallabag_job: None,
             update_dir: None,
             update: None,
             news: news::NewsState {
@@ -503,8 +514,9 @@ impl App {
             let dav = self.poll_dav();
             let news = self.poll_news();
             let update = self.poll_update();
+            let wallabag = self.poll_wallabag();
             return [
-                feed, downloads, online, turned, covers, upload, dav, news, update,
+                feed, downloads, online, turned, covers, upload, dav, news, update, wallabag,
             ]
             .into_iter()
             .flatten()
@@ -571,6 +583,8 @@ impl App {
             View::DavBrowse { page } => self.handle_dav_browse(*page, event),
             View::NewsFeeds { page } => self.handle_news_feeds(*page, event),
             View::Update => self.handle_update(event),
+            View::Services => self.handle_services(event),
+            View::Working => None,
             View::NewsItems { feed, page } => self.handle_news_items(*feed, *page, event),
             View::NewsArticle { feed, item, page } => {
                 self.handle_news_article(*feed, *item, *page, event)
@@ -804,6 +818,11 @@ impl App {
             View::DavBrowse { page } => self.draw_dav_browse(canvas, *page),
             View::NewsFeeds { page } => self.draw_news_feeds(canvas, *page),
             View::Update => self.draw_update(canvas),
+            View::Services => self.draw_services(canvas),
+            View::Working => {
+                self.text
+                    .draw_msg(canvas, &Msg::Loading, ui::MARGIN, ui::TOP + 300, ui::ROW_PX)
+            }
             View::NewsItems { feed, page } => self.draw_news_items(canvas, *feed, *page),
             View::NewsArticle { page, .. } => self.draw_news_article(canvas, *page),
             View::Lookup { page } => self.draw_lookup(canvas, *page),

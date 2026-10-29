@@ -294,7 +294,7 @@ impl App {
     }
 
     pub(super) fn webdav_button(&self) -> Rect {
-        self.tool_row(5)
+        self.service_row(1)
     }
 
     pub(super) fn open_webdav(&mut self) -> Option<Refresh> {
@@ -390,7 +390,7 @@ impl App {
             return None;
         }
         if back_button(self.width).contains(x, y) {
-            self.view = View::Backup;
+            self.view = View::Services;
             return Some(self.refresh(true));
         }
         let [push_r, pull_r, browse_r, account_r] = self.dav_buttons();

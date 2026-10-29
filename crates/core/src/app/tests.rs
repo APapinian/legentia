@@ -3329,7 +3329,7 @@ fn selected_text_is_translated_with_the_users_deepl_key() {
     tap(&mut app, (W / 2, LIBRA2_HEIGHT - 5));
 
     // Anahtar Araçlar'dan girilir; veri klasöründe, yedekte değil.
-    app.view = View::Backup;
+    app.view = View::Services;
     let at = app.deepl_button().center();
     tap(&mut app, at);
     fill_form(&mut app, &["yanlis:fx"]);
@@ -3443,7 +3443,7 @@ fn webdav_server() -> (String, std::sync::Arc<std::sync::Mutex<Vec<String>>>) {
 fn webdav_sends_and_merges_backups_and_downloads_books() {
     let (url, log) = webdav_server();
     let (mut app, data, root) = setup(&[("a.epub", epub3_sample())]);
-    app.view = View::Backup;
+    app.view = View::Services;
     let at = app.webdav_button().center();
     tap(&mut app, at);
     assert!(matches!(app.view, View::Form(_)), "hesap yokken önce form");
@@ -3709,4 +3709,176 @@ fn updates_are_checked_downloaded_and_verified_on_the_device_only() {
         std::fs::read(dir.join("legentia-kobo.yeni")).unwrap(),
         program
     );
+}
+
+/// Sahte Wallabag: iki okunmamış yazı; arşivlenen listeden çıkar.
+fn wallabag_server() -> (String, std::sync::Arc<std::sync::Mutex<Vec<String>>>) {
+    use std::io::{BufRead, BufReader, Read, Write};
+    use std::sync::{Arc, Mutex};
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let url = format!("http://{}", listener.local_addr().unwrap());
+    let log = Arc::new(Mutex::new(Vec::new()));
+    let seen = log.clone();
+    std::thread::spawn(move || {
+        let mut unread: Vec<u64> = vec![1, 2];
+        for stream in listener.incoming().flatten() {
+            let mut reader = BufReader::new(stream.try_clone().unwrap());
+            let mut first = String::new();
+            reader.read_line(&mut first).unwrap();
+            let (mut auth, mut len) = (String::new(), 0usize);
+            loop {
+                let mut line = String::new();
+                reader.read_line(&mut line).unwrap();
+                if line.trim().is_empty() {
+                    break;
+                }
+                let lower = line.to_lowercase();
+                if lower.starts_with("authorization:") {
+                    auth = line[14..].trim().to_string();
+                }
+                if let Some(v) = lower.strip_prefix("content-length:") {
+                    len = v.trim().parse().unwrap();
+                }
+            }
+            let mut body = vec![0; len];
+            reader.read_exact(&mut body).unwrap();
+            let body = String::from_utf8(body).unwrap();
+            let mut parts = first.split_whitespace();
+            let (method, path) = (
+                parts.next().unwrap().to_string(),
+                parts.next().unwrap().to_string(),
+            );
+            seen.lock().unwrap().push(format!("{method} {path} {body}"));
+            let bearer = auth == "Bearer a1";
+            let (status, answer): (&str, Vec<u8>) =
+                match (method.as_str(), path.split('?').next().unwrap()) {
+                    ("POST", "/oauth/v2/token")
+                        if body.contains("client_id=c1")
+                            && body.contains("client_secret=s1")
+                            && (body
+                                .contains("grant_type=password&username=ali&password=gizli")
+                                || body.contains("grant_type=refresh_token&refresh_token=r1")) =>
+                    {
+                        (
+                            "200 OK",
+                            br#"{"access_token":"a1","refresh_token":"r1","expires_in":3600}"#
+                                .to_vec(),
+                        )
+                    }
+                    ("POST", _) => ("400 Bad Request", b"{}".to_vec()),
+                    _ if !bearer => ("401 Unauthorized", Vec::new()),
+                    ("GET", "/api/entries.json") => {
+                        let items: Vec<String> = unread
+                            .iter()
+                            .map(|id| format!(r#"{{"id":{id},"title":"Yazı {id}"}}"#))
+                            .collect();
+                        (
+                            "200 OK",
+                            format!(
+                                r#"{{"page":1,"pages":1,"_embedded":{{"items":[{}]}}}}"#,
+                                items.join(",")
+                            )
+                            .into_bytes(),
+                        )
+                    }
+                    ("GET", p) if p.ends_with("/export.epub") => {
+                        ("200 OK", epub_with_meta("Yazı", ""))
+                    }
+                    ("PATCH", p) if body == "archive=1" => {
+                        let id: u64 = p
+                            .trim_start_matches("/api/entries/")
+                            .trim_end_matches(".json")
+                            .parse()
+                            .unwrap();
+                        unread.retain(|u| *u != id);
+                        ("200 OK", b"{}".to_vec())
+                    }
+                    _ => ("404 Not Found", Vec::new()),
+                };
+            let mut s = stream;
+            let _ = write!(
+                s,
+                "HTTP/1.1 {status}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                answer.len()
+            );
+            let _ = s.write_all(&answer);
+        }
+    });
+    (url, log)
+}
+
+#[test]
+fn wallabag_articles_arrive_as_epubs_and_finished_ones_are_archived() {
+    let (url, log) = wallabag_server();
+    let (mut app, data, root) = setup(&[]);
+    app.view = View::Services;
+    let at = app.wallabag_button().center();
+    tap(&mut app, at);
+    fill_form(&mut app, &[&format!("{url}/"), "c1", "s1", "ali", "yanlis"]);
+    form_button(&mut app, form::Button::Submit);
+    settle(&mut app);
+    assert!(matches!(
+        app.view,
+        View::Message {
+            msg: Msg::WallabagLogin,
+            ..
+        }
+    ));
+
+    app.view = View::Services;
+    tap(&mut app, at);
+    fill_form(&mut app, &[&format!("{url}/"), "c1", "s1", "ali", "gizli"]);
+    form_button(&mut app, form::Button::Submit);
+    assert!(matches!(app.view, View::Working));
+    let mut c = Canvas::new(W, LIBRA2_HEIGHT);
+    app.draw(&mut c);
+    settle(&mut app);
+    assert!(matches!(
+        app.view,
+        View::Message {
+            msg: Msg::WallabagSynced {
+                added: 2,
+                archived: 0,
+                removed: 0
+            },
+            ..
+        }
+    ));
+    let dir = root.join("Wallabag");
+    assert!(dir.join("Yazı 1 [1].epub").exists() && dir.join("Yazı 2 [2].epub").exists());
+    assert_eq!(app.library.len(), 2);
+    let saved = std::fs::read_to_string(data.join("wallabag.json")).unwrap();
+    assert!(!saved.contains("gizli"), "şifre saklanmaz");
+
+    // Biri bitti: eşitlemede arşivlenir ve cihazdan silinir.
+    let i = app
+        .library
+        .iter()
+        .position(|e| e.path.ends_with("Yazı 1 [1].epub"))
+        .unwrap();
+    app.set_status(i, super::shelf::ReadStatus::Finished);
+    app.view = View::Services;
+    tap(&mut app, at);
+    settle(&mut app);
+    assert!(matches!(
+        app.view,
+        View::Message {
+            msg: Msg::WallabagSynced {
+                added: 0,
+                archived: 1,
+                removed: 0
+            },
+            ..
+        }
+    ));
+    assert!(!dir.join("Yazı 1 [1].epub").exists());
+    assert!(dir.join("Yazı 2 [2].epub").exists());
+    assert!(
+        log.lock()
+            .unwrap()
+            .iter()
+            .any(|l| l.starts_with("PATCH /api/entries/1.json"))
+    );
+    app.view = View::Services;
+    app.draw(&mut c);
 }

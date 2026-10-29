@@ -79,7 +79,7 @@ fn fetch(net: &Net, url: &str) -> Result<crate::rss::Channel, Msg> {
 
 impl App {
     pub(super) fn news_button(&self) -> super::ui::Rect {
-        self.tool_row(6)
+        self.tool_row(5)
     }
 
     fn add_feed_button(&self) -> super::ui::Rect {

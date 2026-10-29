@@ -205,6 +205,7 @@ impl App {
             || self.upload.is_some()
             || self.dav.job.is_some()
             || self.news.job.is_some()
+            || self.wallabag_job.is_some()
             || matches!(
                 self.update,
                 Some(update::Step::Checking(_) | update::Step::Downloading(_))
