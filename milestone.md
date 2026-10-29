@@ -387,13 +387,13 @@ Kullanıcı isteği (2026-10-28): 50 maddelik öneri listesi milestone olarak ka
 - [x] 34. Vurgu türleri: altı çizili, çerçeveli, etiketli (K) (Vurguya dokununca çubukta "Tür": gri → altı çizili → çerçeveli; seçilen tür yeni vurgulara da uygulanır (`highlight` ayarı). "Etiket": kısa etiket yazılır, boş bırakılınca kalkar; vurgu listesinde gösterilir ve aramaya girer, Markdown dışa aktarmada "Etiket:" satırı. Eski kayıtlar gri olarak açılır. Notlu PDF'e aktarmada tür yok sayılıyor, hepsi vurgu olarak yazılıyor.)
 - [x] 35. Notlarda ve vurgularda arama (K) (Vurgular ekranının başlığında "Ara": alıntıda ve not metninde, kitap içi aramayla aynı harf kurallarıyla; yeniden dokununca kaldırılır. Testli.)
 - [x] 36. Kelime listesinden Anki kartları (CSV) (K) (Kelime listesi başlığında "Anki'ye aktar": kütüphane klasörüne "Legentia kelimeler.csv" (Anki başlık satırlarıyla, noktalı virgüllü). Ön yüz kelime; arka yüz cihazdaki sözlüklerden ilk tanım (en çok 600 karakter), metindeki biçim ve kitap. Testli; Anki'de içe aktarma elle denenmedi.)
-- [ ] 37. Cihazda aralıklı tekrarlı kelime çalışması (O)
+- [x] 37. Cihazda aralıklı tekrarlı kelime çalışması (O) (Kelime listesinde "Tekrar et (N)": kart önce kelimeyi, dokununca kitaptaki biçimini ve cihazdaki sözlükten tanımını gösterir; "Bilmedim / Zor / Bildim" SM-2'ye benzer biçimde sonraki günü belirler (bilinen 1, 3 gün, sonra aralık × kolaylık; bilinmeyen aynı oturumda yeniden). Durum `words.json`'da, yedeğe girer; günler UTC.)
 - [ ] 38. Seçili cümleyi çevrimiçi çevirme (O)
 - [x] 39. Seçili kelimeyi Türkçe Vikipedi'de arama (K) (Seçim çubuğunda "Vikipedi": önce Vikipedi araması (çekimli biçimi de bulur: "İstanbul'dan" → İstanbul), sonra maddenin özeti tanım ekranında, kaynak "Vikipedi (CC BY-SA)". Arka planda, "Vazgeç" ile bırakılır; internet kapalıyken açıklama. Gerçek API'nin yanıt biçimi curl ile doğrulandı; uygulama testi taklit sunucuyla.)
 - [x] 40. Okuma istatistikleri (O) (Kütüphanedeki "Yedek" düğmesi "Araçlar" oldu; içinde "Okuma istatistikleri": bugün, son 7 gün, toplam (süre ve sayfa), art arda okunan gün, dakikada kelime (okuma hızından, 7 karakter = 1 kelime), son 14 günün çubuk grafiği, en çok okunan 5 kitap. Süre okuma ekranında sayılır (sayfa çevrilince, okumadan çıkınca, kapanışta); 10 dakikadan uzun bekleme ara sayılır; otomatik çevirmede süre sayılır ama hız ölçümüne katılmaz. `istatistik.json`, günler UTC.)
 
 ### Bağlantı ve eşitleme
-- [ ] 41. KOReader eşitleme sunucusuyla okuma konumu eşitleme (O)
+- [-] 41. KOReader eşitleme sunucusuyla okuma konumu eşitleme (O) (Kullanıcı kararı, 2026-10-29: yapılmayacak.)
 - [ ] 42. Calibre "kablosuz aygıt" bağlantısı (B)
 - [ ] 43. Cihazda küçük web sayfası; telefondan/bilgisayardan kitap yükleme (O)
 - [ ] 44. WebDAV / Nextcloud kütüphanesi (O)

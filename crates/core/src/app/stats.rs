@@ -93,7 +93,7 @@ impl Stats {
     }
 }
 
-fn today() -> u64 {
+pub(super) fn today() -> u64 {
     super::annotations::now() / 86_400
 }
 

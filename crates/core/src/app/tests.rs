@@ -3147,3 +3147,41 @@ fn right_to_left_books_turn_with_left_taps_and_swap_spread_pages() {
     assert!(px(app.width / 4) > 200, "sol yarıda beyaz ikinci sayfa");
     assert!(px(3 * app.width / 4) < 50, "sağ yarıda siyah ilk sayfa");
 }
+
+#[test]
+fn saved_words_are_reviewed_as_cards_and_rescheduled() {
+    let (mut app, data, root) = setup(&[]);
+    app.toggle_saved("ağaç", "ağaçlar");
+    app.toggle_saved("çay", "çay");
+    app.view = View::Words { page: 0 };
+    let mut c = Canvas::new(W, LIBRA2_HEIGHT);
+    app.draw(&mut c);
+    let at = app.review_button().center();
+    tap(&mut app, at);
+    let card = |app: &App| match &app.view {
+        View::Review { card, answer, done } => (*card, answer.is_some(), *done),
+        _ => panic!("tekrar ekranı değil"),
+    };
+    assert_eq!(card(&app), (Some(0), false, 0), "en eski kart önce");
+    app.draw(&mut c);
+    tap(&mut app, (W / 2, LIBRA2_HEIGHT / 2));
+    assert_eq!(card(&app), (Some(0), true, 0), "kart çevrildi");
+    app.draw(&mut c);
+    // Bilmedim: kart bugün yeniden sorulur, önce öbürü gelir.
+    let again = app.grade_rect(0).center();
+    tap(&mut app, again);
+    assert_eq!(card(&app), (Some(1), false, 0));
+    tap(&mut app, (W / 2, LIBRA2_HEIGHT / 2));
+    let good = app.grade_rect(2).center();
+    tap(&mut app, good);
+    assert_eq!(card(&app), (Some(0), false, 1));
+    tap(&mut app, (W / 2, LIBRA2_HEIGHT / 2));
+    tap(&mut app, good);
+    assert_eq!(card(&app), (None, false, 2), "bugünlük bitti");
+    app.draw(&mut c);
+    assert!(app.due_words().is_empty());
+
+    let app = restart(&data, &root);
+    assert!(app.due_words().is_empty(), "kalıcı");
+    assert_eq!(app.words[1].review.interval, 1);
+}

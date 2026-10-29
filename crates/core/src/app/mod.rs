@@ -90,6 +90,13 @@ enum View {
     Words {
         page: usize,
     },
+    /// Kelime kartı tekrarı: sorulan kart (`words` sırası; yoksa bugünlük
+    /// bitti), çevrildiyse tanımı, bu oturumda bilinen kart sayısı.
+    Review {
+        card: Option<usize>,
+        answer: Option<String>,
+        done: u32,
+    },
     Settings {
         draft: Settings,
         page: usize,
@@ -495,6 +502,10 @@ impl App {
             View::Stats => self.handle_stats(event),
             View::Lookup { page } => self.handle_lookup(*page, event),
             View::Words { page } => self.handle_words(*page, event),
+            View::Review { card, answer, done } => {
+                let (card, answer, done) = (*card, answer.clone(), *done);
+                self.handle_review(card, answer, done, event)
+            }
             View::Settings { draft, page } => {
                 let (draft, page) = (draft.clone(), *page);
                 self.handle_settings(draft, page, event)
@@ -714,6 +725,9 @@ impl App {
             View::Stats => self.draw_stats(canvas),
             View::Lookup { page } => self.draw_lookup(canvas, *page),
             View::Words { page } => self.draw_words(canvas, *page),
+            View::Review { card, answer, done } => {
+                self.draw_review(canvas, *card, answer.as_deref(), *done)
+            }
             View::Settings { draft, page } => self.draw_settings(canvas, draft, *page),
             View::Selected | View::Annotation { .. } => {
                 self.draw_reading(canvas);
