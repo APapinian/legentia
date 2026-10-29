@@ -247,10 +247,8 @@ impl App {
                 tr(&crate::i18n::Msg::Unreadable)
             } else {
                 let percent = self.progress.get(&e.id).copied().filter(|&p| p > 0);
-                let mut parts: Vec<String> = percent
-                    .map(|p| tr(&crate::i18n::Msg::Percent(p)))
-                    .into_iter()
-                    .collect();
+                let mut parts: Vec<String> = e.series_label().into_iter().collect();
+                parts.extend(percent.map(|p| tr(&crate::i18n::Msg::Percent(p))));
                 parts.extend(self.status_note(&e.id).map(|m| tr(&m)));
                 parts.join(" · ")
             };

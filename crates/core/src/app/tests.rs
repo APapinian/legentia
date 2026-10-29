@@ -3037,3 +3037,42 @@ fn bookcase_groups_books_by_folder_and_opens_spines() {
     tap(&mut app, (x, y));
     assert!(app.session.is_some(), "sırta dokununca kitap açılır");
 }
+
+#[test]
+fn series_books_stand_together_in_series_order_on_shelves() {
+    let s = |name: &str, i: &str| {
+        format!(
+            r#"<meta name="calibre:series" content="{name}"/><meta name="calibre:series_index" content="{i}"/>"#
+        )
+    };
+    let (mut app, _, _) = setup(&[
+        ("b.epub", epub_with_meta("Birinci", &s("Vakıf", "2"))),
+        ("a.epub", epub_with_meta("Ağaç", "")),
+        ("z.epub", epub_with_meta("Zeta", &s("Vakıf", "1"))),
+        ("y.epub", epub_with_meta("Yarım", &s("Vakıf", "1.5"))),
+    ]);
+    app.settings.library_sort = super::shelf::Sort::Title;
+    app.settings.library_view = super::shelf::LibraryView::Shelves;
+    let books = app.visible_books();
+    let on_shelf: Vec<String> = (0..4)
+        .map(|slot| {
+            let x = (super::ui::MARGIN + slot * 78 + 36) as u32;
+            let y = (LIBRARY.top + 56 + 200) as u32;
+            let i = app.library_index_at(&books, 0, x, y).unwrap();
+            app.library[books[i]].display_title()
+        })
+        .collect();
+    assert_eq!(on_shelf, ["Ağaç", "Zeta", "Yarım", "Birinci"]);
+    let label = |t: &str| {
+        app.library
+            .iter()
+            .find(|e| e.display_title() == t)
+            .unwrap()
+            .series_label()
+    };
+    assert_eq!(label("Zeta").as_deref(), Some("Vakıf #1"));
+    assert_eq!(label("Yarım").as_deref(), Some("Vakıf #1,5"));
+    assert_eq!(label("Ağaç"), None);
+    let mut c = Canvas::new(W, LIBRA2_HEIGHT);
+    app.draw(&mut c);
+}

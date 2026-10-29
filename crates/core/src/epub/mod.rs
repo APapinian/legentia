@@ -78,6 +78,8 @@ pub struct Book {
     pub toc: Vec<TocEntry>,
     /// Kapak görselinin paketteki yolu; bkz. [`Book::image_bytes`].
     pub cover: Option<String>,
+    pub series: Option<String>,
+    pub series_index: Option<f32>,
     /// Görseller çizim sırasında (`&self`) okunur; arşiv okuma `&mut` ister.
     archive: std::cell::RefCell<zip::ZipArchive<Box<dyn ReadSeek>>>,
 }
@@ -128,6 +130,8 @@ impl Book {
             identifier: package.identifier,
             spine: package.spine,
             cover: package.cover,
+            series: package.series,
+            series_index: package.series_index,
             toc,
             archive: std::cell::RefCell::new(archive),
         })
@@ -371,6 +375,25 @@ mod tests {
             resolve_href("content.opf", "http://x.y/a"),
             Err(EpubError::UnsafePath(_))
         ));
+    }
+
+    #[test]
+    fn series_comes_from_calibre_or_epub3_collections() {
+        let calibre = r#"<meta name="calibre:series" content="Vakıf"/><meta name="calibre:series_index" content="2.0"/>"#;
+        let book = open_bytes(epub_with_meta("A", calibre)).unwrap();
+        assert_eq!(
+            (book.series.as_deref(), book.series_index),
+            (Some("Vakıf"), Some(2.0))
+        );
+        let epub3 = r##"<meta property="belongs-to-collection" id="c1">Yüzüklerin Efendisi</meta>
+            <meta refines="#c1" property="collection-type">series</meta>
+            <meta refines="#c1" property="group-position">3</meta>"##;
+        let book = open_bytes(epub_with_meta("B", epub3)).unwrap();
+        assert_eq!(book.series.as_deref(), Some("Yüzüklerin Efendisi"));
+        assert_eq!(book.series_index, Some(3.0));
+        assert_eq!(book.title.as_deref(), Some("B"));
+        let none = open_bytes(epub_with_meta("C", "")).unwrap();
+        assert_eq!((none.series, none.series_index), (None, None));
     }
 
     #[test]

@@ -12,6 +12,9 @@ use crate::epub::Book;
 use crate::storage::Store;
 
 const INDEX_FILE: &str = "library.json";
+/// Önbellekteki girdinin hangi tarama sürümüyle okunduğu; okunan alanlar
+/// değişince artırılır, eski girdiler yeniden okunur.
+const SCAN_VERSION: u32 = 1;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub enum Format {
@@ -44,6 +47,12 @@ pub struct Entry {
     pub readable: bool,
     #[serde(default)]
     pub format: Format,
+    #[serde(default)]
+    pub series: Option<String>,
+    #[serde(default)]
+    pub series_index: Option<f32>,
+    #[serde(default)]
+    pub scan: u32,
 }
 
 impl Entry {
@@ -54,6 +63,18 @@ impl Entry {
                 .file_stem()
                 .map(|s| s.to_string_lossy().into_owned())
                 .unwrap_or_default()
+        })
+    }
+}
+
+impl Entry {
+    /// "Vakıf #2" ya da sırası bilinmiyorsa yalnız seri adı; seri yoksa `None`.
+    pub fn series_label(&self) -> Option<String> {
+        let name = self.series.as_deref()?;
+        Some(match self.series_index {
+            Some(i) if i.fract() == 0.0 => format!("{name} #{}", i as i64),
+            Some(i) => format!("{name} #{}", i.to_string().replace('.', ",")),
+            None => name.to_string(),
         })
     }
 }
@@ -100,10 +121,9 @@ pub fn scan(root: &Path, store: &Store) -> Vec<Entry> {
             .ok()
             .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
             .map_or(0, |d| d.as_secs());
-        if let Some(hit) = cached
-            .iter()
-            .find(|e| e.path == path && e.size == size && e.modified == modified)
-        {
+        if let Some(hit) = cached.iter().find(|e| {
+            e.path == path && e.size == size && e.modified == modified && e.scan == SCAN_VERSION
+        }) {
             entries.push(hit.clone());
             continue;
         }
@@ -122,6 +142,9 @@ pub fn scan(root: &Path, store: &Store) -> Vec<Entry> {
                 path,
                 size,
                 modified,
+                series: None,
+                series_index: None,
+                scan: SCAN_VERSION,
             },
             Ok(Some(book)) => Entry {
                 id: book_id(book.identifier.as_deref(), &path, size),
@@ -132,6 +155,9 @@ pub fn scan(root: &Path, store: &Store) -> Vec<Entry> {
                 path,
                 size,
                 modified,
+                series: book.series,
+                series_index: book.series_index,
+                scan: SCAN_VERSION,
             },
             Err(e) => {
                 log::warn!("cannot read {}: {e:?}", path.display());
@@ -144,6 +170,9 @@ pub fn scan(root: &Path, store: &Store) -> Vec<Entry> {
                     path,
                     size,
                     modified,
+                    series: None,
+                    series_index: None,
+                    scan: SCAN_VERSION,
                 }
             }
         };

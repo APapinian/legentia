@@ -162,3 +162,21 @@ pub fn epub_with_cover(epub3: bool) -> Vec<u8> {
         ("OEBPS/resim/kapak.png", &cover),
     ])
 }
+
+/// Başlığı `title` olan, meta veri bölümüne `meta` eklenmiş tek bölümlük EPUB.
+pub fn epub_with_meta(title: &str, meta: &str) -> Vec<u8> {
+    let opf = format!(
+        r#"<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>{title}</dc:title>{meta}</metadata>
+  <manifest><item id="c" href="c.xhtml" media-type="application/xhtml+xml"/></manifest>
+  <spine><itemref idref="c"/></spine>
+</package>"#
+    );
+    zip_of(&[
+        ("mimetype", "application/epub+zip"),
+        ("META-INF/container.xml", &container("content.opf")),
+        ("content.opf", &opf),
+        ("c.xhtml", "<html><body><p>metin</p></body></html>"),
+    ])
+}

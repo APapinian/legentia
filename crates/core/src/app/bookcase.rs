@@ -103,9 +103,12 @@ impl App {
         let per = per_row(self.width);
         let mut rows = Vec::new();
         for f in folders {
-            let mine: Vec<usize> = (0..books.len())
-                .filter(|&i| folder(i).as_ref() == Some(&f))
-                .collect();
+            let mine = self.series_together(
+                books,
+                (0..books.len())
+                    .filter(|&i| folder(i).as_ref() == Some(&f))
+                    .collect(),
+            );
             let name = if f == self.root {
                 tr(&Msg::LibraryRoot)
             } else {
@@ -122,6 +125,33 @@ impl App {
             }
         }
         rows
+    }
+
+    /// Rafın kitapları: seriler bir arada, seri sırasıyla; serinin yeri ilk
+    /// kitabının (geçerli sıralamadaki) yeri.
+    fn series_together(&self, books: &[usize], mine: Vec<usize>) -> Vec<usize> {
+        let series = |i: usize| self.library[books[i]].series.as_deref();
+        let mut out = Vec::with_capacity(mine.len());
+        for &i in &mine {
+            match series(i) {
+                None => out.push(i),
+                Some(name) if !out.iter().any(|&o| series(o) == Some(name)) => {
+                    let mut group: Vec<usize> = mine
+                        .iter()
+                        .copied()
+                        .filter(|&j| series(j) == Some(name))
+                        .collect();
+                    group.sort_by(|&a, &b| {
+                        let index =
+                            |i: usize| self.library[books[i]].series_index.unwrap_or(f32::MAX);
+                        index(a).total_cmp(&index(b))
+                    });
+                    out.extend(group);
+                }
+                Some(_) => {}
+            }
+        }
+        out
     }
 
     pub(super) fn bookcase_pages(&self, books: &[usize]) -> usize {

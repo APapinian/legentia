@@ -223,6 +223,9 @@ impl App {
             } else {
                 tr(&Msg::UnknownAuthor)
             };
+            if let Some(series) = entry.series_label() {
+                second = format!("{second} · {series}");
+            }
             if !entry.readable {
                 second = tr(&Msg::Unreadable);
             } else if let Some(&p) = self.progress.get(&entry.id).filter(|&&p| p > 0) {
