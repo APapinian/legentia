@@ -7,7 +7,7 @@
 #
 # Bekçi: DENEME_SURESI saniye sonra program kendiliğinden durdurulur
 # (ekran ya da dokunma çalışmazsa cihaz kendini kurtarsın diye). 0 = sınırsız.
-DENEME_SURESI=300
+DENEME_SURESI=900
 
 DIR=/mnt/onboard/.adds/legentia
 cd "$DIR" || exit 1
