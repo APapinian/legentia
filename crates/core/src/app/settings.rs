@@ -23,6 +23,9 @@ pub enum PdfView {
     Width,
     /// Sütunlar sırayla, her biri genişliğe sığdırılarak.
     Columns,
+    /// Webtoon: sayfalar genişliğe sığdırılıp kesintisiz alt alta; ekran
+    /// sayfa sonunu geçerse sonraki sayfanın başı altında görünür.
+    Strip,
 }
 
 /// Okurken ekrana dokunmanın anlamı.
@@ -89,6 +92,9 @@ pub struct Settings {
     pub swap_keys: bool,
     /// Otomatik sayfa çevirme aralığı (saniye; 0 = okuma hızına göre).
     pub auto_turn: u32,
+    /// Sayfa yönü sağdan sola (manga): dokunma, kaydırma, yan yana sayfalar
+    /// ve yakınlaştırılmış sayfanın parçaları ters sırada. Kitaba özel.
+    pub rtl: bool,
     /// Kütüphane araç çubuğunun sıralaması, süzgeci ve görünümü.
     pub library_sort: super::shelf::Sort,
     pub library_filter: super::shelf::Filter,
@@ -121,6 +127,7 @@ impl Default for Settings {
             two_columns: true,
             swap_keys: false,
             auto_turn: 30,
+            rtl: false,
             library_sort: Default::default(),
             library_filter: Default::default(),
             library_view: Default::default(),
@@ -153,6 +160,7 @@ pub enum Field {
     TwoColumns,
     PageKeys,
     AutoTurn,
+    Rtl,
 }
 
 /// Ayarlar ekranının sayfaları: yazı; PDF ve internet; okuma ve ekran. Hepsi
@@ -179,6 +187,7 @@ pub const FIELD_PAGES: [&[Field]; 3] = [
     ],
     &[
         Field::TapZones,
+        Field::Rtl,
         Field::PageKeys,
         Field::AutoTurn,
         Field::Night,
@@ -212,6 +221,7 @@ impl Field {
             Field::Weight => Msg::SettingWeight,
             Field::Orientation => Msg::SettingOrientation,
             Field::TwoColumns => Msg::SettingTwoColumns,
+            Field::Rtl => Msg::SettingRtl,
             Field::PageKeys => Msg::SettingPageKeys,
             Field::AutoTurn => Msg::SettingAutoTurn,
         }
@@ -235,6 +245,7 @@ impl Settings {
             pdf_zoom: book.pdf_zoom,
             pdf_reflow: book.pdf_reflow,
             ocr: book.ocr,
+            rtl: book.rtl,
             ..self.clone()
         }
     }
@@ -269,9 +280,15 @@ impl Settings {
             Field::Hyphenate => s.hyphenate = !s.hyphenate,
             Field::Night => s.night = !s.night,
             Field::PdfView => {
-                const VIEWS: [PdfView; 3] = [PdfView::Page, PdfView::Width, PdfView::Columns];
+                const VIEWS: [PdfView; 4] = [
+                    PdfView::Page,
+                    PdfView::Width,
+                    PdfView::Columns,
+                    PdfView::Strip,
+                ];
+                let n = VIEWS.len();
                 let i = VIEWS.iter().position(|v| *v == s.pdf_view).unwrap_or(0);
-                s.pdf_view = VIEWS[if up { (i + 1) % 3 } else { (i + 2) % 3 }];
+                s.pdf_view = VIEWS[if up { (i + 1) % n } else { (i + n - 1) % n }];
             }
             Field::PdfZoom => {
                 s.pdf_zoom = PDF_ZOOMS[step(
@@ -282,6 +299,7 @@ impl Settings {
                 )]
             }
             Field::PdfCrop => s.pdf_crop = !s.pdf_crop,
+            Field::Rtl => s.rtl = !s.rtl,
             Field::PdfReflow => s.pdf_reflow = !s.pdf_reflow,
             Field::Ocr => s.ocr = !s.ocr,
             Field::Network => s.network = !s.network,
@@ -351,6 +369,12 @@ impl Settings {
                 PdfView::Page => &Msg::PdfViewPage,
                 PdfView::Width => &Msg::PdfViewWidth,
                 PdfView::Columns => &Msg::PdfViewColumns,
+                PdfView::Strip => &Msg::PdfViewStrip,
+            }),
+            Field::Rtl => tr(if self.rtl {
+                &Msg::RightToLeft
+            } else {
+                &Msg::LeftToRight
             }),
             Field::PdfZoom => tr(&Msg::Percent(self.pdf_zoom)),
             Field::PdfCrop => tr(if self.pdf_crop { &Msg::On } else { &Msg::Off }),
@@ -447,7 +471,7 @@ mod tests {
     fn pdf_view_cycles_both_ways() {
         let s = Settings::default();
         assert_eq!(s.step(Field::PdfView, true).pdf_view, PdfView::Width);
-        assert_eq!(s.step(Field::PdfView, false).pdf_view, PdfView::Columns);
+        assert_eq!(s.step(Field::PdfView, false).pdf_view, PdfView::Strip);
     }
 
     #[test]

@@ -401,12 +401,14 @@ impl App {
         if let Event::Pinch { permille } = event {
             return self.pinch(permille);
         }
+        // Sağdan sola kitapta dokunma ve kaydırmanın yönü ters; tuşlar aynı.
+        let rtl = self.settings.rtl;
         let forward = match event {
             Event::Key(PageKey::Forward) => true,
             Event::Key(PageKey::Back) => false,
-            Event::Swipe { .. } => swipe_direction(event)?,
+            Event::Swipe { .. } => swipe_direction(event)? != rtl,
             Event::Tap { x, y } => match self.tap_zone(x, y) {
-                Some(forward) => forward,
+                Some(forward) => forward != rtl,
                 None => {
                     // Menüden kütüphaneye ya da başka kitaba gidilebilir; konumu şimdi kaydet.
                     self.shutdown();

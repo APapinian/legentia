@@ -3121,3 +3121,29 @@ fn book_info_is_edited_without_touching_the_file() {
     let mut c = Canvas::new(W, LIBRA2_HEIGHT);
     app.draw(&mut c);
 }
+
+#[test]
+fn right_to_left_books_turn_with_left_taps_and_swap_spread_pages() {
+    let black = png(100, 150, 0);
+    let white = png(100, 150, 255);
+    let cbz = zip_of_bytes(&[("1.png", &black), ("2.png", &white), ("3.png", &black)]);
+    let (mut app, _, _) = setup(&[("manga.cbz", cbz)]);
+    tap_row(&mut app, &LIBRARY, 0);
+    assert!(matches!(app.view, View::Reading));
+    let mut next = app.settings.clone();
+    next.rtl = true;
+    app.apply_settings(next);
+    // Sol kenar ileri, sağ kenar geri.
+    tap(&mut app, (40, LIBRA2_HEIGHT / 2));
+    assert_eq!(session(&app).spine, 1);
+    tap(&mut app, (W - 40, LIBRA2_HEIGHT / 2));
+    assert_eq!(session(&app).spine, 0);
+    // Yatayda iki sayfa: ilk (siyah) sayfa sağ yarıda.
+    app.handle(Event::Tilt { landscape: true });
+    assert!(session(&app).right.is_some());
+    let mut c = Canvas::new(app.width, app.height);
+    app.draw(&mut c);
+    let px = |x: u32| c.pixels()[((app.height / 2) * app.width + x) as usize];
+    assert!(px(app.width / 4) > 200, "sol yarıda beyaz ikinci sayfa");
+    assert!(px(3 * app.width / 4) < 50, "sağ yarıda siyah ilk sayfa");
+}
