@@ -43,6 +43,12 @@ Yeni bir eksik bulununca bu dosyaya eklenir; giderilen madde silinir ve ne yapı
 - **Sözlükler ilk aramada 9,2 sn'de açıldı** (Türkçe-İngilizce Vikisözlük dizini her açılışta yeniden kuruluyor).
 - **Dokunma doğru; kapakların gelme süresi iyi.**
 
+## 4. cihaz denemesi (2026-10-29)
+
+- **Otomatik dönme yine çalışmadı:** `kx122-accel` aygıtından hiçbir olay gelmedi (MSC_RAW dahil). Yön kodu artık her aygıttan kabul ediliyor; ivmeölçerin ham olayları, her aygıtın EV_MSC'leri ve sysfs ayarları günlüğe yazılıyor. Sonraki denemede günlükten bakılacak.
+- **Elle yatay ters yöndeydi:** 1 → 2 dönüşü cihazı ters tutmayı gerektiriyordu; artık 1 → 0.
+- **Yatayda tuşlar karıştı:** rotasyon 2'de cihaz katmanı tuşları ters çeviriyordu, üstüne yatay tuş ayarı da çevirince karıştı (günlükte yatayda yalnız "Back" görüldü). Rotasyon 0'da cihaz katmanı çevirmiyor; yön yalnız "Sayfa tuşları (yatay)" ayarında.
+
 ## İşlev eksikleri
 
 - **TDK erişimi resmî değil:** belgelenmemiş `sozluk.gov.tr/gts` ucu kullanılıyor. Adres ya da biçim değişirse TDK araması çalışmaz. Kısa sürede çok istek gelince TDK boş yanıt dönüyor (denemede görüldü); uygulama o zaman "Sunucunun yanıtı anlaşılamadı" diyor. (M8)

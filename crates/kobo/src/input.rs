@@ -286,6 +286,26 @@ impl Accel {
     }
 }
 
+/// Tanı: ivmeölçerin sysfs ayarları (açık mı, örnekleme aralığı…) günlüğe.
+fn log_sysfs(name: &str) {
+    let dir = Path::new("/sys/class/input").join(name).join("device");
+    let Ok(entries) = std::fs::read_dir(&dir) else {
+        return;
+    };
+    let mut attrs = Vec::new();
+    for e in entries.flatten() {
+        let path = e.path();
+        if path.is_file()
+            && let Ok(v) = std::fs::read_to_string(&path)
+            && v.len() < 64
+        {
+            attrs.push(format!("{}={}", e.file_name().to_string_lossy(), v.trim()));
+        }
+    }
+    attrs.sort();
+    log::info!("input {name} sysfs: {}", attrs.join(", "));
+}
+
 /// Bütün girdi aygıtlarını ayrı iş parçacıklarında okur; okunamayan aygıt
 /// günlüğe yazılıp atlanır. Açılan aygıt sayısını döner.
 pub fn spawn_readers(tx: &Sender<Input>, rotation: &Arc<AtomicU32>) -> usize {
@@ -317,16 +337,27 @@ pub fn spawn_readers(tx: &Sender<Input>, rotation: &Arc<AtomicU32>) -> usize {
             }
         };
         log::info!("input {name}: {device} (touch: {touch}, accelerometer: {accel})");
+        if accel {
+            log_sysfs(&name);
+        }
         let rotation = rotation.clone();
         let tx = tx.clone();
         std::thread::spawn(move || {
             let mut state = Touch::new(rotation.clone());
             let mut tilt = Accel::default();
             let mut buf = [0u8; EVENT_SIZE];
+            // Tanı: ivmeölçerin ilk ham olayları ve her aygıtın EV_MSC'leri günlüğe.
+            let mut logged = 0u32;
             while file.read_exact(&mut buf).is_ok() {
                 let raw = parse(&buf);
+                if (accel || raw.kind == EV_MSC) && logged < 60 && raw.kind != EV_SYN {
+                    logged += 1;
+                    log::info!("input {name} raw: {raw:?}");
+                }
                 let mut inputs = if touch { state.feed(raw) } else { Vec::new() };
-                if accel {
+                if accel || (raw.kind, raw.code) == (EV_MSC, MSC_RAW) {
+                    // Yön kodu hangi aygıttan gelirse gelsin (Libra 2'de hangisi
+                    // olduğu doğrulanmadı).
                     inputs.extend(tilt.feed(raw));
                 } else {
                     inputs.extend(key(raw, rotation.load(Ordering::Relaxed)));

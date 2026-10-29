@@ -86,9 +86,10 @@ fn run() -> ExitCode {
 
     // Dikey dönüş (Nickel'ın bıraktığı: 1 ya da ters dikey 3) ve okuma yataya
     // dönünce kullanılacak dönüş. Yatayın hangi yana olduğu ivmeölçerden gelir;
-    // gelmediyse (elle "Yatay") dikeyin bir sonrakisi. 0/2 seçimi cihazda doğrulanmadı.
+    // gelmediyse (elle "Yatay") dikeyden üç adım (Libra 2'de 1 → 0; cihazda
+    // doğrulandı: 1 → 2 ters tutmayı gerektiriyordu).
     let portrait_rotate = screen.rotate;
-    let mut landscape_rotate = (portrait_rotate + 1) % 4;
+    let mut landscape_rotate = (portrait_rotate + 3) % 4;
     log::info!("screen rotation {portrait_rotate}");
     let rotation = Arc::new(AtomicU32::new(portrait_rotate));
     let (tx, rx) = channel();
@@ -130,10 +131,12 @@ fn run() -> ExitCode {
                 positive,
             }) => {
                 if landscape {
+                    // Kodlardan hangisinin hangi yana olduğu doğrulanmadı;
+                    // olumlu (25) elle yatayla aynı yana.
                     landscape_rotate = if positive {
-                        (portrait_rotate + 1) % 4
-                    } else {
                         (portrait_rotate + 3) % 4
+                    } else {
+                        (portrait_rotate + 1) % 4
                     };
                 }
                 events.push(Event::Tilt { landscape });
