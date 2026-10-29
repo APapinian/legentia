@@ -34,6 +34,37 @@ fn exe_dir() -> PathBuf {
         .unwrap_or_else(|| PathBuf::from("."))
 }
 
+/// Tanı (M11 16–22 için): ışık, LED ve güç kaynağı aygıtları ve kısa
+/// değerleri günlüğe; yalnız okunur.
+fn log_device_classes() {
+    for class in ["backlight", "leds", "power_supply", "rtc"] {
+        let dir = PathBuf::from("/sys/class").join(class);
+        let Ok(entries) = std::fs::read_dir(&dir) else {
+            continue;
+        };
+        for e in entries.flatten() {
+            let mut attrs = Vec::new();
+            if let Ok(files) = std::fs::read_dir(e.path()) {
+                for f in files.flatten() {
+                    let p = f.path();
+                    if p.is_file()
+                        && let Ok(v) = std::fs::read_to_string(&p)
+                        && v.len() < 48
+                    {
+                        attrs.push(format!("{}={}", f.file_name().to_string_lossy(), v.trim()));
+                    }
+                }
+            }
+            attrs.sort();
+            log::info!(
+                "sysfs {class}/{}: {}",
+                e.file_name().to_string_lossy(),
+                attrs.join(", ")
+            );
+        }
+    }
+}
+
 fn dir_from_env(var: &str, default: &str) -> PathBuf {
     std::env::var_os(var).map_or_else(|| exe_dir().join(default), PathBuf::from)
 }
@@ -83,6 +114,7 @@ fn run() -> ExitCode {
     // Cihazda güncelleme programın yanına iner (`legentia.sh` kurar).
     app.set_update_dir(exe_dir());
     log::info!("library scanned in {:?}", started.elapsed());
+    log_device_classes();
 
     // Dikey dönüş (Nickel'ın bıraktığı: 1 ya da ters dikey 3) ve okuma yataya
     // dönünce kullanılacak dönüş. Yatayın hangi yana olduğu ivmeölçerden gelir;
