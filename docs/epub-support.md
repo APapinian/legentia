@@ -16,6 +16,16 @@ Bu belge, okuyucunun EPUB'ın neyini gösterdiğini ve neyini (henüz) gösterme
 | Türkçe dizgi | `tr` dil etiketiyle harf birleştirme ("fi" bitişik harfi "i"nin noktasını yutmaz), TDK kurallarıyla heceleme, iki yana yaslama |
 | Güvenlik | Boyut ve girdi sayısı sınırı; paket dışına çıkan yollar reddedilir; betik çalıştırılmaz, dış kaynak indirilmez |
 
+## FB2, TXT ve HTML
+
+Bu dosyalar açılırken bellekte EPUB'a çevrilir (`crates/core/src/epub/convert.rs`); dosyaya yazılmaz, sonrası EPUB'la aynıdır.
+
+| Biçim | Ne yapılır |
+|---|---|
+| FB2, `.fb2.zip` | Üst düzey her `section` bir bölüm ve içindekiler girdisi; `title` başlık, `epigraph`/`cite`/`annotation` alıntı, `poem` dizeleri, `emphasis`/`strong`, tablolar; `binary` görseller (base64), `coverpage` kapak; yazar, dil, kimlik, `sequence` seri olur; ikinci (`notes`) gövde dipnot bölümü, `type="note"` bağlantılar dipnot açar. Kodlama UTF-8, bildirilmişse Windows-1251, değilse Windows-1254. |
+| TXT | Boş satırla ayrılan paragraflar (boş satır çok azsa her satır bir paragraf). "Bölüm 3", "BİRİNCİ KISIM", "Chapter IV" gibi kısa satırlar bölüm başı ve içindekiler girdisi; başlıksız uzun metin ~100 KB'lık bölümlere bölünür. UTF-8 değilse Windows-1254. Başlık dosya adıdır. |
+| HTML | Gövde tek bölüm; başlık `<title>`'dan. Yanındaki görsel dosyaları okunmaz (yer tutucu ya da alt metin). |
+
 ## Henüz desteklenmiyor
 
 | Özellik | Şu anki davranış | Plan |

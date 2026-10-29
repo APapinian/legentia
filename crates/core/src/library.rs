@@ -1,4 +1,4 @@
-//! Kütüphane: bir klasördeki EPUB ve PDF'leri bulur, başlık ve yazarlarını önbellekle okur.
+//! Kütüphane: bir klasördeki EPUB ve PDF'leri (FB2, TXT, HTML EPUB sayılır) bulur, başlık ve yazarlarını önbellekle okur.
 //! PDF'ler taranırken açılmaz (büyük belgede yavaş); başlık olarak dosya adı kullanılır.
 //! Önbellek dosya yolu, boyutu ve değişiklik zamanıyla eşleşir; değişen kitap yeniden okunur.
 
@@ -24,10 +24,13 @@ pub enum Format {
 }
 
 impl Format {
+    /// FB2, TXT ve HTML açılırken EPUB'a çevrildiği için EPUB sayılır.
     pub fn of(path: &Path) -> Option<Format> {
         let ext = path.extension()?.to_string_lossy().to_ascii_lowercase();
+        let name = path.file_name()?.to_string_lossy().to_lowercase();
         match ext.as_str() {
-            "epub" => Some(Format::Epub),
+            "epub" | "fb2" | "txt" | "html" | "htm" | "xhtml" => Some(Format::Epub),
+            "zip" if name.ends_with(".fb2.zip") => Some(Format::Epub),
             "pdf" => Some(Format::Pdf),
             _ => None,
         }
@@ -239,6 +242,15 @@ mod tests {
     use crate::storage::temp_store;
 
     #[test]
+    fn converted_formats_count_as_epub() {
+        for name in ["a.fb2", "a.FB2.zip", "a.txt", "a.htm", "a.html", "a.epub"] {
+            assert_eq!(Format::of(Path::new(name)), Some(Format::Epub), "{name}");
+        }
+        assert_eq!(Format::of(Path::new("a.zip")), None);
+        assert_eq!(Format::of(Path::new("a.pdf")), Some(Format::Pdf));
+    }
+
+    #[test]
     fn id_is_stable_and_prefers_the_book_identifier() {
         let a = book_id(
             Some("urn:isbn:9789750719387"),
@@ -274,13 +286,19 @@ mod tests {
             crate::pdf::testutil::minimal_pdf("x"),
         )
         .unwrap();
-        std::fs::write(root.join("notlar.txt"), b"kitap degil").unwrap();
+        std::fs::write(root.join("resim.jpg"), b"kitap degil").unwrap();
+        // Düz metin de kitaptır (açılırken EPUB'a çevrilir).
+        std::fs::write(root.join("notlar.txt"), b"bir paragraf").unwrap();
 
         let entries = scan(&root, &store);
         let titles: Vec<_> = entries.iter().map(|e| e.display_title()).collect();
-        assert_eq!(titles, vec!["bozuk", "Çalıkuşu", "Kuyucaklı Yusuf", "Ödev"]);
+        assert_eq!(
+            titles,
+            vec!["bozuk", "Çalıkuşu", "Kuyucaklı Yusuf", "notlar", "Ödev"]
+        );
         assert!(!entries[0].readable);
-        assert_eq!(entries[3].format, Format::Pdf);
+        assert!(entries[3].readable);
+        assert_eq!(entries[4].format, Format::Pdf);
         assert!(store.dir().join("library.json").exists());
 
         // İkinci tarama önbellekten gelir ve aynı sonucu verir.

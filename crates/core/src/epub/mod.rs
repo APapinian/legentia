@@ -5,6 +5,7 @@
 //! okunurken boyut sınırı uygulanır (bildirilen boyuta güvenilmez), kitap
 //! içindeki yollar paket kökünün dışına çıkamaz.
 
+mod convert;
 mod opf;
 mod toc;
 mod xhtml;
@@ -88,7 +89,11 @@ trait ReadSeek: Read + std::io::Seek {}
 impl<T: Read + std::io::Seek> ReadSeek for T {}
 
 impl Book {
+    /// EPUB'ı, ya da FB2/TXT/HTML'yi bellekte EPUB'a çevirerek açar.
     pub fn open(path: &Path) -> Result<Book, EpubError> {
+        if let Some(bytes) = convert::to_epub(path)? {
+            return Self::from_reader(Box::new(std::io::Cursor::new(bytes)));
+        }
         let file = BufReader::new(File::open(path)?);
         Self::from_reader(Box::new(file))
     }
