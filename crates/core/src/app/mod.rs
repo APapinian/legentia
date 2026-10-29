@@ -31,6 +31,7 @@ mod settings;
 mod shelf;
 mod stats;
 mod ui;
+mod upload;
 mod words;
 
 use std::cell::RefCell;
@@ -82,6 +83,8 @@ enum View {
     Backup,
     /// Okuma istatistikleri.
     Stats,
+    /// Kablosuz yükleme sunucusu açık (`upload`).
+    Upload,
     /// Sözlük sonucu (`lookup`), sayfası.
     Lookup {
         page: usize,
@@ -184,6 +187,8 @@ pub struct App {
     /// ve eksikleri üreten iş.
     covers: HashMap<String, Option<covers::Thumb>>,
     cover_job: Option<covers::CoverJob>,
+    /// Açık kablosuz yükleme sunucusu (yalnızca yükleme ekranındayken).
+    upload: Option<upload::Server>,
     /// Okuma istatistikleri ve kaydedilmemiş değişikliği var mı.
     stats: stats::Stats,
     stats_dirty: bool,
@@ -295,6 +300,7 @@ impl App {
             shelf,
             covers: HashMap::new(),
             cover_job: None,
+            upload: None,
             stats,
             stats_dirty: false,
             library_query: None,
@@ -439,7 +445,8 @@ impl App {
             let online = self.poll_online();
             let turned = self.poll_auto_turn();
             let covers = self.poll_covers();
-            return [feed, downloads, online, turned, covers]
+            let upload = self.poll_upload();
+            return [feed, downloads, online, turned, covers, upload]
                 .into_iter()
                 .flatten()
                 .max_by_key(|r| *r == Refresh::Full);
@@ -500,6 +507,7 @@ impl App {
             View::Annotations { page } => self.handle_annotations(*page, event),
             View::Backup => self.handle_backup(event),
             View::Stats => self.handle_stats(event),
+            View::Upload => self.handle_upload(event),
             View::Lookup { page } => self.handle_lookup(*page, event),
             View::Words { page } => self.handle_words(*page, event),
             View::Review { card, answer, done } => {
@@ -723,6 +731,7 @@ impl App {
             View::Annotations { page } => self.draw_annotations(canvas, *page),
             View::Backup => self.draw_backup(canvas),
             View::Stats => self.draw_stats(canvas),
+            View::Upload => self.draw_upload(canvas),
             View::Lookup { page } => self.draw_lookup(canvas, *page),
             View::Words { page } => self.draw_words(canvas, *page),
             View::Review { card, answer, done } => {

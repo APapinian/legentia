@@ -3185,3 +3185,83 @@ fn saved_words_are_reviewed_as_cards_and_rescheduled() {
     assert!(app.due_words().is_empty(), "kalıcı");
     assert_eq!(app.words[1].review.interval, 1);
 }
+
+/// Yükleme sunucusuna ham HTTP isteği; (durum kodu, gövde).
+fn http(addr: &str, method: &str, target: &str, body: &[u8]) -> (u16, String) {
+    use std::io::{Read, Write};
+    let host = addr.trim_start_matches("http://");
+    let mut s = std::net::TcpStream::connect(host).unwrap();
+    let head = format!(
+        "{method} {target} HTTP/1.1\r\nHost: {host}\r\nContent-Length: {}\r\n\r\n",
+        body.len()
+    );
+    s.write_all(head.as_bytes()).unwrap();
+    s.write_all(body).unwrap();
+    let mut out = String::new();
+    s.read_to_string(&mut out).unwrap();
+    let code = out[9..12].parse().unwrap();
+    let body = out
+        .split_once("\r\n\r\n")
+        .map(|(_, b)| b.to_string())
+        .unwrap_or_default();
+    (code, body)
+}
+
+#[test]
+fn books_are_uploaded_over_wifi_with_the_screen_code() {
+    let (mut app, _, root) = setup(&[]);
+    let ip = std::net::IpAddr::from([127, 0, 0, 1]);
+    app.upload = super::upload::Server::start(root.join("İndirilenler"), Some(ip));
+    app.view = View::Upload;
+    let (addr, code) = {
+        let s = app.upload.as_ref().unwrap();
+        (s.address.clone(), s.code.clone())
+    };
+    let mut c = Canvas::new(W, LIBRA2_HEIGHT);
+    app.draw(&mut c);
+    let (status, page) = http(&addr, "GET", "/", b"");
+    assert_eq!(status, 200);
+    assert!(page.contains("/yukle"));
+
+    let book = epub3_sample();
+    let put = |name: &str, code: &str, body: &[u8]| {
+        http(&addr, "PUT", &format!("/yukle?ad={name}&kod={code}"), body).0
+    };
+    assert_eq!(put("a.epub", "000000x", &book), 403, "yanlış kod");
+    assert_eq!(put("G%C3%BCzel%20Kitap.epub", &code, &book), 200);
+    assert_eq!(put("G%C3%BCzel%20Kitap.epub", &code, &book), 200);
+    assert_eq!(put("betik.sh", &code, b"rm -rf /"), 400);
+    assert_eq!(put("..%2F..%2Fdisari.epub", &code, &book), 200);
+    let dir = root.join("İndirilenler");
+    assert!(dir.join("Güzel Kitap.epub").exists());
+    assert!(dir.join("Güzel Kitap (2).epub").exists());
+    assert!(dir.join("disari.epub").exists(), "klasör dışına çıkamaz");
+    assert!(!dir.join("betik.sh").exists());
+
+    // Haberler Tick ile gelir; kütüphane yenilenir.
+    for _ in 0..50 {
+        app.handle(Event::Tick);
+        if app.upload.as_ref().unwrap().saved.len() == 3 {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
+    assert_eq!(app.upload.as_ref().unwrap().saved.len(), 3);
+    assert_eq!(app.library.len(), 3);
+    app.draw(&mut c);
+
+    // Çok yanlış kod: sunucu kapanır.
+    for _ in 0..9 {
+        assert_eq!(put("a.epub", "1", &book), 403);
+    }
+    for _ in 0..50 {
+        app.handle(Event::Tick);
+        if app.upload.as_ref().unwrap().locked {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
+    assert!(app.upload.as_ref().unwrap().locked);
+    tap(&mut app, super::ui::back_button(W).center());
+    assert!(app.upload.is_none(), "ekrandan çıkınca kapanır");
+}

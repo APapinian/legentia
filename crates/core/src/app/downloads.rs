@@ -201,6 +201,7 @@ impl App {
             || self.online.is_some()
             || self.auto_turn.is_some()
             || self.cover_job.is_some()
+            || self.upload.is_some()
     }
 
     fn download_of(&self, dest: &Path) -> Option<usize> {
