@@ -42,6 +42,7 @@ Yeni bir eksik bulununca bu dosyaya eklenir; giderilen madde silinir ve ne yapı
 - **Kitap içi arama eşzamanlı:** bütün bölümler arama sırasında okunur; cihazda büyük kitapta (ya da yüzlerce sayfalık PDF'te) ekran birkaç saniye bekleyebilir. Yavaşsa arka plana alınacak. (M11)
 - **EPUB görselleri:** GIF ve SVG çizimleri gösterilmiyor; tablolar ızgara olarak değil satır satır akıyor; satır içi küçük görseller paragrafı bölüyor; gece modunda görseller de ters dönüyor. Görsel çözme süresi (büyük JPEG) cihazda ölçülecek. (M11)
 - **Kütüphanede arama yok.** Türkçe sıralama var ama kütüphanede kitap aramak için alan yok. (M4)
+- **Çizgi roman:** RAR olan CBR açılmıyor (karar bekliyor); WebP/GIF sayfalar atlanıyor; bütün arşiv bellekte PDF'e çevriliyor (çok büyük CBZ'de bellek, cihazda ölçülecek); sağdan sola (manga) sayfa sırası yok. (M11)
 - **FB2/TXT/HTML:** gerçek FB2 kitaplarla denenmedi; HTML'nin yanındaki görseller gösterilmiyor; kütüphane kökündeki her .txt ve .html (ör. bir okuma notu) kitap olarak listeleniyor; büyük TXT her açılışta yeniden çevriliyor (cihazda süresi ölçülecek); UTF-16 metin tanınmıyor. (M11)
 - **Raflar:** bir kitap yalnızca bir rafta olabilir (klasör); boş klasörler raf olarak görünmez, yeni raf için bilgisayardan klasör açmak gerekiyor. Aynı kimlikli kopyalar aynı sırt rengini alıyor. (M11)
 - **İstatistik günleri UTC:** cihazın saat dilimi okunmuyor; Türkiye'de gün gece 03:00'te değişiyor. İstatistikler yedeğe girmiyor. Okuma ekranı açık bırakılıp 10 dakikadan uzun sayfa çevrilmezse o süre hiç sayılmıyor (ara sayılıyor). (M11)

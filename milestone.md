@@ -380,7 +380,7 @@ Kullanıcı isteği (2026-10-28): 50 maddelik öneri listesi milestone olarak ka
 - [x] 29. Kitap bilgilerini düzenleme (O) (Kitap işlemlerinde "Bilgileri düzenle": başlık, yazarlar (virgülle), seri, serideki sıra. Yalnız Legentia'nın kaydına (`books/<kimlik>.json` → `info`) yazılır, kitap dosyasına dokunulmaz; boş başlık kitabın kendi başlığına döner. Liste, kapaklar, raflar, sıralama ve okuma ekranı başlığı düzeltilmiş bilgiyi kullanır; yedeğe girer.)
 - [x] 30. FB2, TXT, HTML (O) (Açılırken bellekte EPUB'a çevrilir, okuyucunun bütün özellikleri çalışır; ayrıntı `docs/epub-support.md`. FB2'de bölümler, içindekiler, kapak, seri, dipnot, görseller; `.fb2.zip`; TXT'de paragraf ve "Bölüm N" başlıkları, Windows-1254; HTML tek bölüm. Gerçek bir FB2 kitapla henüz denenmedi, yalnız test örnekleriyle.)
 - [ ] 31. DRM'siz MOBI/AZW3 (B)
-- [ ] 32. Çizgi roman (CBZ/CBR) (O)
+- [x] 32. Çizgi roman (CBZ/CBR) (O) (CBZ (ve aslında ZIP olan CBR): görseller doğal ad sırasıyla sayfa; açılırken bellekte PDF kurulur, PDF görüntüleyicinin sığdırma, yakınlaştırma (iki parmak dahil), kırpma, sütun ve yatayda iki sayfa özellikleri çalışır. JPEG yeniden kodlanmadan gömülür, PNG griye çevrilir. RAR olan CBR şimdilik açıklayıcı mesaj veriyor; RAR desteği kullanıcı kararını bekliyor. Gerçek JPEG'lerle masaüstünde denendi.)
 - [ ] 33. DjVu (B)
 
 ### Not ve öğrenme

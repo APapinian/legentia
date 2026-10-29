@@ -31,7 +31,8 @@ impl Format {
         match ext.as_str() {
             "epub" | "fb2" | "txt" | "html" | "htm" | "xhtml" => Some(Format::Epub),
             "zip" if name.ends_with(".fb2.zip") => Some(Format::Epub),
-            "pdf" => Some(Format::Pdf),
+            // Çizgi romanlar PDF görüntüleyicisiyle açılır (`pdf/comic.rs`).
+            "pdf" | "cbz" | "cbr" => Some(Format::Pdf),
             _ => None,
         }
     }

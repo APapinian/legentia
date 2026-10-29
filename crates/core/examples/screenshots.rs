@@ -15,6 +15,8 @@ use legentia_core::{App, Canvas, Event, Fonts, LIBRA2_HEIGHT, LIBRA2_WIDTH, Page
 
 // Ekran ölçüleri (crates/core/src/app/ui.rs ve screens.rs ile aynı).
 const HEADER_BOTTOM: u32 = 90 + 175;
+/// Kütüphane listesi araç çubuğunun (100 piksel) altından başlar.
+const LIBRARY_TOP: u32 = HEADER_BOTTOM + 100;
 const LIBRARY_ROW: u32 = 120;
 const MENU_TOP: u32 = 90;
 const MENU_ROW: u32 = 100;
@@ -82,7 +84,7 @@ fn main() {
     tap(
         &mut app,
         LIBRARY_ROW,
-        HEADER_BOTTOM + book * LIBRARY_ROW + LIBRARY_ROW / 2,
+        LIBRARY_TOP + book * LIBRARY_ROW + LIBRARY_ROW / 2,
     );
     shot(&app, "2-icindekiler");
     tap(&mut app, LIBRARY_ROW, HEADER_BOTTOM + 3 * 66 + 33);

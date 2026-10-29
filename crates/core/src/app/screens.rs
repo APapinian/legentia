@@ -219,7 +219,12 @@ impl App {
             let mut second = if !entry.authors.is_empty() {
                 entry.authors.join(", ")
             } else if entry.format == Format::Pdf {
-                tr(&Msg::PdfDocument)
+                let ext = entry.path.extension().map(|e| e.to_ascii_lowercase());
+                if ext.is_some_and(|e| e == "cbz" || e == "cbr") {
+                    tr(&Msg::Comic)
+                } else {
+                    tr(&Msg::PdfDocument)
+                }
             } else {
                 tr(&Msg::UnknownAuthor)
             };

@@ -101,6 +101,8 @@ pub enum Msg {
         book: u32,
     },
     PdfDocument,
+    Comic,
+    ComicRar,
     // Menü
     AddBookmark,
     RemoveBookmark,
@@ -450,6 +452,8 @@ pub fn tr(msg: &Msg) -> String {
             duration(*book)
         ),
         Msg::PdfDocument => "PDF belgesi".into(),
+        Msg::Comic => "Çizgi roman".into(),
+        Msg::ComicRar => "Bu CBR dosyası bir RAR arşivi; RAR henüz açılamıyor. calibre ile CBZ'ye çevirip açabilirsiniz.".into(),
         Msg::AddBookmark => "Yer imi koy".into(),
         Msg::RemoveBookmark => "Yer imini kaldır".into(),
         Msg::Bookmarks => "Yer imleri".into(),
@@ -791,6 +795,8 @@ mod tests {
                 book: 200,
             },
             PageNumber(4),
+            Comic,
+            ComicRar,
             PdfDocument,
             AddBookmark,
             RemoveBookmark,
