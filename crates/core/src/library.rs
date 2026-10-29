@@ -29,7 +29,9 @@ impl Format {
         let ext = path.extension()?.to_string_lossy().to_ascii_lowercase();
         let name = path.file_name()?.to_string_lossy().to_lowercase();
         match ext.as_str() {
-            "epub" | "fb2" | "txt" | "html" | "htm" | "xhtml" => Some(Format::Epub),
+            "epub" | "fb2" | "txt" | "html" | "htm" | "xhtml" | "mobi" | "azw3" | "azw" => {
+                Some(Format::Epub)
+            }
             "zip" if name.ends_with(".fb2.zip") => Some(Format::Epub),
             // Çizgi romanlar PDF görüntüleyicisiyle açılır (`pdf/comic.rs`).
             "pdf" | "cbz" | "cbr" => Some(Format::Pdf),

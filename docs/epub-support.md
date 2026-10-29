@@ -24,6 +24,7 @@ Bu dosyalar açılırken bellekte EPUB'a çevrilir (`crates/core/src/epub/conver
 |---|---|
 | FB2, `.fb2.zip` | Üst düzey her `section` bir bölüm ve içindekiler girdisi; `title` başlık, `epigraph`/`cite`/`annotation` alıntı, `poem` dizeleri, `emphasis`/`strong`, tablolar; `binary` görseller (base64), `coverpage` kapak; yazar, dil, kimlik, `sequence` seri olur; ikinci (`notes`) gövde dipnot bölümü, `type="note"` bağlantılar dipnot açar. Kodlama UTF-8, bildirilmişse Windows-1251, değilse Windows-1254. |
 | TXT | Boş satırla ayrılan paragraflar (boş satır çok azsa her satır bir paragraf). "Bölüm 3", "BİRİNCİ KISIM", "Chapter IV" gibi kısa satırlar bölüm başı ve içindekiler girdisi; başlıksız uzun metin ~100 KB'lık bölümlere bölünür. UTF-8 değilse Windows-1254. Başlık dosya adıdır. |
+| MOBI, AZW3, AZW | Kendi çözücümüz (`epub/mobi.rs`): PDB, MOBI başlığı, EXTH (yazar, başlık, dil, kapak, KF8 sınırı); PalmDOC açma ve kayıt sonu ek verileri. MOBI6: `mbp:pagebreak` bölümleri, `filepos` bağlantıları, `recindex` görselleri; başlığı bulunamayan bölümlere ad kitabın kendi içindekiler sayfasından. KF8: FDST'deki metin akışı, her HTML dosyası bir bölüm (iskelet + parçaları sırasıyla), `kindle:embed` görselleri; `kindle:pos` iç bağlantıları atılır. Birleşik dosyada KF8 bölümü. DRM'li ve HUFF/CDIC sıkıştırmalı dosyalar açıklayıcı mesajla açılmaz. Project Gutenberg'in AZW3 ve MOBI dosyalarıyla denendi. |
 | HTML | Gövde tek bölüm; başlık `<title>`'dan. Yanındaki görsel dosyaları okunmaz (yer tutucu ya da alt metin). |
 
 ## Henüz desteklenmiyor

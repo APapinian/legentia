@@ -6,6 +6,7 @@
 //! içindeki yollar paket kökünün dışına çıkamaz.
 
 mod convert;
+mod mobi;
 mod opf;
 mod toc;
 mod xhtml;
@@ -31,9 +32,16 @@ pub enum EpubError {
     TooLarge(String),
     TooManyEntries(usize),
     UnsafePath(String),
-    Xml { entry: String, detail: String },
+    Xml {
+        entry: String,
+        detail: String,
+    },
     NoRootFile,
     EmptySpine,
+    /// Dosya DRM'le korunuyor (ör. Kindle mağazası kitabı).
+    Drm,
+    /// MOBI'nin HUFF/CDIC gibi desteklenmeyen sıkıştırması.
+    UnsupportedCompression,
 }
 
 impl EpubError {
@@ -44,6 +52,8 @@ impl EpubError {
             EpubError::NotZip(_) => Msg::BookNotEpub,
             EpubError::TooLarge(_) | EpubError::TooManyEntries(_) => Msg::BookTooLarge,
             EpubError::UnsafePath(_) => Msg::BookUnsafe,
+            EpubError::Drm => Msg::BookDrm,
+            EpubError::UnsupportedCompression => Msg::BookUnsupported,
             EpubError::MissingEntry(_)
             | EpubError::Xml { .. }
             | EpubError::NoRootFile

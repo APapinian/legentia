@@ -37,6 +37,8 @@ pub(super) fn to_epub(path: &Path) -> Result<Option<Vec<u8>>, EpubError> {
         "txt"
     } else if name.ends_with(".html") || name.ends_with(".htm") || name.ends_with(".xhtml") {
         "html"
+    } else if name.ends_with(".mobi") || name.ends_with(".azw3") || name.ends_with(".azw") {
+        "mobi"
     } else {
         return Ok(None);
     };
@@ -53,6 +55,7 @@ pub(super) fn to_epub(path: &Path) -> Result<Option<Vec<u8>>, EpubError> {
         .map(|s| s.to_string_lossy().trim_end_matches(".fb2").to_string())
         .unwrap_or_default();
     let book = match kind {
+        "mobi" => super::mobi::to_book(&bytes, &stem)?,
         "fb2" => fb2(&decode(&bytes, true))?,
         "txt" => txt(&decode(&bytes, false), &stem),
         _ => html(&decode(&bytes, false), &stem),
@@ -92,7 +95,7 @@ const CP1251_HIGH: [char; 64] = [
 ];
 
 /// Windows-1254'ün Latin-1'den ayrılan yerleri: 0x80–0x9F ve altı Türkçe harf.
-fn cp1254(b: u8) -> char {
+pub(super) fn cp1254(b: u8) -> char {
     const LOW: [char; 32] = [
         '€', '\u{81}', '‚', 'ƒ', '„', '…', '†', '‡', 'ˆ', '‰', 'Š', '‹', 'Œ', '\u{8d}', '\u{8e}',
         '\u{8f}', '\u{90}', '‘', '’', '“', '”', '•', '–', '—', '˜', '™', 'š', '›', 'œ', '\u{9d}',
@@ -120,7 +123,7 @@ fn cp1251(b: u8) -> char {
 
 /// Baytları metne çevirir: UTF-8 (BOM'lu ya da değil), değilse (FB2'de
 /// bildirilen 1251 dışında) Windows-1254.
-fn decode(bytes: &[u8], xml: bool) -> String {
+pub(super) fn decode(bytes: &[u8], xml: bool) -> String {
     let bytes = bytes.strip_prefix(b"\xEF\xBB\xBF").unwrap_or(bytes);
     if let Ok(s) = std::str::from_utf8(bytes) {
         return s.to_string();
@@ -133,7 +136,7 @@ fn decode(bytes: &[u8], xml: bool) -> String {
         .collect()
 }
 
-fn escape(s: &str) -> String {
+pub(super) fn escape(s: &str) -> String {
     s.replace('&', "&amp;")
         .replace('<', "&lt;")
         .replace('>', "&gt;")
@@ -169,18 +172,18 @@ fn base64(text: &str) -> Option<Vec<u8>> {
 // --- Bellekteki EPUB ---
 
 #[derive(Default)]
-struct Converted {
-    title: String,
-    authors: Vec<String>,
-    language: Option<String>,
-    identifier: Option<String>,
-    series: Option<String>,
-    series_index: Option<String>,
+pub(super) struct Converted {
+    pub title: String,
+    pub authors: Vec<String>,
+    pub language: Option<String>,
+    pub identifier: Option<String>,
+    pub series: Option<String>,
+    pub series_index: Option<String>,
     /// (içindekilerdeki başlık, XHTML gövdesi); başlıksız bölüm içindekilerde yok.
-    chapters: Vec<(Option<String>, String)>,
+    pub chapters: Vec<(Option<String>, String)>,
     /// (ad, MIME türü, baytlar); `images/<ad>` olarak.
-    images: Vec<(String, String, Vec<u8>)>,
-    cover: Option<String>,
+    pub images: Vec<(String, String, Vec<u8>)>,
+    pub cover: Option<String>,
 }
 
 fn chapter_file(i: usize) -> String {
