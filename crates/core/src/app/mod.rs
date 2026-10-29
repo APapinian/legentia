@@ -8,6 +8,7 @@
 mod annotations;
 mod autoturn;
 mod backup;
+mod bookcase;
 mod catalog;
 mod covers;
 mod downloads;

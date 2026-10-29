@@ -89,11 +89,10 @@ pub struct Settings {
     pub swap_keys: bool,
     /// Otomatik sayfa çevirme aralığı (saniye; 0 = okuma hızına göre).
     pub auto_turn: u32,
-    /// Kütüphane araç çubuğunun sıralaması ve süzgeci.
+    /// Kütüphane araç çubuğunun sıralaması, süzgeci ve görünümü.
     pub library_sort: super::shelf::Sort,
     pub library_filter: super::shelf::Filter,
-    /// Kütüphane liste yerine kapak ızgarası.
-    pub library_grid: bool,
+    pub library_view: super::shelf::LibraryView,
     /// Yeni vurgunun biçimi: son seçilen.
     pub highlight: super::annotations::Mark,
 }
@@ -124,7 +123,7 @@ impl Default for Settings {
             auto_turn: 30,
             library_sort: Default::default(),
             library_filter: Default::default(),
-            library_grid: false,
+            library_view: Default::default(),
             highlight: Default::default(),
         }
     }

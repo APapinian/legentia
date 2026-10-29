@@ -45,6 +45,17 @@ pub enum Sort {
     Added,
 }
 
+/// Kütüphanenin görünümü; araç çubuğundaki düğme sırayla değiştirir.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum LibraryView {
+    #[default]
+    List,
+    /// Kapak ızgarası (`covers`).
+    Covers,
+    /// Klasörler raf, kitaplar sırt sırta (`bookcase`).
+    Shelves,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub enum Filter {
     #[default]
@@ -149,30 +160,30 @@ impl App {
         out
     }
 
-    /// Araç çubuğu: arama, sıralama, liste/kapak, süzgeçler.
-    /// Kütüphanenin (liste ya da ızgara) `page` sayfasında (x, y)'deki kitabın sırası.
+    /// Kütüphanenin `page` sayfasında (x, y)'deki kitabın görünen listedeki sırası.
     pub(super) fn library_index_at(
         &self,
+        books: &[usize],
         page: usize,
-        len: usize,
         x: u32,
         y: u32,
     ) -> Option<usize> {
-        if self.settings.library_grid {
-            super::covers::index_at(self.width, page, len, x, y)
-        } else {
-            LIBRARY.row_at(page, len, y)
+        match self.settings.library_view {
+            LibraryView::List => LIBRARY.row_at(page, books.len(), y),
+            LibraryView::Covers => super::covers::index_at(self.width, page, books.len(), x, y),
+            LibraryView::Shelves => self.bookcase_index_at(books, page, x, y),
         }
     }
 
-    pub(super) fn library_pages(&self, len: usize) -> usize {
-        if self.settings.library_grid {
-            super::covers::pages(len)
-        } else {
-            LIBRARY.pages(len)
+    pub(super) fn library_pages(&self, books: &[usize]) -> usize {
+        match self.settings.library_view {
+            LibraryView::List => LIBRARY.pages(books.len()),
+            LibraryView::Covers => super::covers::pages(books.len()),
+            LibraryView::Shelves => self.bookcase_pages(books),
         }
     }
 
+    /// Araç çubuğu: arama, sıralama, görünüm, süzgeçler.
     pub(super) fn tool_rects(&self) -> (Rect, Rect, Rect, Vec<Rect>) {
         let y = HEADER_BOTTOM + (TOOLBAR_H - TOOL_H) / 2 - 10;
         let r = |x: i32, w: i32| Rect { x, y, w, h: TOOL_H };
@@ -211,7 +222,11 @@ impl App {
                 Sort::Added => Sort::Recent,
             };
         } else if view.contains(x, y) {
-            next.library_grid = !next.library_grid;
+            next.library_view = match next.library_view {
+                LibraryView::List => LibraryView::Covers,
+                LibraryView::Covers => LibraryView::Shelves,
+                LibraryView::Shelves => LibraryView::List,
+            };
         } else {
             let i = filters.iter().position(|r| r.contains(x, y))?;
             next.library_filter = FILTERS[i];
@@ -237,10 +252,11 @@ impl App {
             Sort::Added => Box::new(Msg::SortAdded),
         });
         draw_button(t, canvas, sort, &tr(&sort_label), TOOL_PX);
-        let view_label = if self.settings.library_grid {
-            Msg::ShowList
-        } else {
-            Msg::ShowCovers
+        // Düğme bir sonraki görünümün adını taşır.
+        let view_label = match self.settings.library_view {
+            LibraryView::List => Msg::ShowCovers,
+            LibraryView::Covers => Msg::ShowShelves,
+            LibraryView::Shelves => Msg::ShowList,
         };
         draw_button(t, canvas, view, &tr(&view_label), TOOL_PX);
         for (f, r) in FILTERS.iter().zip(&filters) {
@@ -271,7 +287,7 @@ impl App {
 
     pub(super) fn open_book_actions(&mut self, page: usize, x: u32, y: u32) -> Option<Refresh> {
         let books = self.visible_books();
-        let row = self.library_index_at(page, books.len(), x, y)?;
+        let row = self.library_index_at(&books, page, x, y)?;
         self.view = View::BookActions { book: books[row] };
         Some(self.refresh(true))
     }
@@ -311,7 +327,7 @@ impl App {
     // --- Silme ve taşıma ---
 
     /// Kitap dosyası değişince kütüphane yeniden taranır.
-    fn rescan(&mut self) {
+    pub(super) fn rescan(&mut self) {
         self.library = crate::library::scan(&self.root, &self.store);
     }
 

@@ -5,7 +5,8 @@
 //!     cargo run --release -p legentia-core --example screenshots -- <kütüphane> <çıktı klasörü> [kitap sırası] [reflow] [sutun]
 //!
 //! `reflow` verilirse PDF'ler yeniden akıtılmış, `sutun` verilirse sütun sütun açılır,
-//! `izgara` verilirse kütüphane kapak ızgarası olarak (kapaklar beklenir) çekilir.
+//! `izgara` verilirse kütüphane kapak ızgarası olarak (kapaklar beklenir), `raf`
+//! verilirse raflar olarak çekilir.
 #![allow(clippy::print_stdout, clippy::print_stderr)]
 
 use std::path::{Path, PathBuf};
@@ -44,7 +45,10 @@ fn main() {
         settings.push(r#""pdf_view": "Columns""#);
     }
     if flag("izgara") {
-        settings.push(r#""library_grid": true"#);
+        settings.push(r#""library_view": "Covers""#);
+    }
+    if flag("raf") {
+        settings.push(r#""library_view": "Shelves""#);
     }
     if !settings.is_empty() {
         std::fs::create_dir_all(&data).expect("data dir");

@@ -2909,7 +2909,10 @@ fn cover_grid_draws_covers_in_background_and_opens_books() {
     ]);
     let (_, _, view, _) = app.tool_rects();
     tap(&mut app, view.center());
-    assert!(app.settings().library_grid);
+    assert_eq!(
+        app.settings().library_view,
+        super::shelf::LibraryView::Covers
+    );
     let job = app
         .cover_job
         .take()
@@ -2986,4 +2989,51 @@ fn reading_time_and_pages_are_counted_saved_and_shown() {
     app.draw(&mut c);
     tap(&mut app, super::ui::back_button(W).center());
     assert!(matches!(app.view, View::Backup));
+}
+
+#[test]
+fn bookcase_groups_books_by_folder_and_opens_spines() {
+    let (mut app, _, root) = setup(&[("a.epub", epub3_sample())]);
+    std::fs::create_dir_all(root.join("Romanlar")).unwrap();
+    std::fs::write(root.join("Romanlar/b.epub"), epub2_sample()).unwrap();
+    std::fs::write(root.join("Romanlar/c.epub"), long_book()).unwrap();
+    app.rescan();
+    let (_, _, view, _) = app.tool_rects();
+    tap(&mut app, view.center());
+    tap(&mut app, view.center());
+    assert_eq!(
+        app.settings().library_view,
+        super::shelf::LibraryView::Shelves
+    );
+    let mut c = Canvas::new(W, LIBRA2_HEIGHT);
+    app.draw(&mut c);
+    let books = app.visible_books();
+    assert_eq!(app.library_pages(&books), 1, "iki raf, iki sıra");
+
+    // Ana klasör rafı önce; ikinci rafın ilk sırtı Romanlar'ın ilk kitabı.
+    let spine = |row: i32, slot: i32| {
+        let x = (super::ui::MARGIN + slot * 78 + 36) as u32;
+        let y = (LIBRARY.top + row * 380 + 56 + 200) as u32;
+        (x, y)
+    };
+    let first = app
+        .library_index_at(&books, 0, spine(0, 0).0, spine(0, 0).1)
+        .unwrap();
+    assert_eq!(app.library[books[first]].display_title(), "Çalıkuşu");
+    assert_eq!(
+        app.library_index_at(&books, 0, spine(0, 1).0, spine(0, 1).1),
+        None
+    );
+    let (x, y) = spine(1, 1);
+    let i = app.library_index_at(&books, 0, x, y).unwrap();
+    assert!(
+        app.library[books[i]]
+            .path
+            .starts_with(root.join("Romanlar"))
+    );
+    app.handle(Event::Hold { x, y });
+    assert!(matches!(app.view, View::BookActions { .. }));
+    tap(&mut app, (10, 10));
+    tap(&mut app, (x, y));
+    assert!(app.session.is_some(), "sırta dokununca kitap açılır");
 }

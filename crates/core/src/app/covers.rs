@@ -129,7 +129,11 @@ fn make(path: &Path, format: Format, max_w: u32, max_h: u32) -> Option<Thumb> {
 impl App {
     fn grid_shown(&self) -> Option<usize> {
         match self.view {
-            View::Library { page } if self.settings.library_grid => Some(page),
+            View::Library { page }
+                if self.settings.library_view == super::shelf::LibraryView::Covers =>
+            {
+                Some(page)
+            }
             _ => None,
         }
     }

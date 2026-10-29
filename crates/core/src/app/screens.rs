@@ -150,7 +150,7 @@ impl App {
                 return Some(refresh);
             }
             let books = self.visible_books();
-            let row = self.library_index_at(page, books.len(), x, y)?;
+            let row = self.library_index_at(&books, page, x, y)?;
             let path = self.library[books[row]].path.clone();
             self.open_book(&path);
             return Some(self.refresh(true));
@@ -158,7 +158,7 @@ impl App {
         if let Event::Hold { x, y } = event {
             return self.open_book_actions(page, x, y);
         }
-        let page = Self::page_list(page, self.library_pages(self.visible_books().len()), event)?;
+        let page = Self::page_list(page, self.library_pages(&self.visible_books()), event)?;
         self.view = View::Library { page };
         Some(self.refresh(false))
     }
@@ -200,12 +200,15 @@ impl App {
         }
         let footer = Msg::ListFooter {
             page: page + 1,
-            pages: self.library_pages(books.len()),
+            pages: self.library_pages(&books),
         };
         draw_footer(t, canvas, &footer, MARGIN);
-        if self.settings.library_grid {
-            self.draw_grid(canvas, &books, page);
-            return;
+        match self.settings.library_view {
+            super::shelf::LibraryView::List => {}
+            super::shelf::LibraryView::Covers => return self.draw_grid(canvas, &books, page),
+            super::shelf::LibraryView::Shelves => {
+                return self.draw_bookcase(canvas, &books, page);
+            }
         }
         let max_w = (canvas.width() as i32 - 2 * MARGIN) as f32;
         for (index, row) in LIBRARY.visible(page, books.len()) {
