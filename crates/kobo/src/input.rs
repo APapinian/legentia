@@ -14,7 +14,9 @@ use legentia_core::{LIBRA2_HEIGHT, LIBRA2_WIDTH, PageKey, TouchPhase};
 const EV_SYN: u16 = 0;
 const EV_KEY: u16 = 1;
 const EV_ABS: u16 = 3;
+const EV_MSC: u16 = 4;
 const SYN_REPORT: u16 = 0;
+const MSC_RAW: u16 = 3;
 const ABS_X: u16 = 0x00;
 const ABS_Y: u16 = 0x01;
 const ABS_MT_SLOT: u16 = 0x2f;
@@ -193,9 +195,12 @@ const DOMINANCE: f32 = 1.5;
 /// Yeni yön bu kadar ardışık okumada aynı kalınca bildirilir.
 const STABLE_READINGS: u8 = 3;
 
-/// İvmeölçer (Libra 2'de kx122): yerçekiminin baskın ekseni. Eksenlerin cihaza
-/// göre yönü bilinmediği için açılıştaki baskın eksen dikey sayılır (program
-/// Nickel'dan hep dikey ekranda başlatılır); öbür eksen baskınlaşınca yatay.
+/// İvmeölçer (Libra 2'de kx122). Libra 2 ham eksen değil, çekirdekte
+/// yerleşime göre düzeltilmiş hazır yön kodu gönderir: `EV_MSC/MSC_RAW`,
+/// 23–24 dikey, 25–26 yatay (3. cihaz denemesinde ham eksen olayı hiç
+/// gelmedi; kodlar bir kullanıcının Libra 2 denemesinden). Ham eksen
+/// gönderen aygıtlar için eski yol da durur: yerçekiminin baskın ekseni,
+/// açılıştaki baskın eksen dikey sayılır.
 #[derive(Debug, Default)]
 pub struct Accel {
     axes: [i32; 3],
@@ -209,9 +214,38 @@ impl Accel {
         match (e.kind, e.code) {
             (EV_ABS, code @ 0..=2) => self.axes[code as usize] = e.value,
             (EV_SYN, SYN_REPORT) => return self.report(),
+            (EV_MSC, MSC_RAW) => return self.orientation(e.value),
             _ => {}
         }
         None
+    }
+
+    /// Hazır yön kodu: 23–24 dikey, 25–26 yatay (yatayın hangi yana olduğu
+    /// koddan; hangisinin hangisi olduğu cihazda doğrulanacak). Diğerleri
+    /// (yüzüstü, sırtüstü) yok sayılır.
+    fn orientation(&mut self, code: i32) -> Option<Input> {
+        log::info!("accelerometer: orientation code {code}");
+        let state = match code {
+            23 | 24 => (false, code == 24),
+            25 | 26 => (true, code == 25),
+            _ => return None,
+        };
+        let first = self.reported.is_none();
+        // Dikeyin iki yanı aynı sayılır; yatayda hangi yana olduğu da önemli.
+        let same = match self.reported {
+            Some(r) if !state.0 => !r.0,
+            Some(r) => r == state,
+            None => false,
+        };
+        if same {
+            return None;
+        }
+        self.reported = Some(state);
+        // Açılıştaki ilk dikey bildirilmez (zaten dikeyiz).
+        (!first || state.0).then_some(Input::Tilt {
+            landscape: state.0,
+            positive: state.1,
+        })
     }
 
     fn report(&mut self) -> Option<Input> {
@@ -392,6 +426,38 @@ mod tests {
         let (x0, y0) = to_screen(300, 200, 0);
         let (x2, y2) = to_screen(300, 200, 2);
         assert_eq!((x0 + x2, y0 + y2), (LIBRA2_HEIGHT - 1, LIBRA2_WIDTH - 1));
+    }
+
+    #[test]
+    fn libra2_orientation_codes_become_tilts() {
+        let mut a = Accel::default();
+        let code = |a: &mut Accel, v: i32| a.feed(ev(EV_MSC, MSC_RAW, v));
+        assert_eq!(code(&mut a, 24), None, "açılışta dikey");
+        assert_eq!(
+            code(&mut a, 25),
+            Some(Input::Tilt {
+                landscape: true,
+                positive: true
+            })
+        );
+        assert_eq!(code(&mut a, 25), None, "aynı yön yeniden bildirilmez");
+        assert_eq!(
+            code(&mut a, 26),
+            Some(Input::Tilt {
+                landscape: true,
+                positive: false
+            }),
+            "öbür yana yatay"
+        );
+        assert_eq!(code(&mut a, 27), None, "yüzüstü yok sayılır");
+        assert_eq!(
+            code(&mut a, 23),
+            Some(Input::Tilt {
+                landscape: false,
+                positive: false
+            })
+        );
+        assert_eq!(code(&mut a, 24), None, "dikeyin öbür yanı da dikey");
     }
 
     #[test]

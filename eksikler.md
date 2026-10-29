@@ -33,6 +33,14 @@ Yeni bir eksik bulununca bu dosyaya eklenir; giderilen madde silinir ve ne yapı
 - **Sözlükler:** bütün biçimler yalnızca kendi test sözlüklerimizle denendi. Kullanıcının gerçek sözlükleriyle (KOReader klasöründekiler) denenecek. (M7)
 - **OCR:** gerçek taranmış bir kitap sayfasıyla henüz denenmedi. Cihaza taşınması M10 işi. (M5)
 
+## 3. cihaz denemesi (2026-10-29)
+
+- **Otomatik dönme çalışmadı:** Libra 2'nin yön algılayıcısı ham eksen değil `EV_MSC/MSC_RAW` yön kodu (23–26) gönderiyor; kod bunu dinlemiyordu. Düzeltildi (kodlar günlüğe yazılıyor); 25/26'nın hangi yana olduğu cihazda doğrulanacak.
+- **Telefondan kablosuz yükleme olmadı, bilgisayardan oldu:** telefonun isteği programa hiç ulaşmadı (günlükte yok). Nedeni belirlenecek.
+- **Vikipedi verimli çalışmıyor:** ayrıntı bekleniyor.
+- **Sözlükler ilk aramada 9,2 sn'de açıldı** (Türkçe-İngilizce Vikisözlük dizini her açılışta yeniden kuruluyor).
+- **Dokunma doğru; kapakların gelme süresi iyi.**
+
 ## İşlev eksikleri
 
 - **TDK erişimi resmî değil:** belgelenmemiş `sozluk.gov.tr/gts` ucu kullanılıyor. Adres ya da biçim değişirse TDK araması çalışmaz. Kısa sürede çok istek gelince TDK boş yanıt dönüyor (denemede görüldü); uygulama o zaman "Sunucunun yanıtı anlaşılamadı" diyor. (M8)
