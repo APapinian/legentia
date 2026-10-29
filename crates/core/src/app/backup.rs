@@ -179,6 +179,8 @@ impl App {
             self.save_backup()
         } else if restore.contains(x, y) {
             self.restore_backup()
+        } else if self.update_button().contains(x, y) {
+            return self.check_update();
         } else if self.news_button().contains(x, y) {
             return self.open_news();
         } else if self.webdav_button().contains(x, y) {
@@ -220,6 +222,13 @@ impl App {
         draw_button(t, canvas, self.deepl_button(), &tr(&deepl), ROW_PX);
         draw_button(t, canvas, self.webdav_button(), "WebDAV", ROW_PX);
         draw_button(t, canvas, self.news_button(), &tr(&Msg::News), ROW_PX);
+        draw_button(
+            t,
+            canvas,
+            self.update_button(),
+            &tr(&Msg::CheckUpdate),
+            ROW_PX,
+        );
     }
 }
 

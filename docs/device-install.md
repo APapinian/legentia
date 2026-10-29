@@ -45,6 +45,12 @@ Sırasıyla:
 
 Legentia açılışta kendiliğinden çalışmaz; yalnızca menüden seçilince başlar. Bu yüzden yeniden başlatma her zaman Nickel'a döner.
 
+## Güncelleme
+
+- **Bilgisayardan:** `tools/kobo/kur.sh <Kobo klasörü>` (veri/ korunur).
+- **Cihazdan:** Araçlar → "Güncellemeleri denetle". GitHub'daki (`APapinian/legentia`) son sürüm bundan yeniyse notları gösterilir; "İndir ve kur" programı ve özetini indirir, SHA-256'yı doğrular, `.adds/legentia/legentia-kobo.yeni` olarak bırakır. Kurulum Legentia bir sonraki açılışta `legentia.sh`'dedir: eski program `legentia-kobo.eski` olarak saklanır; yeni sürüm 20 saniye içinde hatayla kapanırsa eskisine dönülür (sahte programlarla denendi). Yalnız program güncellenir; fontlar ve betik `kur.sh` ile.
+- **Sürüm yayınlamak:** `tools/kobo/surum.sh <klasör>` `legentia-kobo` ve `legentia-kobo.sha256`'yı hazırlar; etiket Cargo sürümüyle (`v0.1.0`) aynı olmalı. Betik hiçbir şey yüklemez.
+
 ## Kaldırma
 
 Kısa yol: `tools/kobo/kur.sh --kaldir <Kobo klasörü>` (okuma konumu ve notlar `veri/`'de kalır; onları da silmek için `--verileri-de-sil`). Elle: USB ile bağlayıp şunları silin:

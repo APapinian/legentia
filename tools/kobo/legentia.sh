@@ -27,6 +27,18 @@ cd "$DIR" || exit 1
     # Nickel'ın donanım bildirim borusu; açık kalırsa udev betikleri takılabilir.
     rm -f /tmp/nickel-hardware-status
 
+    # Cihazda indirilip doğrulanan güncelleme (Araçlar → Güncellemeleri
+    # denetle) burada kurulur; eski program yeni açılamazsa diye saklanır.
+    yeni=
+    if [ -f legentia-kobo.yeni ]; then
+        echo "$(date) güncelleme kuruluyor"
+        if mv -f legentia-kobo legentia-kobo.eski && mv -f legentia-kobo.yeni legentia-kobo; then
+            chmod 755 legentia-kobo
+            yeni=1
+        fi
+    fi
+    basla=$(date +%s)
+
     ./legentia-kobo /mnt/onboard &
     app=$!
     bekci=
@@ -41,7 +53,13 @@ cd "$DIR" || exit 1
         bekci=$!
     fi
     wait "$app"
-    echo "$(date) program bitti, çıkış kodu $?"
+    kod=$?
+    echo "$(date) program bitti, çıkış kodu $kod"
+    # Yeni sürüm 20 saniye içinde hatayla kapandıysa eskisine dön.
+    if [ -n "$yeni" ] && [ "$kod" -ne 0 ] && [ $(($(date +%s) - basla)) -lt 20 ]; then
+        echo "$(date) yeni sürüm açılamadı; eski sürüme dönülüyor"
+        mv -f legentia-kobo.eski legentia-kobo
+    fi
     [ -n "$bekci" ] && kill "$bekci" 2>/dev/null
     sync
     # İlk denemede `reboot` cihazı yeniden başlatmadı; komut bu bloğun

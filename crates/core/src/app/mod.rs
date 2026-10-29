@@ -33,6 +33,7 @@ mod shelf;
 mod stats;
 mod translate;
 mod ui;
+mod update;
 mod upload;
 mod webdav;
 mod words;
@@ -94,6 +95,8 @@ enum View {
     DavBrowse {
         page: usize,
     },
+    /// Güncelleme denetleniyor, bulundu ya da indiriliyor (`update`).
+    Update,
     /// Haber beslemeleri (`news`).
     NewsFeeds {
         page: usize,
@@ -211,6 +214,10 @@ pub struct App {
     /// ve eksikleri üreten iş.
     covers: HashMap<String, Option<covers::Thumb>>,
     cover_job: Option<covers::CoverJob>,
+    /// Programın klasörü (yalnız cihazda); güncelleme buraya iner.
+    update_dir: Option<PathBuf>,
+    /// Sürmekte olan güncelleme adımı.
+    update: Option<update::Step>,
     /// Haber beslemeleri ve yazılar.
     news: news::NewsState,
     /// WebDAV hesabı, işi ve açılan klasörleri.
@@ -338,6 +345,8 @@ impl App {
             cover_job: None,
             upload: None,
             deepl_key,
+            update_dir: None,
+            update: None,
             news: news::NewsState {
                 news: store.load(news::NEWS_FILE).unwrap_or_default(),
                 ..Default::default()
@@ -493,10 +502,13 @@ impl App {
             let upload = self.poll_upload();
             let dav = self.poll_dav();
             let news = self.poll_news();
-            return [feed, downloads, online, turned, covers, upload, dav, news]
-                .into_iter()
-                .flatten()
-                .max_by_key(|r| *r == Refresh::Full);
+            let update = self.poll_update();
+            return [
+                feed, downloads, online, turned, covers, upload, dav, news, update,
+            ]
+            .into_iter()
+            .flatten()
+            .max_by_key(|r| *r == Refresh::Full);
         }
         // Ayara göre sayfa tuşlarının anlamı ters çevrilir (her ekranda).
         let event = match event {
@@ -558,6 +570,7 @@ impl App {
             View::WebDav => self.handle_webdav(event),
             View::DavBrowse { page } => self.handle_dav_browse(*page, event),
             View::NewsFeeds { page } => self.handle_news_feeds(*page, event),
+            View::Update => self.handle_update(event),
             View::NewsItems { feed, page } => self.handle_news_items(*feed, *page, event),
             View::NewsArticle { feed, item, page } => {
                 self.handle_news_article(*feed, *item, *page, event)
@@ -790,6 +803,7 @@ impl App {
             View::WebDav => self.draw_webdav(canvas),
             View::DavBrowse { page } => self.draw_dav_browse(canvas, *page),
             View::NewsFeeds { page } => self.draw_news_feeds(canvas, *page),
+            View::Update => self.draw_update(canvas),
             View::NewsItems { feed, page } => self.draw_news_items(canvas, *feed, *page),
             View::NewsArticle { page, .. } => self.draw_news_article(canvas, *page),
             View::Lookup { page } => self.draw_lookup(canvas, *page),

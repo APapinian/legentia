@@ -927,6 +927,7 @@ dependencies = [
  "rustybuzz",
  "serde",
  "serde_json",
+ "sha2",
  "swash",
  "unicode-linebreak",
  "unicode-normalization",

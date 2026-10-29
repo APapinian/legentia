@@ -82,12 +82,12 @@ impl App {
         self.tool_row(6)
     }
 
-    fn add_button(&self) -> super::ui::Rect {
+    fn add_feed_button(&self) -> super::ui::Rect {
         header_button(self.width, 170)
     }
 
-    fn update_button(&self) -> super::ui::Rect {
-        left_of(self.add_button(), 220)
+    fn refresh_feeds_button(&self) -> super::ui::Rect {
+        left_of(self.add_feed_button(), 220)
     }
 
     fn save_news(&self) {
@@ -205,10 +205,10 @@ impl App {
                     self.view = View::Backup;
                     return Some(self.refresh(true));
                 }
-                if self.add_button().contains(x, y) {
+                if self.add_feed_button().contains(x, y) {
                     return self.open_feed_form(None);
                 }
-                if self.update_button().contains(x, y) {
+                if self.refresh_feeds_button().contains(x, y) {
                     return self.update_news();
                 }
                 let feed = NEWS_LIST.row_at(page, feeds, y)?;
@@ -231,7 +231,7 @@ impl App {
         let t = &self.text;
         let n = &self.news.news;
         let unread: usize = n.feeds.iter().map(|f| n.unread(f)).sum();
-        let update = self.update_button();
+        let update = self.refresh_feeds_button();
         draw_header_until(
             t,
             canvas,
@@ -246,7 +246,13 @@ impl App {
             &tr(&Msg::Back),
             ROW_PX,
         );
-        draw_button(t, canvas, self.add_button(), &tr(&Msg::AddCatalog), ROW_PX);
+        draw_button(
+            t,
+            canvas,
+            self.add_feed_button(),
+            &tr(&Msg::AddCatalog),
+            ROW_PX,
+        );
         let label = if self.news.job.is_some() {
             Msg::Loading
         } else {

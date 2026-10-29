@@ -80,6 +80,8 @@ fn run() -> ExitCode {
     log::info!("library {}, data {}", root.display(), store.dir().display());
     let started = Instant::now();
     let mut app = App::new(text, LIBRA2_WIDTH, store, &root);
+    // Cihazda güncelleme programın yanına iner (`legentia.sh` kurar).
+    app.set_update_dir(exe_dir());
     log::info!("library scanned in {:?}", started.elapsed());
 
     // Dikey dönüş (Nickel'ın bıraktığı: 1 ya da ters dikey 3) ve okuma yataya

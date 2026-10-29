@@ -38,6 +38,8 @@ pub(super) struct Endpoints {
     pub wikipedia: String,
     /// DeepL sunucusu; yoksa anahtara göre seçilir (testlerde yerel sunucu).
     pub deepl: Option<String>,
+    /// Son sürümü soran adres (GitHub Releases).
+    pub releases: String,
 }
 
 impl Default for Endpoints {
@@ -47,6 +49,7 @@ impl Default for Endpoints {
             wiktionary: online::WIKTIONARY.into(),
             wikipedia: online::WIKIPEDIA.into(),
             deepl: None,
+            releases: super::update::LATEST.into(),
         }
     }
 }

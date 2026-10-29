@@ -14,6 +14,7 @@ use super::ui::{
     BOLD, HEADER_BOTTOM, List, MARGIN, PLAIN, ROW_PX, Rect, back_button, draw_button, draw_footer,
     draw_header, left_of, one_line,
 };
+use super::update;
 use super::{App, Back, View};
 use crate::canvas::Canvas;
 use crate::event::{Event, Refresh};
@@ -204,6 +205,10 @@ impl App {
             || self.upload.is_some()
             || self.dav.job.is_some()
             || self.news.job.is_some()
+            || matches!(
+                self.update,
+                Some(update::Step::Checking(_) | update::Step::Downloading(_))
+            )
     }
 
     fn download_of(&self, dest: &Path) -> Option<usize> {

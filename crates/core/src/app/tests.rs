@@ -38,6 +38,7 @@ fn no_online_dictionaries(app: &mut App) {
         wiktionary: "http://127.0.0.1:1/api.php".into(),
         wikipedia: "http://127.0.0.1:1".into(),
         deepl: Some("http://127.0.0.1:1".into()),
+        releases: "http://127.0.0.1:1/releases".into(),
     };
 }
 
@@ -1839,6 +1840,7 @@ fn words_missing_locally_are_looked_up_online_and_cached() {
         wiktionary: format!("{url}/api.php"),
         wikipedia: url.clone(),
         deepl: None,
+        releases: "http://127.0.0.1:1/releases".into(),
     };
     tap_row(&mut app, &LIBRARY, 0);
     tap_row(&mut app, &CONTENTS, 0);
@@ -3601,4 +3603,110 @@ fn news_button(which: &str) -> (u32, u32) {
         "add" => add.center(),
         _ => super::ui::left_of(add, 220).center(),
     }
+}
+
+#[test]
+fn updates_are_checked_downloaded_and_verified_on_the_device_only() {
+    use sha2::{Digest, Sha256};
+    use std::sync::atomic::{AtomicBool, Ordering};
+    let program = b"yeni program".to_vec();
+    let sum: String = Sha256::digest(&program)
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect();
+    let good = std::sync::Arc::new(AtomicBool::new(false));
+    let flag = good.clone();
+    let url = crate::net::testserver::serve(move |path, headers| {
+        let host = headers
+            .lines()
+            .find_map(|l| {
+                l.strip_prefix("host: ")
+                    .or_else(|| l.strip_prefix("Host: "))
+            })
+            .unwrap_or_default()
+            .trim()
+            .to_string();
+        match path {
+            "/releases" => (
+                200,
+                format!(
+                    r#"{{"tag_name":"v99.0.0","body":"Yenilikler\nİkinci satır","assets":[
+                    {{"name":"legentia-kobo","browser_download_url":"http://{host}/b"}},
+                    {{"name":"legentia-kobo.sha256","browser_download_url":"http://{host}/s"}}]}}"#
+                )
+                .into_bytes(),
+            ),
+            "/b" => (200, b"yeni program".to_vec()),
+            "/s" if flag.load(Ordering::SeqCst) => {
+                (200, format!("{sum}  legentia-kobo\n").into_bytes())
+            }
+            "/s" => (
+                200,
+                format!("{}  legentia-kobo\n", "0".repeat(64)).into_bytes(),
+            ),
+            _ => (404, Vec::new()),
+        }
+    });
+    let (mut app, data, _) = setup(&[]);
+    app.endpoints.releases = format!("{url}/releases");
+
+    // Simülatörde (güncelleme klasörü yok) yalnızca bilgi verilir.
+    app.view = View::Backup;
+    let at = app.update_button().center();
+    tap(&mut app, at);
+    assert!(matches!(
+        app.view,
+        View::Message {
+            msg: Msg::UpdateDeviceOnly,
+            ..
+        }
+    ));
+
+    let dir = data.join("program");
+    std::fs::create_dir_all(&dir).unwrap();
+    app.set_update_dir(dir.clone());
+    app.view = View::Backup;
+    tap(&mut app, at);
+    settle(&mut app);
+    assert!(
+        matches!(app.update, Some(super::update::Step::Found(_))),
+        "{:?}",
+        match &app.view {
+            View::Message { msg, .. } => Some(msg.clone()),
+            _ => None,
+        }
+    );
+    let mut c = Canvas::new(W, LIBRA2_HEIGHT);
+    app.draw(&mut c);
+
+    // Özet uymazsa dosya silinir.
+    let install = app.install_button().center();
+    tap(&mut app, install);
+    settle(&mut app);
+    assert!(matches!(
+        app.view,
+        View::Message {
+            msg: Msg::UpdateBadChecksum,
+            ..
+        }
+    ));
+    assert!(!dir.join("legentia-kobo.yeni").exists());
+
+    good.store(true, Ordering::SeqCst);
+    app.view = View::Backup;
+    tap(&mut app, at);
+    settle(&mut app);
+    tap(&mut app, install);
+    settle(&mut app);
+    assert!(matches!(
+        app.view,
+        View::Message {
+            msg: Msg::UpdateReady,
+            ..
+        }
+    ));
+    assert_eq!(
+        std::fs::read(dir.join("legentia-kobo.yeni")).unwrap(),
+        program
+    );
 }
