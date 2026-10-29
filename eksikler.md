@@ -49,6 +49,12 @@ Yeni bir eksik bulununca bu dosyaya eklenir; giderilen madde silinir ve ne yapı
 - **Elle yatay ters yöndeydi:** 1 → 2 dönüşü cihazı ters tutmayı gerektiriyordu; artık 1 → 0.
 - **Yatayda tuşlar karıştı:** rotasyon 2'de cihaz katmanı tuşları ters çeviriyordu, üstüne yatay tuş ayarı da çevirince karıştı (günlükte yatayda yalnız "Back" görüldü). Rotasyon 0'da cihaz katmanı çevirmiyor; yön yalnız "Sayfa tuşları (yatay)" ayarında.
 
+## 5. cihaz denemesi (2026-10-29)
+
+- **Yön kodları bulundu:** `kx122-accel` değil `gpio-keys` (event3) aygıtından `EV_MSC/MSC_RAW` geliyor (23, 24, 25, 28 görüldü; 26 görülmedi). Bir önceki düzeltmeyle yakalanıyor; ayar "Otomatik"teyken dönme cihazda henüz denenmedi.
+- **Yatayda (rotasyon 0) dokunma 180° tersti:** "Otomatik çevir"e basınca "İçindekiler". 0 ve 2'nin formülleri yer değiştirdi.
+- **Cihaz yolları:** ışık `backlight/mxc_msp430.0/brightness` (0–100), sıcaklık `leds/aw99703-bl_FL1|FL2/color` (0–10), pil `power_supply/battery/capacity|status`, saat UTC (RTC bd70528).
+
 ## İşlev eksikleri
 
 - **TDK erişimi resmî değil:** belgelenmemiş `sozluk.gov.tr/gts` ucu kullanılıyor. Adres ya da biçim değişirse TDK araması çalışmaz. Kısa sürede çok istek gelince TDK boş yanıt dönüyor (denemede görüldü); uygulama o zaman "Sunucunun yanıtı anlaşılamadı" diyor. (M8)

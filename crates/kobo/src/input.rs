@@ -80,8 +80,8 @@ pub fn parse(buf: &[u8; EVENT_SIZE]) -> RawEvent {
 
 /// Ham dokunma konumunu framebuffer dönüşüne (`rotate`) göre ekran pikseline
 /// çevirir. 1 (dikey) Cobalt'ın ölçümü: eksenler yer değiştirir. 3 (ters
-/// dikey) cihazda görüldü: ayrıca iki eksen aynalanır. 0 ve 2 (yatay)
-/// geometriden çıkarıldı, cihazda doğrulanmadı.
+/// dikey) cihazda görüldü: ayrıca iki eksen aynalanır. 0 (yatay) cihazda
+/// düzeltildi; 2 onun 180° tersi (doğrulanmadı).
 pub fn to_screen(raw_x: i32, raw_y: i32, rotate: u32) -> (u32, u32) {
     let scale = |v: i32, max: i64, pixels: u32| {
         let v = (v as i64).clamp(0, max);
@@ -94,7 +94,9 @@ pub fn to_screen(raw_x: i32, raw_y: i32, rotate: u32) -> (u32, u32) {
     match rotate % 4 {
         1 => (sx, sy),
         3 => (w - sx, h - sy),
-        2 => (h - sy, sx),
+        // 4. cihaz denemesinde 0'da dokunma tam ters (180°) düştü: 0 ile 2'nin
+        // formülleri yer değiştirdi.
+        0 => (h - sy, sx),
         _ => (sy, w - sx),
     }
 }
