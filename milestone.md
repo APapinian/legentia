@@ -362,9 +362,9 @@ Kullanıcı isteği (2026-10-28): 50 maddelik öneri listesi milestone olarak ka
 - [x] 15. İngilizce ve diğer diller için heceleme (O) (Kullanıcı kararı: TeX hyph-utf8 desenleri. İngilizce, Almanca, Fransızca, İspanyolca, İtalyanca; Liang algoritması kendi kodumuz, desenler gömülü ve ilk kullanımda ayrıştırılır. Lisanslar dil dil kontrol edildi (MIT / telifsiz izin); Rusça yalnızca LPPL olduğu için alınmadı. TeX çıktısıyla aynı bölünmeler testli.)
 
 ### Cihaz (Libra 2)
-- [ ] 16. Ön ışık ve sıcak ışık ayarı (O)
+- [x] 16. Ön ışık ve sıcak ışık ayarı (O) (Kullanıcı kararı: okuma menüsünde "Işık": parlaklık (0–100, düşük uçta sık adımlar) ve sıcaklık (0–10) −/+, "Işığı kapat"; anında uygulanır, genel ayar. Hiç ayarlanmadıysa cihazın ışığına dokunulmaz. Libra 2: `backlight/mxc_msp430.0/brightness`, `leds/aw99703-bl_FL1/color` (KOReader'a göre ters: 0 en sıcak; cihazda doğrulanacak).)
 - [ ] 17. Uyku/uyanma; uyku ekranında kitabın kapağı (O)
-- [ ] 18. Üst çubukta pil ve saat (K)
+- [x] 18. Üst çubukta pil ve saat (K) (Pil yüzdesi (şarjda "şarj") ve saat okuma ekranının ve kütüphanenin alt satırında sağda, yer varsa. Cihaz saati UTC; yeni "Cihaz" ayar sayfasında "Saat dilimi" (varsayılan UTC+3, 30 dk adım). Libra 2: `power_supply/battery/capacity|status`.)
 - [ ] 19. Otomatik uyku zamanlayıcısı (K)
 - [ ] 20. Uygulama içinden Wi-Fi açma, kapama ve ağ seçme (B)
 - [ ] 21. Nickel'a yeniden başlatmadan, hızlı dönüş (O)

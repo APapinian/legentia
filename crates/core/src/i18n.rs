@@ -141,6 +141,16 @@ pub enum Msg {
     ExportFailed,
     NoteLine(String),
     Tools,
+    Light,
+    LightHint,
+    Brightness,
+    Warmth,
+    LightOff,
+    DeviceSettings,
+    SettingUtcOffset,
+    Battery(u8),
+    BatteryCharging(u8),
+    UtcOffset(i32),
     DropboxAuth,
     DropboxScope,
     DropboxPushed,
@@ -715,6 +725,20 @@ fn turkish(msg: &Msg) -> String {
         Msg::DropboxPush => "Yedeği Dropbox'a gönder".into(),
         Msg::DropboxPull => "Yedeği Dropbox'tan al".into(),
         Msg::DropboxLogout => "Bağlantıyı kes".into(),
+        Msg::Light => "Işık".into(),
+        Msg::LightHint => "Değişiklik hemen uygulanır.".into(),
+        Msg::Brightness => "Parlaklık".into(),
+        Msg::Warmth => "Sıcaklık".into(),
+        Msg::LightOff => "Işığı kapat".into(),
+        Msg::DeviceSettings => "Cihaz".into(),
+        Msg::SettingUtcOffset => "Saat dilimi".into(),
+        Msg::Battery(b) => format!("%{b}"),
+        Msg::BatteryCharging(b) => format!("%{b} şarj"),
+        Msg::UtcOffset(m) => {
+            let sign = if *m < 0 { '-' } else { '+' };
+            let a = m.unsigned_abs();
+            if a % 60 == 0 { format!("UTC{sign}{}", a / 60) } else { format!("UTC{sign}{}:{:02}", a / 60, a % 60) }
+        },
         Msg::Tools => "Araçlar".into(),
         Msg::Stats => "Okuma istatistikleri".into(),
         Msg::StatToday { secs, pages } => {
@@ -1140,6 +1164,20 @@ fn english(msg: &Msg) -> String {
         Msg::DropboxPush => "Send backup to Dropbox".into(),
         Msg::DropboxPull => "Get backup from Dropbox".into(),
         Msg::DropboxLogout => "Disconnect".into(),
+        Msg::Light => "Light".into(),
+        Msg::LightHint => "Changes apply immediately.".into(),
+        Msg::Brightness => "Brightness".into(),
+        Msg::Warmth => "Warmth".into(),
+        Msg::LightOff => "Turn light off".into(),
+        Msg::DeviceSettings => "Device".into(),
+        Msg::SettingUtcOffset => "Time zone".into(),
+        Msg::Battery(b) => format!("{b}%"),
+        Msg::BatteryCharging(b) => format!("{b}% charging"),
+        Msg::UtcOffset(m) => {
+            let sign = if *m < 0 { '-' } else { '+' };
+            let a = m.unsigned_abs();
+            if a % 60 == 0 { format!("UTC{sign}{}", a / 60) } else { format!("UTC{sign}{}:{:02}", a / 60, a % 60) }
+        },
         Msg::Tools => "Tools".into(),
         Msg::Stats => "Reading statistics".into(),
         Msg::StatToday { secs, pages } => {
@@ -1598,6 +1636,17 @@ mod tests {
             DropboxPush,
             DropboxPull,
             DropboxLogout,
+            Light,
+            LightHint,
+            Brightness,
+            Warmth,
+            LightOff,
+            DeviceSettings,
+            SettingUtcOffset,
+            Battery(87),
+            BatteryCharging(50),
+            UtcOffset(180),
+            UtcOffset(-330),
             Tools,
             Stats,
             StatToday {

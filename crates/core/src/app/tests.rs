@@ -4057,3 +4057,32 @@ fn page_keys_can_be_swapped_separately_in_landscape() {
     key(&mut app, true);
     assert!(session(&app).page < at, "yatayda ileri tuşu geri çevirir");
 }
+
+#[test]
+fn light_is_set_from_the_reading_menu_and_status_shows_in_the_footer() {
+    let (mut app, data, root) = reading_long_book();
+    assert_eq!(app.light(), None, "dokunulmadıkça cihazın ayarı kalır");
+    menu(&mut app, MenuItem::Light);
+    assert!(matches!(app.view, View::Light));
+    let (minus, plus) = app.light_buttons(0);
+    let (_, warmer) = app.light_buttons(1);
+    tap(&mut app, plus.center());
+    tap(&mut app, plus.center());
+    tap(&mut app, warmer.center());
+    assert_eq!(app.light(), Some((2, 6)));
+    tap(&mut app, minus.center());
+    assert_eq!(app.light(), Some((1, 6)));
+    let mut c = Canvas::new(W, LIBRA2_HEIGHT);
+    app.draw(&mut c);
+    tap(&mut app, super::ui::back_button(W).center());
+    assert!(matches!(app.view, View::Reading));
+    app.set_device_status(super::DeviceStatus {
+        battery: Some(64),
+        charging: false,
+        unix_time: Some(1_793_278_762),
+    });
+    app.draw(&mut c);
+    app.shutdown();
+    let app = restart(&data, &root);
+    assert_eq!(app.light(), Some((1, 6)), "ışık ayarı kalıcı");
+}

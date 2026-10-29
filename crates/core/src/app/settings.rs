@@ -99,6 +99,12 @@ pub struct Settings {
     pub rtl: bool,
     /// Arayüz dili (genel).
     pub language: crate::i18n::Language,
+    /// Ön ışık parlaklığı (0–100) ve sıcaklığı (0 soğuk – 10 sıcak); hiç
+    /// ayarlanmadıysa cihazın kendi ayarı kalır.
+    pub light: Option<u8>,
+    pub warmth: Option<u8>,
+    /// Saat dilimi: UTC'den fark (dakika). Cihazın saati UTC tutulur.
+    pub utc_offset: i32,
     /// Kütüphane araç çubuğunun sıralaması, süzgeci ve görünümü.
     pub library_sort: super::shelf::Sort,
     pub library_filter: super::shelf::Filter,
@@ -134,6 +140,9 @@ impl Default for Settings {
             auto_turn: 30,
             rtl: false,
             language: Default::default(),
+            light: None,
+            warmth: None,
+            utc_offset: 180,
             library_sort: Default::default(),
             library_filter: Default::default(),
             library_view: Default::default(),
@@ -169,11 +178,12 @@ pub enum Field {
     AutoTurn,
     Rtl,
     Language,
+    UtcOffset,
 }
 
 /// Ayarlar ekranının sayfaları: yazı; PDF ve internet; okuma ve ekran. Hepsi
 /// tek ekrana sığmaz (alttaki Tamam/Vazgeç düğmelerine taşar).
-pub const FIELD_PAGES: [&[Field]; 3] = [
+pub const FIELD_PAGES: [&[Field]; 4] = [
     &[
         Field::Family,
         Field::Size,
@@ -202,12 +212,17 @@ pub const FIELD_PAGES: [&[Field]; 3] = [
         Field::AutoTurn,
         Field::Orientation,
         Field::TwoColumns,
-        Field::Language,
     ],
+    &[Field::Language, Field::UtcOffset],
 ];
 
 /// Ayar sayfalarının başlıkları ve bir sonrakine geçiş düğmesinin etiketi.
-pub const PAGE_TITLES: [Msg; 3] = [Msg::TextSettings, Msg::PdfSettings, Msg::ReadingSettings];
+pub const PAGE_TITLES: [Msg; 4] = [
+    Msg::TextSettings,
+    Msg::PdfSettings,
+    Msg::ReadingSettings,
+    Msg::DeviceSettings,
+];
 
 impl Field {
     pub fn label(self) -> Msg {
@@ -232,6 +247,7 @@ impl Field {
             Field::Orientation => Msg::SettingOrientation,
             Field::TwoColumns => Msg::SettingTwoColumns,
             Field::Rtl => Msg::SettingRtl,
+            Field::UtcOffset => Msg::SettingUtcOffset,
             Field::Language => Msg::SettingLanguage,
             Field::PageKeysLandscape => Msg::SettingPageKeysLandscape,
             Field::PageKeys => Msg::SettingPageKeys,
@@ -312,6 +328,10 @@ impl Settings {
             }
             Field::PdfCrop => s.pdf_crop = !s.pdf_crop,
             Field::Rtl => s.rtl = !s.rtl,
+            Field::UtcOffset => {
+                let step = if up { 30 } else { -30 };
+                s.utc_offset = (s.utc_offset + step).clamp(-720, 840);
+            }
             Field::Language => {
                 use crate::i18n::Language;
                 s.language = match s.language {
@@ -391,6 +411,7 @@ impl Settings {
                 PdfView::Columns => &Msg::PdfViewColumns,
                 PdfView::Strip => &Msg::PdfViewStrip,
             }),
+            Field::UtcOffset => tr(&Msg::UtcOffset(self.utc_offset)),
             Field::Language => tr(&Msg::LanguageName(self.language)),
             Field::Rtl => tr(if self.rtl {
                 &Msg::RightToLeft

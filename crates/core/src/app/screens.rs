@@ -52,8 +52,9 @@ const NAV_ITEMS: [MenuItem; 5] = [
     MenuItem::Annotations,
     MenuItem::Words,
 ];
-const ACTION_ITEMS: [MenuItem; 4] = [
+const ACTION_ITEMS: [MenuItem; 5] = [
     MenuItem::Settings,
+    MenuItem::Light,
     MenuItem::AutoTurn,
     MenuItem::ExportNotes,
     MenuItem::SaveSearchable,
@@ -81,6 +82,7 @@ pub(super) enum MenuItem {
     Settings,
     SaveSearchable,
     AutoTurn,
+    Light,
     Library,
 }
 
@@ -96,6 +98,7 @@ impl App {
             MenuItem::ExportNotes,
             MenuItem::Words,
             MenuItem::Settings,
+            MenuItem::Light,
             MenuItem::AutoTurn,
         ];
         if self.session.as_ref().is_some_and(|s| s.pdf().is_some()) {
@@ -203,6 +206,9 @@ impl App {
             pages: self.library_pages(&books),
         };
         draw_footer(t, canvas, &footer, MARGIN);
+        let end =
+            MARGIN + t.width_plain(&tr(&footer), Family::Ui, PLAIN, super::ui::FOOTER_PX) as i32;
+        self.draw_status(canvas, end);
         match self.settings.library_view {
             super::shelf::LibraryView::List => {}
             super::shelf::LibraryView::Covers => return self.draw_grid(canvas, &books, page),
@@ -528,12 +534,11 @@ impl App {
                 percent: s.percent(),
             }
         };
-        draw_footer(
-            t,
-            canvas,
-            &self.with_time_left(footer),
-            self.settings.margin,
-        );
+        let footer = self.with_time_left(footer);
+        draw_footer(t, canvas, &footer, self.settings.margin);
+        let end = self.settings.margin
+            + t.width_plain(&tr(&footer), Family::Ui, PLAIN, super::ui::FOOTER_PX) as i32;
+        self.draw_status(canvas, end);
         self.draw_link_back(canvas);
         self.draw_results_button(canvas);
     }
@@ -633,6 +638,7 @@ impl App {
             MenuItem::SaveSearchable => Msg::SaveSearchable,
             MenuItem::AutoTurn if self.auto_turn.is_some() => Msg::AutoTurnStop,
             MenuItem::AutoTurn => Msg::AutoTurnStart,
+            MenuItem::Light => Msg::Light,
             MenuItem::Library => Msg::BackToLibrary,
         }
     }
@@ -685,6 +691,7 @@ impl App {
                     back: Back::Reading,
                 };
             }
+            MenuItem::Light => self.view = View::Light,
             MenuItem::AutoTurn => {
                 if self.auto_turn.is_some() {
                     self.stop_auto_turn();

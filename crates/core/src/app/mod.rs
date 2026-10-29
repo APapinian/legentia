@@ -11,6 +11,7 @@ mod backup;
 mod bookcase;
 mod catalog;
 mod covers;
+mod device;
 mod downloads;
 mod dropbox;
 mod export;
@@ -54,6 +55,7 @@ use crate::pdf::{GrayImage, PdfDoc, PdfEdit};
 use crate::storage::Store;
 use crate::text::Text;
 pub use annotations::Annotation;
+pub use device::DeviceStatus;
 pub use session::{BookInfo, BookState, Bookmark, Position};
 use session::{Doc, Session, Target};
 pub use settings::Settings;
@@ -102,6 +104,8 @@ enum View {
     Update,
     /// Hesaplar ve servisler (DeepL, WebDAV, Wallabag, Dropbox).
     Services,
+    /// Ön ışık: parlaklık ve sıcaklık (okuma menüsünden).
+    Light,
     /// Arka plan işi sürüyor (ör. Wallabag eşitlemesi); bitince sonuç gösterilir.
     Working,
     /// Dropbox'a bağlanma sayfası açık (`dropbox.connect`).
@@ -234,6 +238,8 @@ pub struct App {
     /// Wallabag hesabı ve indirilen yazılar; sürmekte olan iş.
     wallabag: Option<wallabag::Wallabag>,
     wallabag_job: Option<wallabag::WallabagJob>,
+    /// Platformun verdiği pil ve saat.
+    status: DeviceStatus,
     /// Programın klasörü (yalnız cihazda); güncelleme buraya iner.
     update_dir: Option<PathBuf>,
     /// Sürmekte olan güncelleme adımı.
@@ -371,6 +377,7 @@ impl App {
             },
             wallabag: store.load(wallabag::WALLABAG_FILE),
             wallabag_job: None,
+            status: DeviceStatus::default(),
             update_dir: None,
             update: None,
             news: news::NewsState {
@@ -607,6 +614,7 @@ impl App {
             View::NewsFeeds { page } => self.handle_news_feeds(*page, event),
             View::Update => self.handle_update(event),
             View::Services => self.handle_services(event),
+            View::Light => self.handle_light(event),
             View::Working => None,
             View::DropboxConnect => self.handle_dropbox_connect(event),
             View::Dropbox => self.handle_dropbox(event),
@@ -845,6 +853,7 @@ impl App {
             View::NewsFeeds { page } => self.draw_news_feeds(canvas, *page),
             View::Update => self.draw_update(canvas),
             View::Services => self.draw_services(canvas),
+            View::Light => self.draw_light(canvas),
             View::DropboxConnect => self.draw_dropbox_connect(canvas),
             View::Dropbox => self.draw_dropbox(canvas),
             View::DropboxBrowse { page } => self.draw_dropbox_browse(canvas, *page),

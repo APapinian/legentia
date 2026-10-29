@@ -18,7 +18,9 @@ use std::sync::mpsc::{RecvTimeoutError, channel};
 use std::time::{Duration, Instant};
 
 use legentia_core::i18n::{self, Msg};
-use legentia_core::{App, Canvas, Event, Fonts, LIBRA2_HEIGHT, LIBRA2_WIDTH, Refresh, Store, Text};
+use legentia_core::{
+    App, Canvas, DeviceStatus, Event, Fonts, LIBRA2_HEIGHT, LIBRA2_WIDTH, Refresh, Store, Text,
+};
 
 use input::Input;
 
@@ -63,6 +65,37 @@ fn log_device_classes() {
             );
         }
     }
+}
+
+/// Libra 2'nin pil ve ön ışık dosyaları (5. cihaz denemesinin günlüğünden).
+const BATTERY: &str = "/sys/class/power_supply/battery";
+const BRIGHTNESS: &str = "/sys/class/backlight/mxc_msp430.0/brightness";
+/// Işık sıcaklığı 0–10; KOReader'a göre ters (0 en sıcak). Doğrulanacak.
+const WARMTH: &str = "/sys/class/leds/aw99703-bl_FL1/color";
+
+/// Pil ve saat (her olaydan önce okunur; birkaç küçük dosya).
+fn device_status() -> DeviceStatus {
+    let read = |name: &str| std::fs::read_to_string(Path::new(BATTERY).join(name)).ok();
+    DeviceStatus {
+        battery: read("capacity").and_then(|v| v.trim().parse().ok()),
+        charging: read("status").is_some_and(|v| v.trim() == "Charging"),
+        unix_time: std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .ok()
+            .map(|d| d.as_secs()),
+    }
+}
+
+/// Ön ışığı uygular: parlaklık 0–100, sıcaklık 0 (soğuk) – 10 (sıcak).
+fn apply_light((brightness, warmth): (u8, u8)) {
+    let write = |path: &str, value: String| {
+        if let Err(e) = std::fs::write(path, value) {
+            log::warn!("cannot write {path}: {e}");
+        }
+    };
+    write(BRIGHTNESS, brightness.min(100).to_string());
+    write(WARMTH, (10 - warmth.min(10)).to_string());
+    log::info!("light {brightness}%, warmth {warmth}");
 }
 
 fn dir_from_env(var: &str, default: &str) -> PathBuf {
@@ -131,6 +164,11 @@ fn run() -> ExitCode {
     drop(tx);
 
     let mut canvas = Canvas::new(LIBRA2_WIDTH, LIBRA2_HEIGHT);
+    app.set_device_status(device_status());
+    let mut light = app.light();
+    if let Some(l) = light {
+        apply_light(l);
+    }
     let refresh = app.start();
     present(&mut screen, &app, &mut canvas, refresh);
 
@@ -185,7 +223,14 @@ fn run() -> ExitCode {
         }
         for event in events {
             let started = Instant::now();
+            app.set_device_status(device_status());
             let handled = app.handle(event);
+            if app.light() != light {
+                light = app.light();
+                if let Some(l) = light {
+                    apply_light(l);
+                }
+            }
             if event != Event::Tick {
                 log::info!("event: {event:?}, handled in {:?}", started.elapsed());
             }

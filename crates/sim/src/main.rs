@@ -127,6 +127,14 @@ fn run() -> ExitCode {
 
         for event in events {
             let started = std::time::Instant::now();
+            app.set_device_status(legentia_core::DeviceStatus {
+                battery: None,
+                charging: false,
+                unix_time: std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .ok()
+                    .map(|d| d.as_secs()),
+            });
             let handled = app.handle(event);
             if event != Event::Tick {
                 log::info!("event: {event:?}, handled in {:?}", started.elapsed());

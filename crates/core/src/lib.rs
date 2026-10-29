@@ -24,7 +24,7 @@ pub mod rss;
 mod storage;
 mod text;
 
-pub use app::{Annotation, App, BookState, Bookmark, Position, Settings};
+pub use app::{Annotation, App, BookState, Bookmark, DeviceStatus, Position, Settings};
 pub use canvas::Canvas;
 pub use epub::{Book, EpubError};
 pub use event::{Event, PageKey, Refresh, TouchPhase};
