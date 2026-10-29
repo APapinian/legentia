@@ -9,6 +9,7 @@ license.workspace = true
 workspace = true
 
 [dependencies]
+djvu-rs = { version = "0.43.0", default-features = false, features = ["std"] }
 flate2 = { version = "1.1.10", default-features = false, features = ["zlib-rs"] }
 hayro = "0.8.0"
 image = { version = "0.25.10", default-features = false, features = ["png", "jpeg"] }

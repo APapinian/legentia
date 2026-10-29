@@ -19,6 +19,7 @@ pub(crate) mod text;
 
 pub use text::{CharBox, PageText};
 mod comic;
+mod djvu;
 mod write;
 
 pub use write::{Highlight, OcrLayer, PdfEdit};
@@ -75,7 +76,9 @@ pub struct GrayImage {
 }
 
 pub struct PdfDoc {
-    pdf: Pdf,
+    /// PDF (hayro) ya da DjVu belgesi.
+    pdf: Option<Pdf>,
+    djvu: Option<Box<djvu_rs::DjVuDocument>>,
     settings: InterpreterSettings,
 }
 
@@ -94,6 +97,11 @@ impl PdfDoc {
             .unwrap_or_default();
         match ext.as_str() {
             "cbz" | "cbr" => Self::from_bytes(comic::to_pdf(data)?),
+            "djvu" | "djv" => Ok(PdfDoc {
+                pdf: None,
+                djvu: Some(Box::new(djvu::parse(&data)?)),
+                settings: InterpreterSettings::default(),
+            }),
             _ => Self::from_bytes(data),
         }
     }
@@ -106,24 +114,40 @@ impl PdfDoc {
                 other => PdfError::Invalid(format!("{other:?}")),
             })?;
         Ok(PdfDoc {
-            pdf,
+            pdf: Some(pdf),
+            djvu: None,
             settings: InterpreterSettings::default(),
         })
     }
 
+    /// PDF ise hayro belgesi (DjVu'da yok).
+    fn hayro(&self) -> Result<&Pdf, PdfError> {
+        self.pdf
+            .as_ref()
+            .ok_or_else(|| PdfError::Invalid("not a pdf".into()))
+    }
+
     pub fn page_count(&self) -> usize {
-        self.pdf.pages().len()
+        match (&self.pdf, &self.djvu) {
+            (Some(p), _) => p.pages().len(),
+            (None, Some(d)) => d.page_count(),
+            _ => 0,
+        }
     }
 
     /// Sayfanın görüntülenen boyutu (punto, döndürme ve kırpma kutusu uygulanmış).
     pub fn page_size(&self, index: usize) -> Option<(f32, f32)> {
-        self.pdf.pages().get(index).map(|p| p.render_dimensions())
+        match (&self.pdf, &self.djvu) {
+            (Some(p), _) => p.pages().get(index).map(|p| p.render_dimensions()),
+            (None, Some(d)) => djvu::page_size(d, index),
+            _ => None,
+        }
     }
 
     /// Görüntülenen sayfa koordinatını (punto, sol üst köşe, aşağı doğru y) PDF'in
     /// kendi kullanıcı koordinatına çevirir; `/Rotate` ve kırpma kutusu hesaba katılır.
     pub fn to_user_space(&self, index: usize, x: f32, y: f32) -> Option<(f32, f32)> {
-        let page = self.pdf.pages().get(index)?;
+        let page = self.hayro().ok()?.pages().get(index)?;
         let p = page.initial_transform(true).to_kurbo().inverse()
             * hayro::kurbo::Point::new(x as f64, y as f64);
         Some((p.x as f32, p.y as f32))
@@ -148,8 +172,12 @@ impl PdfDoc {
     /// `area` × `scale` boyutundadır. Kırpılmış sayfa için tüm sayfayı büyük
     /// çizip kesmekten hızlıdır ve daha az bellek ister.
     pub fn render_area(&self, index: usize, area: Area, scale: f32) -> Result<GrayImage, PdfError> {
+        if let Some(d) = &self.djvu {
+            let scale = scale.min(MAX_SIDE / area.w.max(area.h).max(1.0));
+            return djvu::render_area(d, index, area, scale);
+        }
         let page = self
-            .pdf
+            .hayro()?
             .pages()
             .get(index)
             .ok_or(PdfError::PageMissing(index))?;

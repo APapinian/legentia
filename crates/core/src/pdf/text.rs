@@ -122,8 +122,12 @@ impl PdfDoc {
     }
 
     fn page_glyphs(&self, index: usize) -> Result<Vec<TextGlyph>, PdfError> {
+        // DjVu'nun metin katmanı okunmaz: sayfa görüntü sayılır.
+        if self.djvu.is_some() {
+            return Ok(Vec::new());
+        }
         let page = self
-            .pdf
+            .hayro()?
             .pages()
             .get(index)
             .ok_or(PdfError::PageMissing(index))?;

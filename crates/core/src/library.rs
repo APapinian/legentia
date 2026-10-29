@@ -34,7 +34,7 @@ impl Format {
             }
             "zip" if name.ends_with(".fb2.zip") => Some(Format::Epub),
             // Çizgi romanlar PDF görüntüleyicisiyle açılır (`pdf/comic.rs`).
-            "pdf" | "cbz" | "cbr" => Some(Format::Pdf),
+            "pdf" | "cbz" | "cbr" | "djvu" | "djv" => Some(Format::Pdf),
             _ => None,
         }
     }
