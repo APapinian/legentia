@@ -1,9 +1,8 @@
 #!/bin/sh
 # Legentia'yı Kobo'da Nickel'ın yerine çalıştırır; NickelMenu'den başlatılır
-# (.adds/nm/legentia). Nickel ve yardımcıları durdurulur, Legentia çalışır,
-# program nasıl biterse bitsin (Çık, güç tuşu, çökme, bekçi) cihaz yeniden
-# başlatılır. Nickel'ı elle geri başlatmak Wi-Fi ve USB durumuna bağlı
-# ayrıntılar istiyor; ilk denemelerde en güvenli dönüş yolu yeniden başlatmak.
+# (.adds/nm/legentia). Nickel ve yardımcıları durdurulur, Legentia çalışır;
+# program nasıl biterse bitsin (Çık, güç tuşu, çökme) Nickel yeniden
+# başlatılır, başlamazsa cihaz yeniden başlatılır.
 #
 # Bekçi: DENEME_SURESI saniye sonra program kendiliğinden durdurulur
 # (ekran ya da dokunma çalışmazsa cihaz kendini kurtarsın diye). 0 = sınırsız.
@@ -62,14 +61,28 @@ cd "$DIR" || exit 1
     fi
     [ -n "$bekci" ] && kill "$bekci" 2>/dev/null
     sync
-    # İlk denemede `reboot` cihazı yeniden başlatmadı; komut bu bloğun
-    # dışında olduğu için hatası da kaydedilmedi. Artık tam yolla çağrılıyor
-    # ve sonucu yazılıyor; 20 sn içinde olmazsa zorla yeniden başlatılır.
-    echo "$(date) yeniden başlatılıyor"
-    /sbin/reboot
-    echo "$(date) reboot döndü: $?"
-    sleep 20
-    echo "$(date) hâlâ açık; zorla yeniden başlatılıyor"
+    # Nickel'a dönüş (yeniden başlatmadan): donanım borusu yeniden kurulur,
+    # hindenburg ve nickel Nickel'ın kendi ortamıyla (NickelMenu'den gelen)
+    # başlatılır. 20 sn içinde Nickel ayağa kalkmazsa yeniden başlatılır.
+    echo "$(date) Nickel başlatılıyor"
+    cd /
+    rm -f /tmp/nickel-hardware-status
+    mkfifo /tmp/nickel-hardware-status
+    (/usr/local/Kobo/hindenburg >/dev/null 2>&1 &)
+    LIBC_FATAL_STDERR_=1 /usr/local/Kobo/nickel -platform kobo -skipFontLoad >/dev/null 2>&1 &
+    n=0
+    while ! pidof nickel >/dev/null && [ "$n" -lt 20 ]; do
+        sleep 1
+        n=$((n + 1))
+    done
+    sleep 5
+    if pidof nickel >/dev/null; then
+        echo "$(date) Nickel çalışıyor"
+        exit 0
+    fi
+    echo "$(date) Nickel başlamadı; yeniden başlatılıyor"
     sync
+    /sbin/reboot
+    sleep 20
     /sbin/reboot -f
 } >>"$DIR/betik.log" 2>&1

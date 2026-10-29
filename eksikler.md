@@ -57,6 +57,14 @@ Yeni bir eksik bulununca bu dosyaya eklenir; giderilen madde silinir ve ne yapı
 
 - **Uyku:** Wi-Fi açıkken çekirdek uyutulmuyor (yalnız ekran/ışık); askıya alma ve uyanma cihazda denenmedi. 6. denemede uyku çalıştı ama Nickel kapandıktan sonra Wi-Fi açık kaldığı için çekirdek hiç uyutulmadı (pil korunmuyor); Wi-Fi kapatma (madde 20) gerekiyor. Bekçi kullanıcı kararıyla kapatıldı. Sayfa tuşları bırakılınca çeviriyor (çok kısa gecikme).
 
+## v1.0.0 öncesi (2026-10-29)
+
+- **Wi-Fi ve Nickel'a dönüş cihazda denenmedi:** `wifi.sh` ve `legentia.sh`'deki Nickel başlatma ilk kez v1.0.0'la çalışacak; Nickel açılmazsa yeniden başlatmaya düşer.
+- **Uygulama içinden Wi-Fi ağı seçme yok** (madde 20'nin ağ seçme kısmı); Nickel'da kayıtlı ağlar kullanılıyor.
+- **KOReader tarzı ayarlar menüsü yapılmadı** (kullanıcı isteği): ayarlar hâlâ dört sayfalık liste.
+- **Bellek kullanımı ölçülmedi:** CBZ/CBR ve büyük PDF'ler bütünüyle belleğe alınıyor; cihazda ölçülüp azaltılacak.
+- **13–14 (sağdan sola yazı, Japonca) yapılmadı.**
+
 ## İşlev eksikleri
 
 - **TDK erişimi resmî değil:** belgelenmemiş `sozluk.gov.tr/gts` ucu kullanılıyor. Adres ya da biçim değişirse TDK araması çalışmaz. Kısa sürede çok istek gelince TDK boş yanıt dönüyor (denemede görüldü); uygulama o zaman "Sunucunun yanıtı anlaşılamadı" diyor. (M8)

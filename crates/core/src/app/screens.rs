@@ -412,7 +412,7 @@ impl App {
         let forward = match event {
             Event::Key(PageKey::Forward) => true,
             Event::Key(PageKey::Back) => false,
-            Event::Swipe { .. } => swipe_direction(event)? != rtl,
+            Event::Swipe { .. } => self.swipe_turn(event)? != rtl,
             Event::Tap { x, y } => match self.tap_zone(x, y) {
                 Some(forward) => forward != rtl,
                 None => {
@@ -1118,6 +1118,24 @@ const SWIPE_MIN: i32 = 150;
 /// İki parmağın puntoyu bir adım değiştirmesi için en az açılma/kapanma.
 const PINCH_IN: u32 = 870;
 const PINCH_OUT: u32 = 1150;
+
+impl App {
+    /// Kaydırmanın sayfa yönü: yatay her zaman; webtoon ve genişliğe sığdırılmış
+    /// PDF/çizgi romanda dikey de (yukarı kaydırma ileri, kesintisiz okuma gibi).
+    fn swipe_turn(&self, event: Event) -> Option<bool> {
+        if let Some(forward) = swipe_direction(event) {
+            return Some(forward);
+        }
+        let vertical = matches!(
+            self.settings.pdf_view,
+            super::settings::PdfView::Strip | super::settings::PdfView::Width
+        ) && self.session.as_ref().is_some_and(|s| s.showing_pdf_image());
+        let Event::Swipe { dx, dy } = event else {
+            return None;
+        };
+        (vertical && dy.abs() >= SWIPE_MIN && dy.abs() > 2 * dx.abs()).then_some(dy < 0)
+    }
+}
 
 /// Yatay kaydırma: sola kaydırma ileri (`true`), sağa geri. Kısa ya da dikey kaydırma `None`.
 fn swipe_direction(event: Event) -> Option<bool> {

@@ -1,7 +1,8 @@
 //! Uyku: Kobo çekirdeğinin askıya alma yolu (KOReader'ın izlediği sıra):
 //! `state-extended`'e 1, kısa bekleme, `sync`, `state`'e `mem` (uyanana kadar
-//! bekler), sonra `state-extended`'e 0. Wi-Fi açıkken çekirdek uyutulmaz
-//! (sürücüsü askıya almayı bozabilir); o zaman yalnız ekran ve ışık kapanır.
+//! bekler), sonra `state-extended`'e 0. Wi-Fi açıksa önce `wifi.sh kapat`
+//! (sürücüsü askıya almayı bozar), uyanınca arka planda yeniden açılır;
+//! kapatılamazsa çekirdek uyutulmaz, yalnız ekran ve ışık kapanır.
 
 use std::time::Duration;
 
@@ -28,12 +29,36 @@ pub fn wifi_up() -> bool {
         .any(|p| std::fs::read_to_string(p).is_ok_and(|s| s.trim() == "up"))
 }
 
-/// Çekirdeği askıya alır; uyanınca döner. Askıya alınamadıysa `false`
+/// Programın yanındaki `wifi.sh` (`ac` ya da `kapat`); bitmesini bekler.
+pub fn wifi(action: &str) -> bool {
+    let script = std::env::current_exe()
+        .ok()
+        .and_then(|p| p.parent().map(|d| d.join("wifi.sh")))
+        .unwrap_or_else(|| "wifi.sh".into());
+    match std::process::Command::new("sh")
+        .arg(&script)
+        .arg(action)
+        .status()
+    {
+        Ok(s) => s.success(),
+        Err(e) => {
+            log::warn!("cannot run {}: {e}", script.display());
+            false
+        }
+    }
+}
+
+/// Çekirdeği askıya alır; uyanınca döner. Wi-Fi açıksa önce kapatılır,
+/// uyanınca arka planda yeniden açılır. Askıya alınamadıysa `false`
 /// (çağıran güç tuşunu kendisi bekler).
 pub fn suspend() -> bool {
-    if wifi_up() {
-        log::info!("sleep: wifi is up, not suspending the kernel");
-        return false;
+    let had_wifi = wifi_up();
+    if had_wifi {
+        wifi("kapat");
+        if wifi_up() {
+            log::info!("sleep: wifi could not be turned off, not suspending the kernel");
+            return false;
+        }
     }
     if !write(STATE_EXTENDED, "1") {
         return false;
@@ -44,5 +69,8 @@ pub fn suspend() -> bool {
     let ok = write(STATE, "mem");
     write(STATE_EXTENDED, "0");
     log::info!("sleep: woke up (suspended: {ok})");
+    if had_wifi {
+        std::thread::spawn(|| wifi("ac"));
+    }
     ok
 }

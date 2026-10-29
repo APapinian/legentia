@@ -31,6 +31,7 @@ rm -rf "$out"
 mkdir -p "$app/fonts" "$out/.adds/nm"
 cp "target/$target/release/legentia-kobo" "$app/"
 install -m 755 "$here/legentia.sh" "$app/legentia.sh"
+install -m 755 "$here/wifi.sh" "$app/wifi.sh"
 install -m 644 "$LEGENTIA_FONTS"/* "$app/fonts/"
 install -m 644 "$here"/font-lisanslari/* "$app/fonts/"
 # Programa gömülü heceleme desenlerinin telif ve lisans notları.

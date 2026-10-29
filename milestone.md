@@ -366,8 +366,8 @@ Kullanıcı isteği (2026-10-28): 50 maddelik öneri listesi milestone olarak ka
 - [x] 17. Uyku/uyanma; uyku ekranında kitabın kapağı (O) (Kullanıcı kararı: güç tuşu kısa basış uyku, 3 sn basılı tutma çıkış. Uykuda ekranda açık (yoksa son açılan) kitabın kapağı ekran boyunda, ışık söner; çekirdek KOReader'ın yoluyla askıya alınır (`state-extended`, `sync`, `mem`). Wi-Fi açıksa çekirdek uyutulmaz, yalnız ekran ve ışık. Cihazda denenmedi.)
 - [x] 18. Üst çubukta pil ve saat (K) (Pil yüzdesi (şarjda "şarj") ve saat okuma ekranının ve kütüphanenin alt satırında sağda, yer varsa. Cihaz saati UTC; yeni "Cihaz" ayar sayfasında "Saat dilimi" (varsayılan UTC+3, 30 dk adım). Libra 2: `power_supply/battery/capacity|status`.)
 - [x] 19. Otomatik uyku zamanlayıcısı (K) ("Cihaz" ayarlarında "Otomatik uyku" (kapalı/5/10/15/30/60 dk, varsayılan 15); arka plan işi sürerken uyunmaz. Cihazda denenmedi.)
-- [ ] 20. Uygulama içinden Wi-Fi açma, kapama ve ağ seçme (B)
-- [ ] 21. Nickel'a yeniden başlatmadan, hızlı dönüş (O)
+- [x] 20. Uygulama içinden Wi-Fi açma, kapama ve ağ seçme (B) (Kullanıcı kararı: KOReader'ın yolu (kod kopyalanmadan, AGPL). Libra 2 değerleri cihaz günlüğünden: mx6sll-ntx, sdio_wifi_pwr + 8723ds, wlan0. `wifi.sh kapat|ac` (kendi betiğimiz): uykudan önce Wi-Fi kapanır, uyanınca arka planda Nickel'ın kayıtlı ağlarıyla açılır. Uygulama içinden ağ seçme ekranı henüz yok. Cihazda denenmedi.)
+- [x] 21. Nickel'a yeniden başlatmadan, hızlı dönüş (O) (Çıkışta yeniden başlatma yerine Nickel (hindenburg + nickel, donanım borusu yeniden kurulur) başlatılır; 20 sn'de ayağa kalkmazsa yeniden başlatılır. Cihazda denenmedi.)
 - [x] 22. Ekran görüntüsü alma (K) (Kullanıcı kararı: iki sayfa tuşu birlikte. Sayfa tuşları artık bırakılınca çevirir (birlikte basılınca sayfa çevrilmeden görüntü alınsın diye); PNG kütüphanede "Ekran görüntüleri"ne, yerel saatle adlandırılır; ekran bir kez tam yenilenir. Cihazda denenmedi.)
 
 ### Kütüphane

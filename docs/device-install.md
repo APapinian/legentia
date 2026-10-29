@@ -31,7 +31,7 @@ Program çalışırken kendisi şunları oluşturur: `.adds/legentia/veri/` (aya
 - **İlk denemeden önce:** Kobo USB'ye bağlı olmasın. Wi-Fi kapalı olsun (uçak modu). Cihaz dikey tutulsun.
 - Ana ekranın sağ altındaki NickelMenu'den **Legentia**'yı seçin. Betik Nickel'ı durdurur ve Legentia'yı başlatır.
 - **Çıkış:** kütüphanedeki **Çık** düğmesi ya da **güç tuşu**. İkisi de okuma konumunu kaydeder.
-- **Çıkıştan sonra cihaz yeniden başlar** (yaklaşık yarım dakika). Program nasıl biterse bitsin (çıkış, çökme, bekçi) bu olur. Nickel'ı elle geri başlatmak Wi-Fi ve USB durumuna bağlı ayrıntılar istiyor; bunlar doğrulanana kadar yeniden başlatmak en güvenli yol.
+- **Çıkışta Nickel yeniden açılır** (yeniden başlatmadan). Nickel 20 saniyede açılmazsa cihaz yeniden başlatılır. Güç tuşu: kısa basış uyku (Wi-Fi kapanır, uyanınca açılır), 3 sn basılı tutma çıkış.
 - **Bekçi:** ilk denemelerde program bir süre sonra kendiliğinden durduruluyordu; 2026-10-29'da kullanıcı kararıyla kapatıldı (`DENEME_SURESI=0`) ve cihaz yeniden başlar. Ekran ya da dokunma çalışmazsa cihaz böylece kendiliğinden kurtulur. Süre `legentia.sh`'deki `DENEME_SURESI` ile değişir (0 = sınırsız).
 
 ## Kurtarma

@@ -4086,3 +4086,27 @@ fn light_is_set_from_the_reading_menu_and_status_shows_in_the_footer() {
     let app = restart(&data, &root);
     assert_eq!(app.light(), Some((1, 6)), "ışık ayarı kalıcı");
 }
+
+#[test]
+fn webtoon_scrolls_with_vertical_swipes() {
+    let strip = png(100, 600, 200);
+    let cbz = zip_of_bytes(&[("1.png", &strip), ("2.png", &strip)]);
+    let (mut app, _, _) = setup(&[("webtoon.cbz", cbz)]);
+    tap_row(&mut app, &LIBRARY, 0);
+    let mut next = app.settings.clone();
+    next.pdf_view = super::settings::PdfView::Strip;
+    app.apply_settings(next);
+    let start = (session(&app).spine, session(&app).page);
+    app.handle(Event::Swipe { dx: 5, dy: -400 });
+    let after = (session(&app).spine, session(&app).page);
+    assert!(
+        after > start,
+        "yukarı kaydırma ileri: {start:?} → {after:?}"
+    );
+    app.handle(Event::Swipe { dx: 0, dy: 400 });
+    assert_eq!(
+        (session(&app).spine, session(&app).page),
+        start,
+        "aşağı geri"
+    );
+}

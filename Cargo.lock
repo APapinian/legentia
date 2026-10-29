@@ -994,7 +994,7 @@ checksum = "20870f649af7073d53e38067b2a84312175d56ea15217e1b15bc83506ec50afb"
 
 [[package]]
 name = "legentia-core"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "djvu-rs",
  "flate2",
@@ -1020,7 +1020,7 @@ dependencies = [
 
 [[package]]
 name = "legentia-kobo"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "env_logger",
  "legentia-core",
@@ -1030,7 +1030,7 @@ dependencies = [
 
 [[package]]
 name = "legentia-sim"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "env_logger",
  "legentia-core",
