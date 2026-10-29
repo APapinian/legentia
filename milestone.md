@@ -377,7 +377,7 @@ Kullanıcı isteği (2026-10-28): 50 maddelik öneri listesi milestone olarak ka
 - [x] 26. Okuma durumu: okunacak / okunuyor / bitti (K) (Araç çubuğunda süzgeç: hepsi / okunuyor / okunacak / bitti. Kitaba uzun basınca durum seçilir; seçilmediyse ilerlemeden çıkar (açılmamış okunacak, açılmış okunuyor, %100 bitti). Kitap kaydında, yedeğe girer. Testli.)
 - [x] 27. Seri bilgisi ve seri sırası (O) (Kullanıcı kararı: raflar türe göre klasörlerden; serinin kitapları rafta yan yana, seri sırasıyla (serinin yeri ilk kitabının geçerli sıralamadaki yeri). Seri EPUB'dan okunur: `calibre:series`/`series_index` ya da EPUB3 `belongs-to-collection` + `group-position`. Listede ve kapak altında "Seri #3". Kütüphane önbelleğine tarama sürümü eklendi; eski önbellek bir kez yeniden okunur.)
 - [x] 28. Cihazdan kitap silme ve taşıma (K) (Kitaba uzun basınca "Kitabı sil" (onaylı; yalnızca dosya silinir, okuma konumu ve notlar kayıtta kalır) ve "Klasöre taşı" (kök ve gizli olmayan alt klasörler, iki düzey; hedefte aynı adlı dosya varsa taşınmaz). Testli.)
-- [ ] 29. Kitap bilgilerini düzenleme (O)
+- [x] 29. Kitap bilgilerini düzenleme (O) (Kitap işlemlerinde "Bilgileri düzenle": başlık, yazarlar (virgülle), seri, serideki sıra. Yalnız Legentia'nın kaydına (`books/<kimlik>.json` → `info`) yazılır, kitap dosyasına dokunulmaz; boş başlık kitabın kendi başlığına döner. Liste, kapaklar, raflar, sıralama ve okuma ekranı başlığı düzeltilmiş bilgiyi kullanır; yedeğe girer.)
 - [ ] 30. FB2, TXT, HTML (O)
 - [ ] 31. DRM'siz MOBI/AZW3 (B)
 - [ ] 32. Çizgi roman (CBZ/CBR) (O)

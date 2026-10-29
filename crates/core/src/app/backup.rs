@@ -44,6 +44,9 @@ fn merge(local: &mut BookState, saved: BookState) {
     if local.layout.is_none() {
         local.layout = saved.layout;
     }
+    if local.info.is_none() {
+        local.info = saved.info;
+    }
     for b in saved.bookmarks {
         if !local
             .bookmarks

@@ -60,6 +60,30 @@ pub struct BookState {
     pub opened: u64,
     /// Elle seçilen okuma durumu; yoksa ilerlemeden çıkar.
     pub status: Option<super::shelf::ReadStatus>,
+    /// Elle düzeltilmiş kitap bilgileri; kitap dosyasına yazılmaz.
+    pub info: Option<BookInfo>,
+}
+
+/// Kütüphanede kitabın kendi bilgilerinin yerine gösterilenler. Başlık boşsa
+/// kitabın kendi başlığı kalır; yazar ve seri olduğu gibi kullanılır.
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct BookInfo {
+    pub title: Option<String>,
+    pub authors: Vec<String>,
+    pub series: Option<String>,
+    pub series_index: Option<f32>,
+}
+
+impl BookInfo {
+    pub(super) fn apply(&self, e: &mut crate::library::Entry) {
+        if self.title.is_some() {
+            e.title = self.title.clone();
+        }
+        e.authors = self.authors.clone();
+        e.series = self.series.clone();
+        e.series_index = self.series_index;
+    }
 }
 
 pub(super) struct PlacedLine {
@@ -182,6 +206,9 @@ impl Session {
 
     /// Kitabın başlığı, yoksa dosya adı.
     pub fn title(&self) -> String {
+        if let Some(t) = self.state.info.as_ref().and_then(|i| i.title.clone()) {
+            return t;
+        }
         match &self.doc {
             Doc::Epub(book) => book.title.clone().unwrap_or_else(|| self.name.clone()),
             Doc::Pdf(_) => self.name.clone(),

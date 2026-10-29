@@ -46,7 +46,7 @@ use crate::pdf::{GrayImage, PdfDoc, PdfEdit};
 use crate::storage::Store;
 use crate::text::Text;
 pub use annotations::Annotation;
-pub use session::{BookState, Bookmark, Position};
+pub use session::{BookInfo, BookState, Bookmark, Position};
 use session::{Doc, Session, Target};
 pub use settings::Settings;
 
@@ -272,12 +272,13 @@ impl App {
                 let info = shelf::Shelved {
                     opened: s.opened,
                     status: s.status,
+                    info: s.info,
                 };
                 (id, info)
             })
             .collect();
         text.set_weight(settings.weight);
-        Self {
+        let mut app = Self {
             text,
             width,
             height: crate::LIBRA2_HEIGHT,
@@ -320,7 +321,9 @@ impl App {
             search: None,
             search_mark: None,
             exit: false,
-        }
+        };
+        app.apply_book_info();
+        app
     }
 
     /// İlk açılışta ekran her zaman tam yenilenir.

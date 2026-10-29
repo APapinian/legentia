@@ -79,6 +79,7 @@ const STATUSES: [ReadStatus; 3] = [
 /// Kitap işlemlerinde durumların altındaki satırlar.
 pub(super) const DELETE_ROW: usize = 3;
 pub(super) const MOVE_ROW: usize = 4;
+pub(super) const INFO_ROW: usize = 5;
 pub(super) const FOLDERS: super::ui::List = super::ui::List {
     top: HEADER_BOTTOM,
     row_h: 90,
@@ -90,6 +91,7 @@ pub(super) struct Shelved {
     /// Son açılma (Unix saniyesi; 0 = hiç açılmadı).
     pub opened: u64,
     pub status: Option<ReadStatus>,
+    pub info: Option<super::BookInfo>,
 }
 
 /// Arama için katlama: Türkçe küçük harf, şapkasız, noktalı/noktasız i aynı.
@@ -319,6 +321,8 @@ impl App {
         } else if self.status_rect(MOVE_ROW).contains(x, y) {
             self.view = View::MoveBook { book, page: 0 };
             return Some(self.refresh(true));
+        } else if self.status_rect(INFO_ROW).contains(x, y) {
+            return self.open_book_info(book);
         }
         self.view = View::Library { page: 0 };
         Some(self.refresh(true))
@@ -329,6 +333,70 @@ impl App {
     /// Kitap dosyası değişince kütüphane yeniden taranır.
     pub(super) fn rescan(&mut self) {
         self.library = crate::library::scan(&self.root, &self.store);
+        self.apply_book_info();
+    }
+
+    /// Elle düzeltilmiş bilgileri kütüphane listesine uygular.
+    pub(super) fn apply_book_info(&mut self) {
+        for e in &mut self.library {
+            if let Some(info) = self.shelf.get(&e.id).and_then(|s| s.info.as_ref()) {
+                info.apply(e);
+            }
+        }
+    }
+
+    /// Kitap bilgileri formu, kitabın şimdiki bilgileriyle dolu.
+    fn open_book_info(&mut self, book: usize) -> Option<Refresh> {
+        let e = self.library.get(book)?;
+        let index = e
+            .series_index
+            .map(|i| i.to_string().replace('.', ","))
+            .unwrap_or_default();
+        let fields = vec![
+            Field::new(Msg::FieldTitle, &e.display_title()),
+            Field::new(Msg::FieldAuthors, &e.authors.join(", ")),
+            Field::new(Msg::FieldSeries, e.series.as_deref().unwrap_or("")),
+            Field::new(Msg::FieldSeriesIndex, &index),
+        ];
+        self.open_form(Form::new(FormKind::BookInfo(book), fields))
+    }
+
+    /// Formdaki bilgileri kitabın kaydına yazar; sıra sayı değilse hata.
+    pub(super) fn save_book_info(&mut self, book: usize, form: &Form) -> Result<(), Msg> {
+        let value = |i: usize| form.fields[i].value.trim().to_string();
+        let index = match value(3) {
+            v if v.is_empty() => None,
+            v => Some(
+                v.replace(',', ".")
+                    .parse::<f32>()
+                    .map_err(|_| Msg::BadSeriesIndex)?,
+            ),
+        };
+        let series = Some(value(2)).filter(|s| !s.is_empty());
+        let info = super::BookInfo {
+            title: Some(value(0)).filter(|s| !s.is_empty()),
+            authors: value(1)
+                .split(',')
+                .map(str::trim)
+                .filter(|a| !a.is_empty())
+                .map(str::to_string)
+                .collect(),
+            series_index: index.filter(|_| series.is_some()),
+            series,
+        };
+        let Some(id) = self.library.get(book).map(|e| e.id.clone()) else {
+            return Ok(());
+        };
+        let file = book_file(&id);
+        let mut state: super::BookState = self.store.load(&file).unwrap_or_default();
+        state.info = Some(info.clone());
+        self.store.save(&file, &state);
+        if let Some(s) = self.session.as_mut().filter(|s| s.id == id) {
+            s.state.info = Some(info.clone());
+        }
+        self.shelf.entry(id).or_default().info = Some(info);
+        self.rescan();
+        Ok(())
     }
 
     pub(super) fn handle_confirm_delete(&mut self, book: usize, event: Event) -> Option<Refresh> {
@@ -501,7 +569,14 @@ impl App {
             &tr(&Msg::MoveBook),
             ROW_PX,
         );
-        let hint_y = self.status_rect(MOVE_ROW + 1).y + 50;
+        draw_button(
+            t,
+            canvas,
+            self.status_rect(INFO_ROW),
+            &tr(&Msg::EditBookInfo),
+            ROW_PX,
+        );
+        let hint_y = self.status_rect(INFO_ROW + 1).y + 50;
         t.draw_msg(canvas, &Msg::TapElsewhereToClose, MARGIN, hint_y, 30.0);
     }
 

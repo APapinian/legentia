@@ -3076,3 +3076,48 @@ fn series_books_stand_together_in_series_order_on_shelves() {
     let mut c = Canvas::new(W, LIBRA2_HEIGHT);
     app.draw(&mut c);
 }
+
+/// Açık formun alanlarını doğrudan doldurur (klavyeyle yazmak testte yavaş).
+fn fill_form(app: &mut App, values: &[&str]) {
+    let View::Form(f) = &mut app.view else {
+        panic!("form açık değil");
+    };
+    for (field, v) in f.fields.iter_mut().zip(values) {
+        field.value = v.to_string();
+    }
+}
+
+#[test]
+fn book_info_is_edited_without_touching_the_file() {
+    let (mut app, data, root) = setup(&[("b.epub", epub2_sample())]);
+    let before = std::fs::read(root.join("b.epub")).unwrap();
+    let (x, y) = LIBRARY.row_rect(W, 0).center();
+    app.handle(Event::Hold { x, y });
+    let at = app.status_rect(super::shelf::INFO_ROW).center();
+    tap(&mut app, at);
+    assert_eq!(form(&app).fields[0].value, "Kuyucaklı Yusuf");
+
+    fill_form(
+        &mut app,
+        &["Kuyucaklı Yusuf", "Sabahattin Ali", "Romanlar", "iki"],
+    );
+    form_button(&mut app, form::Button::Submit);
+    assert!(form(&app).error.is_some(), "sıra sayı değil");
+    fill_form(&mut app, &["", "Sabahattin Ali, X", "Romanlar", "2,5"]);
+    form_button(&mut app, form::Button::Submit);
+    assert!(matches!(app.view, View::Library { .. }));
+    let e = &app.library[0];
+    assert_eq!(
+        e.display_title(),
+        "Kuyucaklı Yusuf",
+        "boş başlık: kitabın kendi başlığı"
+    );
+    assert_eq!(e.authors, ["Sabahattin Ali", "X"]);
+    assert_eq!(e.series_label().as_deref(), Some("Romanlar #2,5"));
+    assert_eq!(std::fs::read(root.join("b.epub")).unwrap(), before);
+
+    let mut app = restart(&data, &root);
+    assert_eq!(app.library[0].authors, ["Sabahattin Ali", "X"], "kalıcı");
+    let mut c = Canvas::new(W, LIBRA2_HEIGHT);
+    app.draw(&mut c);
+}

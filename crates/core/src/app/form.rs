@@ -31,6 +31,8 @@ pub(super) enum FormKind {
     AnnotationSearch,
     /// Vurgunun (`state.annotations` sırası) etiketi.
     AnnotationTag(usize),
+    /// Kitabın (`library` sırası) başlığı, yazarları ve serisi.
+    BookInfo(usize),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -89,6 +91,7 @@ impl Form {
             FormKind::LibrarySearch => Msg::SearchLibrary,
             FormKind::AnnotationSearch => Msg::SearchAnnotations,
             FormKind::AnnotationTag(_) => Msg::TagTitle,
+            FormKind::BookInfo(_) => Msg::EditBookInfo,
         }
     }
 

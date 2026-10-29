@@ -410,6 +410,14 @@ impl App {
                 self.view = View::Annotations { page: 0 };
             }
             (Button::Cancel, FormKind::AnnotationTag(_)) => self.view = View::Reading,
+            (Button::Cancel, FormKind::BookInfo(book)) => self.view = View::BookActions { book },
+            (Button::Submit, FormKind::BookInfo(book)) => {
+                if let Err(msg) = self.save_book_info(book, &form) {
+                    form.error = Some(msg);
+                    return self.open_form(form);
+                }
+                self.view = View::Library { page: 0 };
+            }
             (Button::Submit, FormKind::AnnotationTag(index)) => {
                 let tag = form.fields[0].value.trim().to_string();
                 if let Some(s) = self.session.as_mut() {
