@@ -124,6 +124,23 @@ impl Store {
     }
 }
 
+/// Kayıt dosyası biçiminde (sürüm zarfıyla) JSON; ağa gönderilen yedek için.
+pub(crate) fn encode<T: Serialize>(data: &T) -> Vec<u8> {
+    serde_json::to_vec_pretty(&Envelope {
+        version: FORMAT_VERSION,
+        data,
+    })
+    .unwrap_or_default()
+}
+
+/// `encode`'un tersi; sürüm uymuyor ya da bozuksa `None`.
+pub(crate) fn decode<T: DeserializeOwned>(bytes: &[u8]) -> Option<T> {
+    match serde_json::from_slice::<Envelope<T>>(bytes) {
+        Ok(env) if env.version == FORMAT_VERSION => Some(env.data),
+        _ => None,
+    }
+}
+
 /// `dir`'in bulunduğu dosya sisteminde boş alan (bayt); ölçülemezse `None`.
 pub(crate) fn free_space(dir: &Path) -> Option<u64> {
     let st = nix::sys::statvfs::statvfs(dir).ok()?;

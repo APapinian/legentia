@@ -202,6 +202,7 @@ impl App {
             || self.auto_turn.is_some()
             || self.cover_job.is_some()
             || self.upload.is_some()
+            || self.dav.job.is_some()
     }
 
     fn download_of(&self, dest: &Path) -> Option<usize> {
@@ -274,6 +275,44 @@ impl App {
                 Some(self.refresh(true))
             }
         }
+    }
+
+    /// Kuyruğa bir indirme ekler (WebDAV gibi katalog dışı kaynaklardan);
+    /// aynı hedefe inen varsa yenisi eklenmez.
+    pub(super) fn enqueue_download(
+        &mut self,
+        title: String,
+        url: String,
+        auth: Option<Auth>,
+        dest: PathBuf,
+    ) {
+        if self.download_of(&dest).is_some() {
+            return;
+        }
+        self.downloads.push(Download {
+            title,
+            url,
+            auth,
+            dest,
+            state: State::Queued,
+            shown: 0,
+        });
+        self.start_next();
+    }
+
+    /// Adı `name` olan dosyanın indirme durumu (listede göstermek için).
+    pub(super) fn download_note(&self, name: &str) -> Option<String> {
+        let d = self.downloads.iter().find(|d| {
+            d.dest
+                .file_name()
+                .is_some_and(|n| n.to_string_lossy() == name)
+        })?;
+        Some(match &d.state {
+            State::Queued => tr(&Msg::Queued),
+            State::Running { .. } => tr(&Msg::CancelDownloading(d.percent())),
+            State::Failed(m) => tr(m),
+            State::Done => tr(&Msg::Downloaded),
+        })
     }
 
     /// Sürmekte olan indirme yoksa sıradakini başlatır.

@@ -411,7 +411,18 @@ impl App {
             }
             (Button::Cancel, FormKind::AnnotationTag(_)) => self.view = View::Reading,
             (Button::Cancel, FormKind::BookInfo(book)) => self.view = View::BookActions { book },
-            (Button::Cancel, FormKind::DeeplKey) => self.view = View::Backup,
+            (Button::Cancel, FormKind::DeeplKey | FormKind::WebDav) => self.view = View::Backup,
+            (Button::Submit, FormKind::WebDav) => {
+                if let Err(msg) = self.save_dav_account(&form) {
+                    form.error = Some(msg);
+                    return self.open_form(form);
+                }
+                self.view = if self.dav.account.is_some() {
+                    View::WebDav
+                } else {
+                    View::Backup
+                };
+            }
             (Button::Submit, FormKind::DeeplKey) => {
                 self.save_deepl_key(&form.fields[0].value);
                 self.view = View::Backup;

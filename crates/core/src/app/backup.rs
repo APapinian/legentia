@@ -23,7 +23,7 @@ const BUTTON_H: i32 = 110;
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
-struct Backup {
+pub(super) struct Backup {
     /// Yedeğin alındığı zaman (Unix saniyesi).
     created: u64,
     settings: Settings,
@@ -77,8 +77,8 @@ impl App {
         Store::new(&self.root)
     }
 
-    /// Tüm kayıtları kütüphane klasörüne yazar.
-    fn save_backup(&mut self) -> Msg {
+    /// Bütün kayıtlar (konumlar, notlar, ayarlar, kelimeler), yedeklenecek biçimde.
+    pub(super) fn collect_backup(&mut self) -> Backup {
         self.shutdown();
         let books: BTreeMap<String, BookState> = self
             .store
@@ -86,13 +86,18 @@ impl App {
             .into_iter()
             .filter_map(|id| Some((id.clone(), self.store.load(&book_file(&id))?)))
             .collect();
-        let count = books.len();
-        let backup = Backup {
+        Backup {
             created: super::annotations::now(),
             settings: self.defaults.clone(),
             books,
             words: self.words.clone(),
-        };
+        }
+    }
+
+    /// Tüm kayıtları kütüphane klasörüne yazar.
+    fn save_backup(&mut self) -> Msg {
+        let backup = self.collect_backup();
+        let count = backup.books.len();
         match self.backup_store().try_save(BACKUP_FILE, &backup) {
             Ok(()) => Msg::BackupSaved { books: count },
             Err(e) => {
@@ -111,6 +116,11 @@ impl App {
         let Some(backup) = store.load::<Backup>(BACKUP_FILE) else {
             return Msg::BackupFailed;
         };
+        self.restore_from(backup)
+    }
+
+    /// Yedeği yerel kayıtlarla birleştirir; ayarlar yedektekiyle değişir.
+    pub(super) fn restore_from(&mut self, backup: Backup) -> Msg {
         let count = backup.books.len();
         for (id, saved) in backup.books {
             let file = book_file(&id);
@@ -168,6 +178,8 @@ impl App {
             self.save_backup()
         } else if restore.contains(x, y) {
             self.restore_backup()
+        } else if self.webdav_button().contains(x, y) {
+            return self.open_webdav();
         } else if self.deepl_button().contains(x, y) {
             return self.open_deepl_form();
         } else if self.upload_button().contains(x, y) {
@@ -203,6 +215,7 @@ impl App {
             Msg::DeeplKeyButton
         };
         draw_button(t, canvas, self.deepl_button(), &tr(&deepl), ROW_PX);
+        draw_button(t, canvas, self.webdav_button(), "WebDAV", ROW_PX);
     }
 }
 

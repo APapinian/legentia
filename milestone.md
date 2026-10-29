@@ -396,7 +396,7 @@ Kullanıcı isteği (2026-10-28): 50 maddelik öneri listesi milestone olarak ka
 - [-] 41. KOReader eşitleme sunucusuyla okuma konumu eşitleme (O) (Kullanıcı kararı, 2026-10-29: yapılmayacak.)
 - [ ] 42. Calibre "kablosuz aygıt" bağlantısı (B)
 - [x] 43. Cihazda küçük web sayfası; telefondan/bilgisayardan kitap yükleme (O) (Araçlar → "Kablosuz yükleme": ekran açıkken bağımlılıksız küçük HTTP sunucusu (8080'den başlayarak boş port); ekranda adres ve her açılışta yeni 6 haneli kod. Tarayıcı sayfası dosyaları sürükle-bırakla `PUT` ile gönderir, `İndirilenler`'e kaydedilir, kütüphane kendiliğinden yenilenir. Yalnız kitap uzantıları; ad temizlenir, üzerine yazılmaz ("(2)"); 1 GB sınırı ve boş alan denetimi; yarım yükleme iz bırakmaz; 10 yanlış kodda sunucu kapanır; ekrandan çıkınca kapanır. İnternet ayarı kapalıyken açılmaz. Masaüstünde gerçek TCP istekleriyle denendi; cihazda Wi-Fi (Nickel kapalıyken) M10 işi.)
-- [ ] 44. WebDAV / Nextcloud kütüphanesi (O)
+- [x] 44. WebDAV / Nextcloud kütüphanesi (O) (Kullanıcı kararı: ikisi de. Araçlar → WebDAV: hesap (adres, kullanıcı, şifre; `webdav.json`, yedeğe girmez); "Yedeği gönder" yerel yedekle aynı biçimde "Legentia yedek.json"u `PUT` eder, "Yedeği al" indirip yerel kayıtlarla birleştirir; "Kitaplara göz at" `PROPFIND` (Depth 1) ile klasörler ve kitaplar, kitaplar indirme kuyruğuyla İndirilenler'e. Şifre yalnız 401'den sonra ve yalnız hesabın sunucusuna; Digest artık yönteme göre (PUT/PROPFIND). Yetki isteyen sahte WebDAV sunucusuyla uçtan uca denendi; gerçek Nextcloud'la denenmedi.)
 - [ ] 45. Dropbox (uygulamaya özel klasör; şartlar doğrulanacak) (O–B)
 - [ ] 46. Web makalelerini EPUB olarak okuma (Wallabag) (O)
 - [ ] 47. RSS haber okuyucu (O)

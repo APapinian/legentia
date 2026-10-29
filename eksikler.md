@@ -42,6 +42,7 @@ Yeni bir eksik bulununca bu dosyaya eklenir; giderilen madde silinir ve ne yapı
 - **Kitap içi arama eşzamanlı:** bütün bölümler arama sırasında okunur; cihazda büyük kitapta (ya da yüzlerce sayfalık PDF'te) ekran birkaç saniye bekleyebilir. Yavaşsa arka plana alınacak. (M11)
 - **EPUB görselleri:** GIF ve SVG çizimleri gösterilmiyor; tablolar ızgara olarak değil satır satır akıyor; satır içi küçük görseller paragrafı bölüyor; gece modunda görseller de ters dönüyor. Görsel çözme süresi (büyük JPEG) cihazda ölçülecek. (M11)
 - **Kütüphanede arama yok.** Türkçe sıralama var ama kütüphanede kitap aramak için alan yok. (M4)
+- **WebDAV:** gerçek Nextcloud/ownCloud ile denenmedi; şifre `webdav.json`'da düz metin; yedek tek dosya, çakışmada son gönderen kazanır (alırken birleşir); sunucu yönlendirmesi (3xx) izlenmiyor. (M11)
 - **DeepL:** gerçek bir anahtarla denenmedi (yalnız sahte sunucu); anahtar `deepl.json`'da düz metin; seçim en çok 5000 karakter. (M11)
 - **İngilizce arayüz:** klavye Türkçe Q düzeninde kalıyor; klasör/dosya adları ("İndirilenler", "Sözlükler", "Legentia yedek.json") Türkçe; ekran görüntüsü aracının menü dokunuşları eski. Uzun İngilizce metinlerin düğmelere sığdığı yalnız kütüphane ve menüde görüldü. (M11)
 - **Kablosuz yükleme:** düz HTTP (şifresiz); aynı ağdaki biri trafiği görebilir, kod yalnızca yanlışlıkla/tahminle yüklemeyi önler. Nickel kapalıyken Kobo'da Wi-Fi'nin açık olup olmadığı cihazda denenecek; ağ adresi "dışarıya giden yol" ile bulunuyor, yönlendirici yoksa adres bulunamaz. (M11)

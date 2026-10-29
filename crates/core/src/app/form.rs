@@ -35,6 +35,8 @@ pub(super) enum FormKind {
     BookInfo(usize),
     /// DeepL API anahtarı.
     DeeplKey,
+    /// WebDAV hesabı: adres, kullanıcı, şifre.
+    WebDav,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -95,6 +97,7 @@ impl Form {
             FormKind::AnnotationTag(_) => Msg::TagTitle,
             FormKind::BookInfo(_) => Msg::EditBookInfo,
             FormKind::DeeplKey => Msg::DeeplKeyButton,
+            FormKind::WebDav => Msg::DavAccount,
         }
     }
 

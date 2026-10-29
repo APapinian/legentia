@@ -124,7 +124,7 @@ impl Net {
                 .iter()
                 .filter_map(|v| v.to_str().ok().map(str::to_string))
                 .collect();
-            let header = authorization(&challenges, a, url)?;
+            let header = authorization("GET", &challenges, a, url)?;
             resp = self.agent.get(url).header("Authorization", header).call()?;
         }
         match resp.status().as_u16() {
@@ -152,6 +152,49 @@ impl Net {
         let req = b.body(body).map_err(|e| NetError::Invalid(e.to_string()))?;
         let mut resp = self.agent.run(req)?;
         let status = resp.status().as_u16();
+        Self::read_limited(&mut resp, limit).map(|out| (status, out))
+    }
+
+    /// `send`, ama yetki bilgisi `request` gibi yalnızca sunucu 401 ile
+    /// isteyince (Basic ya da yönteme göre Digest) gönderilir.
+    pub fn send_auth(
+        &self,
+        method: &str,
+        url: &str,
+        headers: &[(&str, String)],
+        body: Vec<u8>,
+        limit: u64,
+        auth: Option<&Auth>,
+    ) -> Result<(u16, Vec<u8>), NetError> {
+        let build = |extra: Option<String>, body: Vec<u8>| {
+            let mut b = ureq::http::Request::builder().method(method).uri(url);
+            for (k, v) in headers {
+                b = b.header(*k, v);
+            }
+            if let Some(a) = extra {
+                b = b.header("Authorization", a);
+            }
+            b.body(body).map_err(|e| NetError::Invalid(e.to_string()))
+        };
+        let mut resp = self.agent.run(build(None, body.clone())?)?;
+        if let (401, Some(a)) = (resp.status().as_u16(), auth) {
+            let challenges: Vec<String> = resp
+                .headers()
+                .get_all("www-authenticate")
+                .iter()
+                .filter_map(|v| v.to_str().ok().map(str::to_string))
+                .collect();
+            let header = authorization(method, &challenges, a, url)?;
+            resp = self.agent.run(build(Some(header), body)?)?;
+        }
+        let status = resp.status().as_u16();
+        Self::read_limited(&mut resp, limit).map(|out| (status, out))
+    }
+
+    fn read_limited(
+        resp: &mut ureq::http::Response<ureq::Body>,
+        limit: u64,
+    ) -> Result<Vec<u8>, NetError> {
         let mut out = Vec::new();
         resp.body_mut()
             .as_reader()
@@ -161,7 +204,7 @@ impl Net {
         if out.len() as u64 > limit {
             return Err(NetError::TooLarge);
         }
-        Ok((status, out))
+        Ok(out)
     }
 
     /// Yanıtın gövdesi (en fazla `limit` bayt).
@@ -240,7 +283,12 @@ pub fn partial_path(dest: &Path) -> PathBuf {
 
 /// Sunucunun istediği `Authorization` başlığı: MD5 Digest istendiyse o,
 /// yöntem bildirilmediyse ya da Basic istendiyse Basic.
-fn authorization(challenges: &[String], auth: &Auth, url: &str) -> Result<String, NetError> {
+fn authorization(
+    method: &str,
+    challenges: &[String],
+    auth: &Auth,
+    url: &str,
+) -> Result<String, NetError> {
     let digests: Vec<&str> = challenges
         .iter()
         .filter_map(|c| {
@@ -254,12 +302,18 @@ fn authorization(challenges: &[String], auth: &Auth, url: &str) -> Result<String
     }
     digests
         .iter()
-        .find_map(|d| digest(&params(d), auth, &request_target(url), &cnonce()))
+        .find_map(|d| digest(method, &params(d), auth, &request_target(url), &cnonce()))
         .ok_or_else(|| NetError::Invalid(format!("unsupported digest challenge: {digests:?}")))
 }
 
 /// RFC 7616 Digest yanıtı (yalnızca MD5; `qop=auth` ya da eski biçim).
-fn digest(params: &[(String, String)], auth: &Auth, uri: &str, cnonce: &str) -> Option<String> {
+fn digest(
+    method: &str,
+    params: &[(String, String)],
+    auth: &Auth,
+    uri: &str,
+    cnonce: &str,
+) -> Option<String> {
     let get = |k: &str| {
         params
             .iter()
@@ -277,7 +331,7 @@ fn digest(params: &[(String, String)], auth: &Auth, uri: &str, cnonce: &str) -> 
         Some(_) => return None, // yalnızca auth-int
     };
     let ha1 = md5_hex(&format!("{}:{realm}:{}", auth.user, auth.password));
-    let ha2 = md5_hex(&format!("GET:{uri}"));
+    let ha2 = md5_hex(&format!("{method}:{uri}"));
     let nc = "00000001";
     let response = match qop {
         Some(q) => md5_hex(&format!("{ha1}:{nonce}:{nc}:{cnonce}:{q}:{ha2}")),
@@ -469,7 +523,7 @@ mod tests {
             user: "Mufasa".into(),
             password: "Circle Of Life".into(),
         };
-        let header = digest(&params(rest), &auth, "/dir/index.html", "0a4f113b").unwrap();
+        let header = digest("GET", &params(rest), &auth, "/dir/index.html", "0a4f113b").unwrap();
         assert!(
             header.contains(r#"response="6629fae49393a05397450978507c4ef1""#),
             "{header}"
@@ -478,9 +532,9 @@ mod tests {
         assert!(header.contains(r#"opaque="5ccc069c403ebaf9f0171e9517f40e41""#));
         // SHA-256 ya da yalnızca auth-int istenirse desteklenmez.
         let sha = params(r#"realm="r", nonce="n", algorithm=SHA-256"#);
-        assert!(digest(&sha, &auth, "/", "c").is_none());
+        assert!(digest("GET", &sha, &auth, "/", "c").is_none());
         let int = params(r#"realm="r", nonce="n", qop="auth-int""#);
-        assert!(digest(&int, &auth, "/", "c").is_none());
+        assert!(digest("GET", &int, &auth, "/", "c").is_none());
     }
 
     #[test]

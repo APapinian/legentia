@@ -3357,3 +3357,170 @@ fn selected_text_is_translated_with_the_users_deepl_key() {
     assert!(!data.join("deepl.json").exists());
     let _ = root;
 }
+
+/// Sahte WebDAV: Basic yetki ister (ad: ali, şifre: gizli); /dav/ altında bir
+/// klasör ve bir kitap, PUT ile gelen yedeği saklar.
+fn webdav_server() -> (String, std::sync::Arc<std::sync::Mutex<Vec<String>>>) {
+    use std::io::{BufRead, BufReader, Read, Write};
+    use std::sync::{Arc, Mutex};
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let url = format!("http://{}", listener.local_addr().unwrap());
+    let log = Arc::new(Mutex::new(Vec::new()));
+    let seen = log.clone();
+    std::thread::spawn(move || {
+        let mut stored: Option<Vec<u8>> = None;
+        for stream in listener.incoming().flatten() {
+            let mut reader = BufReader::new(stream.try_clone().unwrap());
+            let mut first = String::new();
+            reader.read_line(&mut first).unwrap();
+            let (mut auth, mut len) = (String::new(), 0usize);
+            loop {
+                let mut line = String::new();
+                reader.read_line(&mut line).unwrap();
+                if line.trim().is_empty() {
+                    break;
+                }
+                let lower = line.to_lowercase();
+                if lower.starts_with("authorization:") {
+                    auth = line[14..].trim().to_string();
+                }
+                if let Some(v) = lower.strip_prefix("content-length:") {
+                    len = v.trim().parse().unwrap();
+                }
+            }
+            let mut body = vec![0; len];
+            reader.read_exact(&mut body).unwrap();
+            let mut parts = first.split_whitespace();
+            let (method, path) = (
+                parts.next().unwrap().to_string(),
+                parts.next().unwrap().to_string(),
+            );
+            seen.lock()
+                .unwrap()
+                .push(format!("{method} {path} {}", !auth.is_empty()));
+            // "ali:gizli" base64.
+            let (status, extra, answer): (&str, &str, Vec<u8>) = if auth != "Basic YWxpOmdpemxp" {
+                (
+                    "401 Unauthorized",
+                    "WWW-Authenticate: Basic realm=\"dav\"\r\n",
+                    Vec::new(),
+                )
+            } else {
+                match (method.as_str(), path.as_str()) {
+                    ("PROPFIND", "/dav/") => ("207 Multi-Status", "", br#"<?xml version="1.0"?><d:multistatus xmlns:d="DAV:">
+<d:response><d:href>/dav/</d:href><d:propstat><d:prop><d:resourcetype><d:collection/></d:resourcetype></d:prop></d:propstat></d:response>
+<d:response><d:href>/dav/Romanlar/</d:href><d:propstat><d:prop><d:resourcetype><d:collection/></d:resourcetype></d:prop></d:propstat></d:response>
+<d:response><d:href>/dav/kitap.epub</d:href><d:propstat><d:prop><d:resourcetype/></d:prop></d:propstat></d:response>
+</d:multistatus>"#.to_vec()),
+                    ("PROPFIND", "/dav/Romanlar/") => ("207 Multi-Status", "", br#"<d:multistatus xmlns:d="DAV:"><d:response><d:href>/dav/Romanlar/</d:href><d:propstat><d:prop><d:resourcetype><d:collection/></d:resourcetype></d:prop></d:propstat></d:response></d:multistatus>"#.to_vec()),
+                    ("GET", "/dav/kitap.epub") => ("200 OK", "", epub2_sample()),
+                    ("PUT", "/dav/Legentia%20yedek.json") => {
+                        stored = Some(body);
+                        ("201 Created", "", Vec::new())
+                    }
+                    ("GET", "/dav/Legentia%20yedek.json") => match &stored {
+                        Some(b) => ("200 OK", "", b.clone()),
+                        None => ("404 Not Found", "", Vec::new()),
+                    },
+                    _ => ("404 Not Found", "", Vec::new()),
+                }
+            };
+            let mut s = stream;
+            let _ = write!(
+                s,
+                "HTTP/1.1 {status}\r\n{extra}Content-Length: {}\r\nConnection: close\r\n\r\n",
+                answer.len()
+            );
+            let _ = s.write_all(&answer);
+        }
+    });
+    (url, log)
+}
+
+#[test]
+fn webdav_sends_and_merges_backups_and_downloads_books() {
+    let (url, log) = webdav_server();
+    let (mut app, data, root) = setup(&[("a.epub", epub3_sample())]);
+    app.view = View::Backup;
+    let at = app.webdav_button().center();
+    tap(&mut app, at);
+    assert!(matches!(app.view, View::Form(_)), "hesap yokken önce form");
+    fill_form(&mut app, &["ftp://x", "ali", "gizli"]);
+    form_button(&mut app, form::Button::Submit);
+    assert!(form(&app).error.is_some(), "geçersiz adres");
+    fill_form(&mut app, &[&format!("{url}/dav"), "ali", "gizli"]);
+    form_button(&mut app, form::Button::Submit);
+    assert!(matches!(app.view, View::WebDav));
+    assert!(data.join("webdav.json").exists());
+
+    // Yedek yokken alma: anlaşılır mesaj.
+    let [push, pull, browse, _] = app.dav_buttons();
+    tap(&mut app, pull.center());
+    settle(&mut app);
+    assert!(matches!(
+        app.view,
+        View::Message {
+            msg: Msg::DavNoBackup,
+            ..
+        }
+    ));
+    // Gönder, sonra yerelde kelime silinmiş olsa da al: birleşir.
+    app.toggle_saved("ağaç", "ağaç");
+    app.view = View::WebDav;
+    tap(&mut app, push.center());
+    settle(&mut app);
+    assert!(matches!(
+        app.view,
+        View::Message {
+            msg: Msg::DavPushed,
+            ..
+        }
+    ));
+    app.toggle_saved("ağaç", "ağaç");
+    assert!(app.words.is_empty());
+    app.view = View::WebDav;
+    tap(&mut app, pull.center());
+    settle(&mut app);
+    assert!(matches!(
+        app.view,
+        View::Message {
+            msg: Msg::RestoreDone { .. },
+            ..
+        }
+    ));
+    assert_eq!(app.words.len(), 1, "yedekteki kelime geri geldi");
+
+    // Gezinme: klasör önce, kitap sonra; kitap indirilir.
+    app.view = View::WebDav;
+    tap(&mut app, browse.center());
+    settle(&mut app);
+    assert!(matches!(app.view, View::DavBrowse { page: 0 }));
+    let names: Vec<String> = app
+        .dav
+        .dirs
+        .last()
+        .unwrap()
+        .1
+        .iter()
+        .map(|e| e.name.clone())
+        .collect();
+    assert_eq!(names, ["Romanlar", "kitap.epub"]);
+    let mut c = Canvas::new(W, LIBRA2_HEIGHT);
+    app.draw(&mut c);
+    tap_row(&mut app, &super::webdav::DAV_LIST, 1);
+    settle(&mut app);
+    assert!(root.join("İndirilenler/kitap.epub").exists());
+    tap_row(&mut app, &super::webdav::DAV_LIST, 0);
+    settle(&mut app);
+    assert_eq!(app.dav.dirs.len(), 2, "alt klasöre girildi");
+    app.draw(&mut c);
+    tap(&mut app, super::ui::back_button(W).center());
+    assert_eq!(app.dav.dirs.len(), 1);
+
+    // Şifre ilk istekte gitmez, yalnızca 401'den sonra.
+    let log = log.lock().unwrap();
+    assert!(log.iter().any(|l| l.ends_with("false")) && log.iter().any(|l| l.ends_with("true")));
+    for pair in log.chunks(2) {
+        assert!(pair[0].ends_with("false"), "{log:?}");
+    }
+}

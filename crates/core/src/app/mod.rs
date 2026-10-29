@@ -33,6 +33,7 @@ mod stats;
 mod translate;
 mod ui;
 mod upload;
+mod webdav;
 mod words;
 
 use std::cell::RefCell;
@@ -86,6 +87,12 @@ enum View {
     Stats,
     /// Kablosuz yükleme sunucusu açık (`upload`).
     Upload,
+    /// WebDAV: yedek gönder/al, gez, hesap.
+    WebDav,
+    /// WebDAV klasörü (`dav.dirs` sonuncusu).
+    DavBrowse {
+        page: usize,
+    },
     /// Sözlük sonucu (`lookup`), sayfası.
     Lookup {
         page: usize,
@@ -188,6 +195,8 @@ pub struct App {
     /// ve eksikleri üreten iş.
     covers: HashMap<String, Option<covers::Thumb>>,
     cover_job: Option<covers::CoverJob>,
+    /// WebDAV hesabı, işi ve açılan klasörleri.
+    dav: webdav::Dav,
     /// Kullanıcının DeepL API anahtarı (`deepl.json`); yoksa çeviri yok.
     deepl_key: Option<String>,
     /// Açık kablosuz yükleme sunucusu (yalnızca yükleme ekranındayken).
@@ -269,6 +278,7 @@ impl App {
         let words = store.load(words::WORDS_FILE).unwrap_or_default();
         let pace = store.load(pace::PACE_FILE).unwrap_or_default();
         let stats = store.load(stats::STATS_FILE).unwrap_or_default();
+        let dav_account = store.load(webdav::WEBDAV_FILE);
         let deepl_key = store
             .load::<translate::DeeplKey>(translate::DEEPL_FILE)
             .map(|k| k.key)
@@ -310,6 +320,10 @@ impl App {
             cover_job: None,
             upload: None,
             deepl_key,
+            dav: webdav::Dav {
+                account: dav_account,
+                ..Default::default()
+            },
             stats,
             stats_dirty: false,
             library_query: None,
@@ -455,7 +469,8 @@ impl App {
             let turned = self.poll_auto_turn();
             let covers = self.poll_covers();
             let upload = self.poll_upload();
-            return [feed, downloads, online, turned, covers, upload]
+            let dav = self.poll_dav();
+            return [feed, downloads, online, turned, covers, upload, dav]
                 .into_iter()
                 .flatten()
                 .max_by_key(|r| *r == Refresh::Full);
@@ -517,6 +532,8 @@ impl App {
             View::Backup => self.handle_backup(event),
             View::Stats => self.handle_stats(event),
             View::Upload => self.handle_upload(event),
+            View::WebDav => self.handle_webdav(event),
+            View::DavBrowse { page } => self.handle_dav_browse(*page, event),
             View::Lookup { page } => self.handle_lookup(*page, event),
             View::Words { page } => self.handle_words(*page, event),
             View::Review { card, answer, done } => {
@@ -742,6 +759,8 @@ impl App {
             View::Backup => self.draw_backup(canvas),
             View::Stats => self.draw_stats(canvas),
             View::Upload => self.draw_upload(canvas),
+            View::WebDav => self.draw_webdav(canvas),
+            View::DavBrowse { page } => self.draw_dav_browse(canvas, *page),
             View::Lookup { page } => self.draw_lookup(canvas, *page),
             View::Words { page } => self.draw_words(canvas, *page),
             View::Review { card, answer, done } => {
