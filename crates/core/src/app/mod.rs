@@ -55,7 +55,7 @@ use crate::pdf::{GrayImage, PdfDoc, PdfEdit};
 use crate::storage::Store;
 use crate::text::Text;
 pub use annotations::Annotation;
-pub use device::DeviceStatus;
+pub use device::{DeviceStatus, save_png};
 pub use session::{BookInfo, BookState, Bookmark, Position};
 use session::{Doc, Session, Target};
 pub use settings::Settings;

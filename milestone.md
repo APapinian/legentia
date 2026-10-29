@@ -363,12 +363,12 @@ Kullanıcı isteği (2026-10-28): 50 maddelik öneri listesi milestone olarak ka
 
 ### Cihaz (Libra 2)
 - [x] 16. Ön ışık ve sıcak ışık ayarı (O) (Kullanıcı kararı: okuma menüsünde "Işık": parlaklık (0–100, düşük uçta sık adımlar) ve sıcaklık (0–10) −/+, "Işığı kapat"; anında uygulanır, genel ayar. Hiç ayarlanmadıysa cihazın ışığına dokunulmaz. Libra 2: `backlight/mxc_msp430.0/brightness`, `leds/aw99703-bl_FL1/color` (KOReader'a göre ters: 0 en sıcak; cihazda doğrulanacak).)
-- [ ] 17. Uyku/uyanma; uyku ekranında kitabın kapağı (O)
+- [x] 17. Uyku/uyanma; uyku ekranında kitabın kapağı (O) (Kullanıcı kararı: güç tuşu kısa basış uyku, 3 sn basılı tutma çıkış. Uykuda ekranda açık (yoksa son açılan) kitabın kapağı ekran boyunda, ışık söner; çekirdek KOReader'ın yoluyla askıya alınır (`state-extended`, `sync`, `mem`). Wi-Fi açıksa çekirdek uyutulmaz, yalnız ekran ve ışık. Cihazda denenmedi.)
 - [x] 18. Üst çubukta pil ve saat (K) (Pil yüzdesi (şarjda "şarj") ve saat okuma ekranının ve kütüphanenin alt satırında sağda, yer varsa. Cihaz saati UTC; yeni "Cihaz" ayar sayfasında "Saat dilimi" (varsayılan UTC+3, 30 dk adım). Libra 2: `power_supply/battery/capacity|status`.)
-- [ ] 19. Otomatik uyku zamanlayıcısı (K)
+- [x] 19. Otomatik uyku zamanlayıcısı (K) ("Cihaz" ayarlarında "Otomatik uyku" (kapalı/5/10/15/30/60 dk, varsayılan 15); arka plan işi sürerken uyunmaz. Cihazda denenmedi.)
 - [ ] 20. Uygulama içinden Wi-Fi açma, kapama ve ağ seçme (B)
 - [ ] 21. Nickel'a yeniden başlatmadan, hızlı dönüş (O)
-- [ ] 22. Ekran görüntüsü alma (K)
+- [x] 22. Ekran görüntüsü alma (K) (Kullanıcı kararı: iki sayfa tuşu birlikte. Sayfa tuşları artık bırakılınca çevirir (birlikte basılınca sayfa çevrilmeden görüntü alınsın diye); PNG kütüphanede "Ekran görüntüleri"ne, yerel saatle adlandırılır; ekran bir kez tam yenilenir. Cihazda denenmedi.)
 
 ### Kütüphane
 - [x] 23. Kütüphanede arama ve sıralama (K) (Kullanıcı kararı: başlığın altında araç çubuğu. Ara (başlık/yazar; büyük/küçük harf, şapka, noktalı i fark etmez; yeniden dokununca kaldırılır), sıra: son okunan / başlık / yazar / eklenme (dokundukça değişir, kalıcı). Testli.)

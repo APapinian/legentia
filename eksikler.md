@@ -55,6 +55,8 @@ Yeni bir eksik bulununca bu dosyaya eklenir; giderilen madde silinir ve ne yapı
 - **Yatayda (rotasyon 0) dokunma 180° tersti:** "Otomatik çevir"e basınca "İçindekiler". 0 ve 2'nin formülleri yer değiştirdi.
 - **Cihaz yolları:** ışık `backlight/mxc_msp430.0/brightness` (0–100), sıcaklık `leds/aw99703-bl_FL1|FL2/color` (0–10), pil `power_supply/battery/capacity|status`, saat UTC (RTC bd70528).
 
+- **Uyku:** Wi-Fi açıkken çekirdek uyutulmuyor (yalnız ekran/ışık); askıya alma ve uyanma cihazda denenmedi. Bekçi (15 dk) hâlâ açık: uzun okumada program kapanabilir; uyku doğrulanınca kapatılacak. Sayfa tuşları bırakılınca çeviriyor (çok kısa gecikme).
+
 ## İşlev eksikleri
 
 - **TDK erişimi resmî değil:** belgelenmemiş `sozluk.gov.tr/gts` ucu kullanılıyor. Adres ya da biçim değişirse TDK araması çalışmaz. Kısa sürede çok istek gelince TDK boş yanıt dönüyor (denemede görüldü); uygulama o zaman "Sunucunun yanıtı anlaşılamadı" diyor. (M8)

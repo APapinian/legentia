@@ -29,9 +29,9 @@ const COVERS_DIR: &str = "kapaklar";
 
 /// Gri tonlu küçük resim.
 pub(super) struct Thumb {
-    w: u32,
-    h: u32,
-    pixels: Vec<u8>,
+    pub w: u32,
+    pub h: u32,
+    pub pixels: Vec<u8>,
 }
 
 /// Üretilecek kapaklar: (kimlik, dosya, biçim).
@@ -104,7 +104,7 @@ fn save(file: &Path, thumb: Option<&Thumb>) {
 }
 
 /// Kitabın kapağını `max_w`×`max_h`'ye sığacak biçimde çizer.
-fn make(path: &Path, format: Format, max_w: u32, max_h: u32) -> Option<Thumb> {
+pub(super) fn make(path: &Path, format: Format, max_w: u32, max_h: u32) -> Option<Thumb> {
     match format {
         Format::Epub => {
             let book = Book::open(path).ok()?;

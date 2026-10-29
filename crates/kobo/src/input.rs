@@ -54,7 +54,10 @@ pub enum Input {
         y: u32,
     },
     Page(PageKey),
-    Power,
+    /// Güç tuşu basıldı (`true`) ya da bırakıldı.
+    Power(bool),
+    /// İki sayfa tuşu birlikte basıldı.
+    Screenshot,
     /// İvmeölçer: cihaz yatay mı ve baskın eksenin yönü (yatayın hangi yana olduğu).
     Tilt {
         landscape: bool,
@@ -172,23 +175,59 @@ impl Touch {
     }
 }
 
-/// Basılan tuşun komutu (tekrar ve bırakma yok sayılır). Ters dikeyde (3)
-/// fiziksel üst tuş 194 olur; üstteki tuş her zaman geri. Yatayda (0, 2)
-/// tuşların anlamı cihazda doğrulanmadı; 2'de de yer değiştirir.
-pub fn key(e: RawEvent, rotate: u32) -> Option<Input> {
-    if e.kind != EV_KEY || e.value != 1 {
-        return None;
-    }
+/// Fiziksel tuşun komutu: ters dikeyde (3) fiziksel üst tuş 194 olur; üstteki
+/// tuş her zaman geri. Yatayda 0'da yer değiştirmez, 2'de değiştirir.
+fn page_key(code: u16, rotate: u32) -> Option<PageKey> {
     let (back, forward) = if matches!(rotate % 4, 2 | 3) {
         (KEY_PAGE_FORWARD, KEY_PAGE_BACK)
     } else {
         (KEY_PAGE_BACK, KEY_PAGE_FORWARD)
     };
-    match e.code {
-        c if c == back => Some(Input::Page(PageKey::Back)),
-        c if c == forward => Some(Input::Page(PageKey::Forward)),
-        KEY_POWER => Some(Input::Power),
+    match code {
+        c if c == back => Some(PageKey::Back),
+        c if c == forward => Some(PageKey::Forward),
         _ => None,
+    }
+}
+
+/// Tuşlar: sayfa tuşu bırakılınca çevirir (basılıyken öbür tuşa da basılırsa
+/// ekran görüntüsü alınır, sayfa çevrilmez); güç tuşu basma ve bırakma.
+#[derive(Debug, Default)]
+pub struct Keys {
+    /// Basılı sayfa tuşları (fiziksel kod) ve bırakılınca verilecek komut.
+    down: Vec<u16>,
+    pending: Option<(u16, PageKey)>,
+}
+
+impl Keys {
+    pub fn feed(&mut self, e: RawEvent, rotate: u32) -> Option<Input> {
+        if e.kind != EV_KEY || e.value == 2 {
+            return None;
+        }
+        let pressed = e.value == 1;
+        if e.code == KEY_POWER {
+            return Some(Input::Power(pressed));
+        }
+        let key = page_key(e.code, rotate)?;
+        if pressed {
+            let chord = !self.down.is_empty();
+            self.down.push(e.code);
+            if chord {
+                self.pending = None;
+                return Some(Input::Screenshot);
+            }
+            self.pending = Some((e.code, key));
+            None
+        } else {
+            self.down.retain(|c| *c != e.code);
+            match self.pending.take() {
+                Some((code, key)) if code == e.code => Some(Input::Page(key)),
+                other => {
+                    self.pending = other;
+                    None
+                }
+            }
+        }
     }
 }
 
@@ -347,6 +386,7 @@ pub fn spawn_readers(tx: &Sender<Input>, rotation: &Arc<AtomicU32>) -> usize {
         std::thread::spawn(move || {
             let mut state = Touch::new(rotation.clone());
             let mut tilt = Accel::default();
+            let mut keys = Keys::default();
             let mut buf = [0u8; EVENT_SIZE];
             // Tanı: ivmeölçerin ilk ham olayları ve her aygıtın EV_MSC'leri günlüğe.
             let mut logged = 0u32;
@@ -362,7 +402,7 @@ pub fn spawn_readers(tx: &Sender<Input>, rotation: &Arc<AtomicU32>) -> usize {
                     // olduğu doğrulanmadı).
                     inputs.extend(tilt.feed(raw));
                 } else {
-                    inputs.extend(key(raw, rotation.load(Ordering::Relaxed)));
+                    inputs.extend(keys.feed(raw, rotation.load(Ordering::Relaxed)));
                 }
                 if inputs.into_iter().any(|i| tx.send(i).is_err()) {
                     return;
@@ -390,13 +430,49 @@ mod tests {
         buf[EVENT_SIZE - 6..EVENT_SIZE - 4].copy_from_slice(&KEY_PAGE_FORWARD.to_ne_bytes());
         buf[EVENT_SIZE - 4..].copy_from_slice(&1i32.to_ne_bytes());
         assert_eq!(parse(&buf), ev(EV_KEY, KEY_PAGE_FORWARD, 1));
-        assert_eq!(key(parse(&buf), 1), Some(Input::Page(PageKey::Forward)));
+    }
+
+    /// Basıp bırakma: bırakınca çıkan komutlar.
+    fn press(keys: &mut Keys, code: u16, rotate: u32) -> Vec<Input> {
+        [1, 0]
+            .into_iter()
+            .filter_map(|v| keys.feed(ev(EV_KEY, code, v), rotate))
+            .collect()
+    }
+
+    #[test]
+    fn page_keys_turn_on_release_and_both_together_take_a_screenshot() {
+        let mut k = Keys::default();
         assert_eq!(
-            key(ev(EV_KEY, KEY_PAGE_FORWARD, 2), 1),
+            press(&mut k, KEY_PAGE_FORWARD, 1),
+            [Input::Page(PageKey::Forward)]
+        );
+        assert_eq!(
+            k.feed(ev(EV_KEY, KEY_PAGE_FORWARD, 2), 1),
             None,
             "tekrar yok sayılır"
         );
-        assert_eq!(key(ev(EV_KEY, KEY_POWER, 1), 1), Some(Input::Power));
+        assert_eq!(k.feed(ev(EV_KEY, KEY_PAGE_FORWARD, 0), 1), None);
+        // İkisi birlikte: ekran görüntüsü, sayfa çevrilmez.
+        assert_eq!(k.feed(ev(EV_KEY, KEY_PAGE_BACK, 1), 1), None);
+        assert_eq!(
+            k.feed(ev(EV_KEY, KEY_PAGE_FORWARD, 1), 1),
+            Some(Input::Screenshot)
+        );
+        assert_eq!(k.feed(ev(EV_KEY, KEY_PAGE_BACK, 0), 1), None);
+        assert_eq!(k.feed(ev(EV_KEY, KEY_PAGE_FORWARD, 0), 1), None);
+        assert_eq!(
+            press(&mut k, KEY_PAGE_BACK, 1),
+            [Input::Page(PageKey::Back)]
+        );
+        assert_eq!(
+            k.feed(ev(EV_KEY, KEY_POWER, 1), 1),
+            Some(Input::Power(true))
+        );
+        assert_eq!(
+            k.feed(ev(EV_KEY, KEY_POWER, 0), 1),
+            Some(Input::Power(false))
+        );
     }
 
     #[test]
@@ -425,15 +501,19 @@ mod tests {
             to_screen(840, 300, 3),
             (LIBRA2_WIDTH - 1 - x, LIBRA2_HEIGHT - 1 - y)
         );
+        let mut k = Keys::default();
         assert_eq!(
-            key(ev(EV_KEY, KEY_PAGE_BACK, 1), 3),
-            Some(Input::Page(PageKey::Forward))
+            press(&mut k, KEY_PAGE_BACK, 3),
+            [Input::Page(PageKey::Forward)]
         );
         assert_eq!(
-            key(ev(EV_KEY, KEY_PAGE_FORWARD, 1), 3),
-            Some(Input::Page(PageKey::Back))
+            press(&mut k, KEY_PAGE_FORWARD, 3),
+            [Input::Page(PageKey::Back)]
         );
-        assert_eq!(key(ev(EV_KEY, KEY_POWER, 1), 3), Some(Input::Power));
+        assert_eq!(
+            press(&mut k, KEY_PAGE_FORWARD, 0),
+            [Input::Page(PageKey::Forward)]
+        );
     }
 
     #[test]

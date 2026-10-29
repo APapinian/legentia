@@ -20,11 +20,36 @@ pub struct DeviceStatus {
     pub unix_time: Option<u64>,
 }
 
+/// Gün sırasından (1970'ten beri) yıl, ay, gün (Hinnant'ın algoritması).
+fn civil(day: i64) -> (i64, u32, u32) {
+    let z = day + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z.rem_euclid(146_097);
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = (doy - (153 * mp + 2) / 5 + 1) as u32;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 } as u32;
+    (yoe + era * 400 + i64::from(m <= 2), m, d)
+}
+
+/// PNG olarak kaydeder (ekran görüntüsü).
+pub fn save_png(canvas: &Canvas, path: &std::path::Path) -> std::io::Result<()> {
+    if let Some(dir) = path.parent() {
+        std::fs::create_dir_all(dir)?;
+    }
+    let img = image::GrayImage::from_raw(canvas.width(), canvas.height(), canvas.pixels().to_vec())
+        .ok_or_else(|| std::io::Error::other("canvas size"))?;
+    img.save_with_format(path, image::ImageFormat::Png)
+        .map_err(std::io::Error::other)
+}
+
 /// Parlaklık adımları (yüzde): karanlıkta ince ayar için düşük uçta sık.
 const BRIGHTNESS: [u8; 18] = [
     0, 1, 2, 3, 5, 8, 10, 15, 20, 25, 30, 40, 50, 60, 70, 80, 90, 100,
 ];
 pub(super) const MAX_WARMTH: u8 = 10;
+const SCREENSHOT_DIR: &str = "Ekran görüntüleri";
 const STEP: i32 = 110;
 
 impl App {
@@ -38,6 +63,62 @@ impl App {
     pub fn light(&self) -> Option<(u8, u8)> {
         let b = self.settings.light?;
         Some((b, self.settings.warmth.unwrap_or(MAX_WARMTH / 2)))
+    }
+
+    /// Platform: otomatik uykuya kadar dokunulmadan geçecek süre; kapalıysa `None`.
+    pub fn auto_sleep(&self) -> Option<std::time::Duration> {
+        (self.settings.auto_sleep > 0)
+            .then(|| std::time::Duration::from_secs(self.settings.auto_sleep as u64 * 60))
+    }
+
+    /// Platform: yeni ekran görüntüsünün yolu, kütüphanede "Ekran görüntüleri"
+    /// klasöründe, yerel saatle adlandırılmış.
+    pub fn screenshot_path(&self) -> std::path::PathBuf {
+        let t = self.status.unix_time.unwrap_or(0) as i64 + self.settings.utc_offset as i64 * 60;
+        let (y, m, d) = civil(t.div_euclid(86_400));
+        let s = t.rem_euclid(86_400);
+        let name = format!(
+            "Legentia {y}-{m:02}-{d:02} {:02}-{:02}-{:02}.png",
+            s / 3600,
+            s / 60 % 60,
+            s % 60
+        );
+        self.root.join(SCREENSHOT_DIR).join(name)
+    }
+
+    /// Platform: uyku ekranı. Açık (yoksa en son açılan) kitabın kapağı ekran
+    /// boyunda, altında kısa not; kapak yoksa yalnız not.
+    pub fn draw_sleep(&self, canvas: &mut Canvas) {
+        canvas.fill(255);
+        let (w, h) = (canvas.width(), canvas.height());
+        let book = match &self.session {
+            Some(s) => self.library.iter().find(|e| e.id == s.id),
+            None => self
+                .library
+                .iter()
+                .filter(|e| self.shelf.get(&e.id).is_some_and(|i| i.opened > 0))
+                .max_by_key(|e| self.shelf.get(&e.id).map_or(0, |i| i.opened)),
+        };
+        let note_h = 90;
+        if let Some(e) = book
+            && let Some(th) = super::covers::make(&e.path, e.format, w, h - note_h as u32)
+        {
+            let x = (w as i32 - th.w as i32) / 2;
+            let y = (h as i32 - note_h - th.h as i32).max(0) / 2;
+            canvas.blit(&th.pixels, th.w, th.h, x, y);
+        }
+        let t = &self.text;
+        let msg = tr(&Msg::Sleeping);
+        let tw = t.width_plain(&msg, Family::Ui, super::ui::PLAIN, 30.0) as i32;
+        t.draw_plain(
+            canvas,
+            &msg,
+            Family::Ui,
+            super::ui::PLAIN,
+            (w as i32 - tw) / 2,
+            h as i32 - 35,
+            30.0,
+        );
     }
 
     /// "15:42 · %87" (şarjdaysa "şarj" eki); bilinmeyen kısım yazılmaz.
@@ -210,5 +291,18 @@ mod tests {
         app.settings.utc_offset = -330;
         app.status.charging = true;
         assert_eq!(app.status_text().as_deref(), Some("07:29 · %87 şarj"));
+        app.settings.utc_offset = 180;
+        let p = app.screenshot_path();
+        assert!(
+            p.ends_with("Ekran görüntüleri/Legentia 2026-10-29 15-59-22.png"),
+            "{p:?}"
+        );
+        assert_eq!(civil(0), (1970, 1, 1));
+        assert_eq!(civil(11_016), (2000, 2, 29));
+        let mut c = Canvas::new(100, 120);
+        app.draw_sleep(&mut c);
+        let file = dir.join("ekran.png");
+        save_png(&c, &file).unwrap();
+        assert!(std::fs::read(&file).unwrap().starts_with(b"\x89PNG"));
     }
 }

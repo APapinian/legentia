@@ -141,6 +141,8 @@ pub enum Msg {
     ExportFailed,
     NoteLine(String),
     Tools,
+    Sleeping,
+    SettingAutoSleep,
     Light,
     LightHint,
     Brightness,
@@ -739,6 +741,8 @@ fn turkish(msg: &Msg) -> String {
             let a = m.unsigned_abs();
             if a % 60 == 0 { format!("UTC{sign}{}", a / 60) } else { format!("UTC{sign}{}:{:02}", a / 60, a % 60) }
         },
+        Msg::Sleeping => "Uykuda · uyandırmak için güç tuşuna basın".into(),
+        Msg::SettingAutoSleep => "Otomatik uyku".into(),
         Msg::Tools => "Araçlar".into(),
         Msg::Stats => "Okuma istatistikleri".into(),
         Msg::StatToday { secs, pages } => {
@@ -1178,6 +1182,8 @@ fn english(msg: &Msg) -> String {
             let a = m.unsigned_abs();
             if a % 60 == 0 { format!("UTC{sign}{}", a / 60) } else { format!("UTC{sign}{}:{:02}", a / 60, a % 60) }
         },
+        Msg::Sleeping => "Asleep · press the power button to wake".into(),
+        Msg::SettingAutoSleep => "Auto sleep".into(),
         Msg::Tools => "Tools".into(),
         Msg::Stats => "Reading statistics".into(),
         Msg::StatToday { secs, pages } => {
@@ -1647,6 +1653,8 @@ mod tests {
             BatteryCharging(50),
             UtcOffset(180),
             UtcOffset(-330),
+            Sleeping,
+            SettingAutoSleep,
             Tools,
             Stats,
             StatToday {

@@ -105,6 +105,8 @@ pub struct Settings {
     pub warmth: Option<u8>,
     /// Saat dilimi: UTC'den fark (dakika). Cihazın saati UTC tutulur.
     pub utc_offset: i32,
+    /// Dokunulmadan bu kadar dakika geçince uyku (0 kapalı).
+    pub auto_sleep: u32,
     /// Kütüphane araç çubuğunun sıralaması, süzgeci ve görünümü.
     pub library_sort: super::shelf::Sort,
     pub library_filter: super::shelf::Filter,
@@ -143,6 +145,7 @@ impl Default for Settings {
             light: None,
             warmth: None,
             utc_offset: 180,
+            auto_sleep: 15,
             library_sort: Default::default(),
             library_filter: Default::default(),
             library_view: Default::default(),
@@ -179,6 +182,7 @@ pub enum Field {
     Rtl,
     Language,
     UtcOffset,
+    AutoSleep,
 }
 
 /// Ayarlar ekranının sayfaları: yazı; PDF ve internet; okuma ve ekran. Hepsi
@@ -213,7 +217,7 @@ pub const FIELD_PAGES: [&[Field]; 4] = [
         Field::Orientation,
         Field::TwoColumns,
     ],
-    &[Field::Language, Field::UtcOffset],
+    &[Field::Language, Field::UtcOffset, Field::AutoSleep],
 ];
 
 /// Ayar sayfalarının başlıkları ve bir sonrakine geçiş düğmesinin etiketi.
@@ -248,6 +252,7 @@ impl Field {
             Field::TwoColumns => Msg::SettingTwoColumns,
             Field::Rtl => Msg::SettingRtl,
             Field::UtcOffset => Msg::SettingUtcOffset,
+            Field::AutoSleep => Msg::SettingAutoSleep,
             Field::Language => Msg::SettingLanguage,
             Field::PageKeysLandscape => Msg::SettingPageKeysLandscape,
             Field::PageKeys => Msg::SettingPageKeys,
@@ -328,6 +333,15 @@ impl Settings {
             }
             Field::PdfCrop => s.pdf_crop = !s.pdf_crop,
             Field::Rtl => s.rtl = !s.rtl,
+            Field::AutoSleep => {
+                const ALL: [u32; 6] = [0, 5, 10, 15, 30, 60];
+                let i = ALL.iter().position(|m| *m == s.auto_sleep).unwrap_or(3);
+                s.auto_sleep = ALL[if up {
+                    (i + 1).min(ALL.len() - 1)
+                } else {
+                    i.saturating_sub(1)
+                }];
+            }
             Field::UtcOffset => {
                 let step = if up { 30 } else { -30 };
                 s.utc_offset = (s.utc_offset + step).clamp(-720, 840);
@@ -412,6 +426,10 @@ impl Settings {
                 PdfView::Strip => &Msg::PdfViewStrip,
             }),
             Field::UtcOffset => tr(&Msg::UtcOffset(self.utc_offset)),
+            Field::AutoSleep => tr(&match self.auto_sleep {
+                0 => Msg::Off,
+                m => Msg::Minutes(m),
+            }),
             Field::Language => tr(&Msg::LanguageName(self.language)),
             Field::Rtl => tr(if self.rtl {
                 &Msg::RightToLeft

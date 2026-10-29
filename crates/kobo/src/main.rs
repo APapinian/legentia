@@ -9,6 +9,7 @@
 
 mod fb;
 mod input;
+mod sleep;
 
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -174,17 +175,44 @@ fn run() -> ExitCode {
 
     let clock = Instant::now();
     let mut last_tick = Instant::now();
+    // Güç tuşunun basıldığı an (kısa basış uyku, uzun basış çıkış) ve son girdi.
+    let mut power_down: Option<Instant> = None;
+    let mut last_input = Instant::now();
     loop {
-        let wait = if app.wants_ticks() {
+        let mut wait = if app.wants_ticks() {
             TICK.saturating_sub(last_tick.elapsed())
         } else {
             Duration::from_secs(3600)
         };
+        if let Some(t) = power_down {
+            wait = wait.min(POWER_HOLD.saturating_sub(t.elapsed()));
+        }
+        // Arka plan işi (indirme…) sürerken otomatik uyku yok.
+        let auto_sleep = app.auto_sleep().filter(|_| !app.wants_ticks());
+        if let Some(a) = auto_sleep {
+            wait = wait.min(a.saturating_sub(last_input.elapsed()));
+        }
         let mut events = Vec::new();
-        match rx.recv_timeout(wait) {
-            Ok(Input::Power) => {
-                log::info!("power button: exit");
-                break;
+        let received = rx.recv_timeout(wait);
+        if received.is_ok() {
+            last_input = Instant::now();
+        }
+        match received {
+            Ok(Input::Power(true)) => power_down = Some(Instant::now()),
+            Ok(Input::Power(false)) => {
+                if power_down.take().is_some() {
+                    go_to_sleep(&mut screen, &mut app, &mut canvas, &rx);
+                    last_input = Instant::now();
+                }
+            }
+            Ok(Input::Screenshot) => {
+                let path = app.screenshot_path();
+                match legentia_core::save_png(&canvas, &path) {
+                    Ok(()) => log::info!("screenshot {}", path.display()),
+                    Err(e) => log::error!("cannot save screenshot {}: {e}", path.display()),
+                }
+                // Görüldüğünü göstermek için ekran bir kez tam yenilenir.
+                present(&mut screen, &app, &mut canvas, Refresh::Full);
             }
             Ok(Input::Touch { phase, x, y }) => events.push(Event::Touch {
                 phase,
@@ -211,7 +239,17 @@ fn run() -> ExitCode {
                 }
                 events.push(Event::Tilt { landscape });
             }
-            Err(RecvTimeoutError::Timeout) => {}
+            Err(RecvTimeoutError::Timeout) => {
+                if power_down.is_some_and(|t| t.elapsed() >= POWER_HOLD) {
+                    log::info!("power button held: exit");
+                    break;
+                }
+                if auto_sleep.is_some_and(|a| last_input.elapsed() >= a) {
+                    log::info!("auto sleep");
+                    go_to_sleep(&mut screen, &mut app, &mut canvas, &rx);
+                    last_input = Instant::now();
+                }
+            }
             Err(RecvTimeoutError::Disconnected) => {
                 log::error!("all input devices closed");
                 break;
@@ -263,6 +301,42 @@ fn run() -> ExitCode {
     screen.restore();
     log::info!("exit");
     ExitCode::SUCCESS
+}
+
+/// Güç tuşu bu kadar basılı tutulursa çıkış; daha kısası uyku.
+const POWER_HOLD: Duration = Duration::from_secs(3);
+
+/// Uyku: kayıt, kapak ekranı, ışık söner, çekirdek askıya alınır (alınamazsa
+/// güç tuşu beklenir); uyanınca ışık geri gelir, ekran yeniden çizilir.
+fn go_to_sleep(
+    screen: &mut fb::Framebuffer,
+    app: &mut App,
+    canvas: &mut Canvas,
+    rx: &std::sync::mpsc::Receiver<Input>,
+) {
+    log::info!("sleep");
+    app.shutdown();
+    app.draw_sleep(canvas);
+    screen.present(canvas, Refresh::Full);
+    let brightness = std::fs::read_to_string(BRIGHTNESS).unwrap_or_default();
+    let _ = std::fs::write(BRIGHTNESS, "0");
+    if !sleep::suspend() {
+        // Çekirdek uyumadı: güç tuşuna basılıp bırakılana kadar bekle.
+        while let Ok(input) = rx.recv() {
+            if input == Input::Power(false) {
+                break;
+            }
+        }
+    }
+    // Uyandıran basış ve o sırada gelenler atılır.
+    while rx.recv_timeout(Duration::from_millis(700)).is_ok() {}
+    match app.light() {
+        Some(l) => apply_light(l),
+        None => {
+            let _ = std::fs::write(BRIGHTNESS, brightness.trim());
+        }
+    }
+    present(screen, app, canvas, Refresh::Full);
 }
 
 fn present(screen: &mut fb::Framebuffer, app: &App, canvas: &mut Canvas, refresh: Refresh) {
