@@ -36,8 +36,10 @@ Yeni bir eksik bulununca bu dosyaya eklenir; giderilen madde silinir ve ne yapı
 ## 3. cihaz denemesi (2026-10-29)
 
 - **Otomatik dönme çalışmadı:** Libra 2'nin yön algılayıcısı ham eksen değil `EV_MSC/MSC_RAW` yön kodu (23–26) gönderiyor; kod bunu dinlemiyordu. Düzeltildi (kodlar günlüğe yazılıyor); 25/26'nın hangi yana olduğu cihazda doğrulanacak.
-- **Telefondan kablosuz yükleme olmadı, bilgisayardan oldu:** telefonun isteği programa hiç ulaşmadı (günlükte yok). Nedeni belirlenecek.
-- **Vikipedi verimli çalışmıyor:** ayrıntı bekleniyor.
+- **Telefondan kablosuz yükleme olmadı, bilgisayardan oldu:** sayfa telefonda hiç açılmadı, istek programa ulaşmadı; büyük olasılıkla telefon mobil veride/ayrı ağdaydı ya da tarayıcı adresi https'e çevirdi. Ekrandaki açıklama genişletildi (mobil veri kapalı, "http://" ile yazın); yeniden denenecek.
+- **Vikipedi sonuç vermedi:** arama hep Türkçe Vikipedi'deydi; İngilizce kitapta kelimeler bulunamıyor ya da ilgisiz maddeye gidiyordu. Artık önce kitabın dilindeki Vikipedi, sonra Türkçe; sorgu ve sonuç günlüğe yazılıyor.
+- **Sayfa tuşları:** yatay için ayrı ayar eklendi ("Sayfa tuşları (yatay)"; "Gece modu" yazı ayarlarına taşındı).
+- **Aramada Türkçe harfler:** "burcak" "Burçak"ı bulmadı; artık ç=c, ş=s, ğ=g, ö=o, ü=u (kitap, kütüphane ve not aramasında).
 - **Sözlükler ilk aramada 9,2 sn'de açıldı** (Türkçe-İngilizce Vikisözlük dizini her açılışta yeniden kuruluyor).
 - **Dokunma doğru; kapakların gelme süresi iyi.**
 

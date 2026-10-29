@@ -90,6 +90,8 @@ pub struct Settings {
     pub two_columns: bool,
     /// Sayfa tuşlarının anlamı ters: üst tuş ileri, alt tuş geri.
     pub swap_keys: bool,
+    /// Yatayda sayfa tuşlarının anlamı ters (dikeyden ayrı seçilir).
+    pub swap_keys_landscape: bool,
     /// Otomatik sayfa çevirme aralığı (saniye; 0 = okuma hızına göre).
     pub auto_turn: u32,
     /// Sayfa yönü sağdan sola (manga): dokunma, kaydırma, yan yana sayfalar
@@ -128,6 +130,7 @@ impl Default for Settings {
             orientation: Orientation::Auto,
             two_columns: true,
             swap_keys: false,
+            swap_keys_landscape: false,
             auto_turn: 30,
             rtl: false,
             language: Default::default(),
@@ -162,6 +165,7 @@ pub enum Field {
     Orientation,
     TwoColumns,
     PageKeys,
+    PageKeysLandscape,
     AutoTurn,
     Rtl,
     Language,
@@ -178,6 +182,7 @@ pub const FIELD_PAGES: [&[Field]; 3] = [
         Field::Margin,
         Field::Align,
         Field::Hyphenate,
+        Field::Night,
     ],
     &[
         Field::PdfView,
@@ -193,8 +198,8 @@ pub const FIELD_PAGES: [&[Field]; 3] = [
         Field::TapZones,
         Field::Rtl,
         Field::PageKeys,
+        Field::PageKeysLandscape,
         Field::AutoTurn,
-        Field::Night,
         Field::Orientation,
         Field::TwoColumns,
         Field::Language,
@@ -228,6 +233,7 @@ impl Field {
             Field::TwoColumns => Msg::SettingTwoColumns,
             Field::Rtl => Msg::SettingRtl,
             Field::Language => Msg::SettingLanguage,
+            Field::PageKeysLandscape => Msg::SettingPageKeysLandscape,
             Field::PageKeys => Msg::SettingPageKeys,
             Field::AutoTurn => Msg::SettingAutoTurn,
         }
@@ -336,6 +342,7 @@ impl Settings {
             }
             Field::TwoColumns => s.two_columns = !s.two_columns,
             Field::PageKeys => s.swap_keys = !s.swap_keys,
+            Field::PageKeysLandscape => s.swap_keys_landscape = !s.swap_keys_landscape,
             Field::AutoTurn => {
                 let i = AUTO_TURNS
                     .iter()
@@ -410,6 +417,11 @@ impl Settings {
             Field::AutoTurn => tr(&match self.auto_turn {
                 0 => Msg::AutoTurnPace,
                 secs => Msg::Seconds(secs),
+            }),
+            Field::PageKeysLandscape => tr(if self.swap_keys_landscape {
+                &Msg::KeysUpForward
+            } else {
+                &Msg::KeysUpBack
             }),
             Field::PageKeys => tr(if self.swap_keys {
                 &Msg::KeysUpForward

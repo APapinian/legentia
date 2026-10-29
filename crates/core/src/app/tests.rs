@@ -4040,3 +4040,20 @@ fn dropbox_connects_through_the_phone_page_and_syncs() {
     assert!(app.dropbox.account.is_none());
     assert!(!data.join("dropbox.json").exists());
 }
+
+#[test]
+fn page_keys_can_be_swapped_separately_in_landscape() {
+    let (mut app, _, _) = reading_long_book();
+    key(&mut app, true);
+    key(&mut app, true);
+    let at = session(&app).page;
+    app.settings.swap_keys_landscape = true;
+    // Dikeyde ayar etkisiz.
+    key(&mut app, true);
+    assert_eq!(session(&app).page, at + 1);
+    app.handle(Event::Tilt { landscape: true });
+    assert!(app.width > app.height);
+    let at = session(&app).page;
+    key(&mut app, true);
+    assert!(session(&app).page < at, "yatayda ileri tuşu geri çevirir");
+}

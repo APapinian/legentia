@@ -94,16 +94,10 @@ pub(super) struct Shelved {
     pub info: Option<super::BookInfo>,
 }
 
-/// Arama için katlama: Türkçe küçük harf, şapkasız, noktalı/noktasız i aynı.
+/// Arama için katlama: kitap içi aramayla aynı (Türkçe küçük harf, şapkasız,
+/// ç=c, ş=s, ğ=g, ö=o, ü=u, ı=i).
 pub(super) fn fold(s: &str) -> String {
-    s.chars()
-        .map(|c| match collate::turkish_lower(c) {
-            'â' => 'a',
-            'î' | 'ı' => 'i',
-            'û' => 'u',
-            c => c,
-        })
-        .collect()
+    s.chars().map(super::search::fold).collect()
 }
 
 impl App {
@@ -598,6 +592,9 @@ mod tests {
 
     #[test]
     fn search_folding_ignores_case_and_dots() {
-        assert_eq!(fold("İstanbul ISPARTA Kâğıt"), "istanbul isparta kağit");
+        assert_eq!(
+            fold("İstanbul ISPARTA Kâğıt Çöl"),
+            "istanbul isparta kagit col"
+        );
     }
 }

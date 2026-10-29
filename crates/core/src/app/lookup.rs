@@ -161,8 +161,42 @@ impl OnlineSearch {
     }
 }
 
-/// Ayrı iş parçacığında: Vikipedi'de en uygun madde ve özeti.
-fn define_wikipedia(net: &Net, at: &Endpoints, query: &str) -> Result<Option<Definition>, Msg> {
+/// Aranacak Vikipediler: kitabın dili Türkçe değilse önce o dildeki
+/// (İngilizce kitapta en.wikipedia.org), sonra Türkçe Vikipedi.
+fn wikipedia_bases(at: &Endpoints, lang: Option<&str>) -> Vec<String> {
+    let lang = lang
+        .and_then(|l| l.split(['-', '_']).next())
+        .map(str::to_ascii_lowercase)
+        .filter(|l| (2..=3).contains(&l.len()) && l.chars().all(|c| c.is_ascii_lowercase()));
+    let mut out = Vec::new();
+    if let Some(l) = lang.filter(|l| l != "tr") {
+        out.push(if at.wikipedia == online::WIKIPEDIA {
+            format!("https://{l}.wikipedia.org")
+        } else {
+            // Testlerde yerel sunucu: dil yolun başında.
+            format!("{}/{l}", at.wikipedia)
+        });
+    }
+    out.push(at.wikipedia.clone());
+    out
+}
+
+/// Ayrı iş parçacığında: Vikipedilerde sırayla en uygun madde ve özeti.
+fn define_wikipedia(net: &Net, bases: &[String], query: &str) -> Result<Option<Definition>, Msg> {
+    for base in bases {
+        let found = define_wikipedia_at(net, base, query)?;
+        log::info!(
+            "wikipedia {base} {query:?}: {}",
+            found.as_ref().map_or("not found", |d| d.form.as_str())
+        );
+        if found.is_some() {
+            return Ok(found);
+        }
+    }
+    Ok(None)
+}
+
+fn define_wikipedia_at(net: &Net, base: &str, query: &str) -> Result<Option<Definition>, Msg> {
     let get = |url: &str| {
         net.get(url, None, ONLINE_LIMIT).map_err(|e| {
             log::warn!("wikipedia {url}: {e:?}");
@@ -173,13 +207,12 @@ fn define_wikipedia(net: &Net, at: &Endpoints, query: &str) -> Result<Option<Def
         log::warn!("wikipedia answer: {e:?}");
         Msg::NetInvalid
     };
-    let found =
-        online::parse_wikipedia_search(&get(&online::wikipedia_search_url(&at.wikipedia, query))?)
-            .map_err(invalid)?;
+    let found = online::parse_wikipedia_search(&get(&online::wikipedia_search_url(base, query))?)
+        .map_err(invalid)?;
     let Some(title) = found else {
         return Ok(None);
     };
-    let summary = get(&online::wikipedia_summary_url(&at.wikipedia, &title))?;
+    let summary = get(&online::wikipedia_summary_url(base, &title))?;
     Ok(online::parse_wikipedia_summary(&summary)
         .map_err(invalid)?
         .map(|article| Definition {
@@ -352,8 +385,10 @@ impl App {
             return Some(self.refresh(true));
         }
         let net = self.browser.net();
-        let (q, at) = (query.clone(), self.endpoints.clone());
-        let job = Job::spawn(move |_| define_wikipedia(&net, &at, &q));
+        let lang = self.session.as_ref().and_then(|s| s.language());
+        let bases = wikipedia_bases(&self.endpoints, lang);
+        let q = query.clone();
+        let job = Job::spawn(move |_| define_wikipedia(&net, &bases, &q));
         self.online = Some(OnlineSearch {
             word: query,
             job,
@@ -492,5 +527,28 @@ fn italic(text: &str) -> Block {
             },
         }],
         ..Block::default()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn wikipedia_follows_the_book_language_then_turkish() {
+        let at = Endpoints::default();
+        assert_eq!(
+            wikipedia_bases(&at, Some("en-GB")),
+            ["https://en.wikipedia.org", "https://tr.wikipedia.org"]
+        );
+        assert_eq!(
+            wikipedia_bases(&at, Some("tr")),
+            ["https://tr.wikipedia.org"]
+        );
+        assert_eq!(wikipedia_bases(&at, None), ["https://tr.wikipedia.org"]);
+        assert_eq!(
+            wikipedia_bases(&at, Some("../x")),
+            ["https://tr.wikipedia.org"]
+        );
     }
 }

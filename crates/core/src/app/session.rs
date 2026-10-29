@@ -223,7 +223,7 @@ impl Session {
         }
     }
 
-    fn language(&self) -> Option<&str> {
+    pub(super) fn language(&self) -> Option<&str> {
         match &self.doc {
             Doc::Epub(book) => book.language.as_deref(),
             Doc::Pdf(_) => None,

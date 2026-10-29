@@ -540,8 +540,14 @@ impl App {
             .max_by_key(|r| *r == Refresh::Full);
         }
         // Ayara göre sayfa tuşlarının anlamı ters çevrilir (her ekranda).
+        // Dikey ve yatay için ayrı ayar.
+        let swap = if self.width > self.height {
+            self.settings.swap_keys_landscape
+        } else {
+            self.settings.swap_keys
+        };
         let event = match event {
-            Event::Key(k) if self.settings.swap_keys => Event::Key(match k {
+            Event::Key(k) if swap => Event::Key(match k {
                 PageKey::Forward => PageKey::Back,
                 PageKey::Back => PageKey::Forward,
             }),

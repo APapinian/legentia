@@ -40,11 +40,17 @@ pub(super) struct BookSearch {
     pub truncated: bool,
 }
 
-fn fold(c: char) -> char {
+/// Arama için harf: küçük, şapkasız; Türkçe harfler Latin eşleriyle aynı
+/// (ç=c, ş=s, ğ=g, ö=o, ü=u, ı=i), klavyeden özel harf yazmadan aransın.
+pub(super) fn fold(c: char) -> char {
     match turkish_lower(c) {
         'â' => 'a',
         'î' | 'ı' => 'i',
-        'û' => 'u',
+        'û' | 'ü' => 'u',
+        'ç' => 'c',
+        'ş' => 's',
+        'ğ' => 'g',
+        'ö' => 'o',
         c => c,
     }
 }
@@ -289,14 +295,15 @@ mod tests {
     }
 
     #[test]
-    fn matches_ignore_turkish_case_and_circumflex() {
+    fn matches_ignore_turkish_case_circumflex_and_special_letters() {
         let text = "İstanbul'da kâğıt; ISPARTA ve ıspanak. istanbul";
         let hits = find_all(text, &q("istanbul"));
         assert_eq!(hits.len(), 2);
         assert_eq!(&text[hits[0].0..hits[0].1], "İstanbul");
         assert_eq!(&text[hits[1].0..hits[1].1], "istanbul");
         assert_eq!(find_all(text, &q("kağıt")).len(), 1, "şapka fark etmez");
-        assert_eq!(find_all(text, &q("kagıt")).len(), 0, "ğ ile g farklı harf");
+        assert_eq!(find_all(text, &q("kagit")).len(), 1, "ğ=g, ı=i");
+        assert_eq!(find_all("Burçak tarlası", &q("burcak")).len(), 1, "ç=c");
         // Noktalı/noktasız i aynı: "isparta" ISPARTA'yı, "index" "Index"i bulur.
         assert_eq!(find_all(text, &q("isparta")).len(), 1);
         assert_eq!(find_all(text, &q("ıspanak")).len(), 1);
