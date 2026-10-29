@@ -36,6 +36,8 @@ pub(super) struct Endpoints {
     pub tdk: String,
     pub wiktionary: String,
     pub wikipedia: String,
+    /// DeepL sunucusu; yoksa anahtara göre seçilir (testlerde yerel sunucu).
+    pub deepl: Option<String>,
 }
 
 impl Default for Endpoints {
@@ -44,6 +46,7 @@ impl Default for Endpoints {
             tdk: online::TDK.into(),
             wiktionary: online::WIKTIONARY.into(),
             wikipedia: online::WIKIPEDIA.into(),
+            deepl: None,
         }
     }
 }
@@ -134,8 +137,25 @@ impl Provider {
 pub(super) struct OnlineSearch {
     pub word: String,
     job: Job<Result<Option<Definition>, Msg>>,
-    /// Vikipedi araması (sözlük değil): bulunamadı/ulaşılamadı mesajları farklı.
-    wikipedia: bool,
+    /// Bulunamadı/ulaşılamadı mesajları aramanın türüne göre.
+    kind: OnlineKind,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum OnlineKind {
+    Dictionary,
+    Wikipedia,
+    Translation,
+}
+
+impl OnlineSearch {
+    pub(super) fn translation(text: String, job: Job<Result<Option<Definition>, Msg>>) -> Self {
+        OnlineSearch {
+            word: text,
+            job,
+            kind: OnlineKind::Translation,
+        }
+    }
 }
 
 /// Ayrı iş parçacığında: Vikipedi'de en uygun madde ve özeti.
@@ -283,7 +303,7 @@ impl App {
             self.online = Some(OnlineSearch {
                 word,
                 job,
-                wikipedia: false,
+                kind: OnlineKind::Dictionary,
             });
             self.view = View::Searching;
             return Some(self.refresh(true));
@@ -300,19 +320,21 @@ impl App {
     /// `Event::Tick`: çevrimiçi arama bittiyse sonucu gösterir.
     pub(super) fn poll_online(&mut self) -> Option<Refresh> {
         let result = self.online.as_ref()?.job.poll()?;
-        let OnlineSearch {
-            word, wikipedia, ..
-        } = self.online.take()?;
+        let OnlineSearch { word, kind, .. } = self.online.take()?;
         match result {
             Some(Ok(Some(def))) => return self.show_definition(&word, &def),
-            Some(Ok(None)) if wikipedia => self.show_message(Msg::NotOnWikipedia(word)),
-            Some(Ok(None)) => self.show_message(Msg::NotInDictionary(word)),
+            Some(Ok(None)) if kind == OnlineKind::Wikipedia => {
+                self.show_message(Msg::NotOnWikipedia(word))
+            }
+            Some(Ok(None)) if kind == OnlineKind::Dictionary => {
+                self.show_message(Msg::NotInDictionary(word))
+            }
             failed => {
                 let reason = tr(&failed.and_then(Result::err).unwrap_or(Msg::NetInvalid));
-                self.show_message(if wikipedia {
-                    Msg::WikipediaFailed(reason)
-                } else {
-                    Msg::OnlineFailed { word, reason }
+                self.show_message(match kind {
+                    OnlineKind::Wikipedia => Msg::WikipediaFailed(reason),
+                    OnlineKind::Translation => Msg::TranslateFailed(reason),
+                    OnlineKind::Dictionary => Msg::OnlineFailed { word, reason },
                 });
             }
         }
@@ -332,7 +354,7 @@ impl App {
         self.online = Some(OnlineSearch {
             word: query,
             job,
-            wikipedia: true,
+            kind: OnlineKind::Wikipedia,
         });
         self.view = View::Searching;
         Some(self.refresh(true))
@@ -398,7 +420,7 @@ impl App {
         Some(self.refresh(true))
     }
 
-    fn show_message(&mut self, msg: Msg) {
+    pub(super) fn show_message(&mut self, msg: Msg) {
         self.view = View::Message {
             msg,
             back: Back::Reading,

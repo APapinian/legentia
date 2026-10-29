@@ -33,6 +33,8 @@ pub(super) enum FormKind {
     AnnotationTag(usize),
     /// Kitabın (`library` sırası) başlığı, yazarları ve serisi.
     BookInfo(usize),
+    /// DeepL API anahtarı.
+    DeeplKey,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -92,6 +94,7 @@ impl Form {
             FormKind::AnnotationSearch => Msg::SearchAnnotations,
             FormKind::AnnotationTag(_) => Msg::TagTitle,
             FormKind::BookInfo(_) => Msg::EditBookInfo,
+            FormKind::DeeplKey => Msg::DeeplKeyButton,
         }
     }
 

@@ -30,6 +30,7 @@ mod session;
 mod settings;
 mod shelf;
 mod stats;
+mod translate;
 mod ui;
 mod upload;
 mod words;
@@ -187,6 +188,8 @@ pub struct App {
     /// ve eksikleri üreten iş.
     covers: HashMap<String, Option<covers::Thumb>>,
     cover_job: Option<covers::CoverJob>,
+    /// Kullanıcının DeepL API anahtarı (`deepl.json`); yoksa çeviri yok.
+    deepl_key: Option<String>,
     /// Açık kablosuz yükleme sunucusu (yalnızca yükleme ekranındayken).
     upload: Option<upload::Server>,
     /// Okuma istatistikleri ve kaydedilmemiş değişikliği var mı.
@@ -266,6 +269,10 @@ impl App {
         let words = store.load(words::WORDS_FILE).unwrap_or_default();
         let pace = store.load(pace::PACE_FILE).unwrap_or_default();
         let stats = store.load(stats::STATS_FILE).unwrap_or_default();
+        let deepl_key = store
+            .load::<translate::DeeplKey>(translate::DEEPL_FILE)
+            .map(|k| k.key)
+            .filter(|k| !k.trim().is_empty());
         let catalogs = store
             .load(catalog::CATALOGS_FILE)
             .unwrap_or_else(catalog::default_catalogs);
@@ -302,6 +309,7 @@ impl App {
             covers: HashMap::new(),
             cover_job: None,
             upload: None,
+            deepl_key,
             stats,
             stats_dirty: false,
             library_query: None,

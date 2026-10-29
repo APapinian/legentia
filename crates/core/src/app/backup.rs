@@ -168,6 +168,8 @@ impl App {
             self.save_backup()
         } else if restore.contains(x, y) {
             self.restore_backup()
+        } else if self.deepl_button().contains(x, y) {
+            return self.open_deepl_form();
         } else if self.upload_button().contains(x, y) {
             return self.open_upload();
         } else if self.stats_button().contains(x, y) {
@@ -195,6 +197,12 @@ impl App {
         draw_button(t, canvas, restore, &tr(&Msg::RestoreNow), ROW_PX);
         draw_button(t, canvas, self.stats_button(), &tr(&Msg::Stats), ROW_PX);
         draw_button(t, canvas, self.upload_button(), &tr(&Msg::Upload), ROW_PX);
+        let deepl = if self.deepl_key.is_some() {
+            Msg::DeeplKeySet
+        } else {
+            Msg::DeeplKeyButton
+        };
+        draw_button(t, canvas, self.deepl_button(), &tr(&deepl), ROW_PX);
     }
 }
 

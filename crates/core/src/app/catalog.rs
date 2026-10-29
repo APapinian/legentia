@@ -411,6 +411,11 @@ impl App {
             }
             (Button::Cancel, FormKind::AnnotationTag(_)) => self.view = View::Reading,
             (Button::Cancel, FormKind::BookInfo(book)) => self.view = View::BookActions { book },
+            (Button::Cancel, FormKind::DeeplKey) => self.view = View::Backup,
+            (Button::Submit, FormKind::DeeplKey) => {
+                self.save_deepl_key(&form.fields[0].value);
+                self.view = View::Backup;
+            }
             (Button::Submit, FormKind::BookInfo(book)) => {
                 if let Err(msg) = self.save_book_info(book, &form) {
                     form.error = Some(msg);

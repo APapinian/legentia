@@ -205,6 +205,8 @@ pub(super) enum Action {
     Dictionary,
     /// Seçilen metni Türkçe Vikipedi'de arar.
     Wikipedia,
+    /// Seçilen metni DeepL ile çevirir (anahtar girildiyse).
+    Translate,
     /// Vurgunun biçimini sıradakine çevirir (gri → altı çizili → çerçeveli).
     Mark,
     /// Vurgunun etiketini yazdırır.
@@ -348,6 +350,14 @@ impl App {
 
     fn actions(&self) -> &'static [Action] {
         match self.view {
+            View::Selected if self.can_translate() => &[
+                Action::Highlight,
+                Action::Note,
+                Action::Dictionary,
+                Action::Wikipedia,
+                Action::Translate,
+                Action::Cancel,
+            ],
             View::Selected => &[
                 Action::Highlight,
                 Action::Note,
@@ -425,6 +435,11 @@ impl App {
             let text = self.selection_text();
             self.selection = None;
             return self.look_up_wikipedia(&text.unwrap_or_default());
+        }
+        if action == Some(Action::Translate) {
+            let text = self.selection_text();
+            self.selection = None;
+            return self.translate_selection(&text.unwrap_or_default());
         }
         let added = match (action, self.selection, self.session.as_mut()) {
             (Some(Action::Highlight | Action::Note), Some(sel), Some(s)) => {
@@ -517,6 +532,8 @@ impl App {
         if let Some(note) = note {
             self.draw_note_panel(canvas, note);
         }
+        // Altı düğmede (çeviri açıkken) yazı küçülür; İngilizce etiketler de sığsın.
+        let px = if self.actions().len() > 5 { 32.0 } else { 40.0 };
         for (i, action) in self.actions().iter().enumerate() {
             let label = match action {
                 Action::Highlight => Msg::Highlight,
@@ -524,6 +541,7 @@ impl App {
                 Action::Note => Msg::AddNote,
                 Action::Dictionary => Msg::Dictionary,
                 Action::Wikipedia => Msg::Wikipedia,
+                Action::Translate => Msg::Translate,
                 Action::Mark => Msg::MarkKind(match self.opened_mark() {
                     Mark::Gray => Box::new(Msg::MarkGray),
                     Mark::Underline => Box::new(Msg::MarkUnderline),
@@ -533,7 +551,7 @@ impl App {
                 Action::Remove => Msg::RemoveHighlight,
                 Action::Cancel => Msg::Cancel,
             };
-            draw_button(&self.text, canvas, self.action_rect(i), &tr(&label), 40.0);
+            draw_button(&self.text, canvas, self.action_rect(i), &tr(&label), px);
         }
     }
 }

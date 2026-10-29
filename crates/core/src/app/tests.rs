@@ -37,6 +37,7 @@ fn no_online_dictionaries(app: &mut App) {
         tdk: "http://127.0.0.1:1/gts".into(),
         wiktionary: "http://127.0.0.1:1/api.php".into(),
         wikipedia: "http://127.0.0.1:1".into(),
+        deepl: Some("http://127.0.0.1:1".into()),
     };
 }
 
@@ -1837,6 +1838,7 @@ fn words_missing_locally_are_looked_up_online_and_cached() {
         tdk: format!("{url}/gts"),
         wiktionary: format!("{url}/api.php"),
         wikipedia: url.clone(),
+        deepl: None,
     };
     tap_row(&mut app, &LIBRARY, 0);
     tap_row(&mut app, &CONTENTS, 0);
@@ -3264,4 +3266,94 @@ fn books_are_uploaded_over_wifi_with_the_screen_code() {
     assert!(app.upload.as_ref().unwrap().locked);
     tap(&mut app, super::ui::back_button(W).center());
     assert!(app.upload.is_none(), "ekrandan çıkınca kapanır");
+}
+
+/// Sahte DeepL: doğru anahtarla gelen isteğe çeviri, yanlışa 403 döner.
+fn deepl_server() -> String {
+    use std::io::{BufRead, BufReader, Read, Write};
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let url = format!("http://{}", listener.local_addr().unwrap());
+    std::thread::spawn(move || {
+        for stream in listener.incoming().flatten() {
+            let mut reader = BufReader::new(stream.try_clone().unwrap());
+            let (mut auth, mut len) = (String::new(), 0usize);
+            loop {
+                let mut line = String::new();
+                reader.read_line(&mut line).unwrap();
+                if line.trim().is_empty() {
+                    break;
+                }
+                let lower = line.to_lowercase();
+                if lower.starts_with("authorization:") {
+                    auth = line[14..].trim().to_string();
+                }
+                if let Some(v) = lower.strip_prefix("content-length:") {
+                    len = v.trim().parse().unwrap();
+                }
+            }
+            let mut body = vec![0; len];
+            reader.read_exact(&mut body).unwrap();
+            let body = String::from_utf8(body).unwrap();
+            let (status, answer) = if auth == "DeepL-Auth-Key dogru:fx" && body.contains("\"TR\"") {
+                (
+                    "200 OK",
+                    r#"{"translations":[{"detected_source_language":"EN","text":"Uzun bir paragraf"}]}"#,
+                )
+            } else {
+                ("403 Forbidden", r#"{"message":"Authorization failed"}"#)
+            };
+            let mut s = stream;
+            let _ = write!(
+                s,
+                "HTTP/1.1 {status}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{answer}",
+                answer.len()
+            );
+        }
+    });
+    url
+}
+
+#[test]
+fn selected_text_is_translated_with_the_users_deepl_key() {
+    let (mut app, data, root) = setup(&[("uzun.epub", long_book())]);
+    app.endpoints.deepl = Some(deepl_server());
+    // Anahtar yokken çubukta "Çevir" yok (5 düğme).
+    tap_row(&mut app, &LIBRARY, 0);
+    tap_row(&mut app, &CONTENTS, 0);
+    let (x, y) = word_point(&app, "paragraf");
+    app.handle(Event::Hold { x, y });
+    app.handle(Event::HoldEnd { x, y });
+    assert!(!app.can_translate());
+    tap(&mut app, (W / 2, LIBRA2_HEIGHT - 5));
+
+    // Anahtar Araçlar'dan girilir; veri klasöründe, yedekte değil.
+    app.view = View::Backup;
+    let at = app.deepl_button().center();
+    tap(&mut app, at);
+    fill_form(&mut app, &["yanlis:fx"]);
+    form_button(&mut app, form::Button::Submit);
+    assert!(data.join("deepl.json").exists());
+    app.view = View::Reading;
+    select_and(&mut app, "paragraf", 4); // Çevir
+    settle(&mut app);
+    assert!(matches!(
+        app.view,
+        View::Message {
+            msg: Msg::TranslateFailed(_),
+            ..
+        }
+    ));
+
+    app.save_deepl_key("dogru:fx");
+    app.view = View::Reading;
+    select_and(&mut app, "paragraf", 4);
+    assert!(matches!(app.view, View::Searching));
+    settle(&mut app);
+    assert!(matches!(app.view, View::Lookup { .. }), "çeviri gösterildi");
+    let mut c = Canvas::new(W, LIBRA2_HEIGHT);
+    app.draw(&mut c);
+
+    app.save_deepl_key("");
+    assert!(!data.join("deepl.json").exists());
+    let _ = root;
 }

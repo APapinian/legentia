@@ -99,6 +99,8 @@ impl Net {
             .timeout_connect(Some(connect))
             .timeout_recv_response(Some(response))
             .http_status_as_error(false)
+            // WebDAV'ın PROPFIND, MKCOL gibi yöntemleri için.
+            .allow_non_standard_methods(true)
             .user_agent(USER_AGENT)
             .build();
         Net {
@@ -130,6 +132,36 @@ impl Net {
             401 | 403 => Err(NetError::Unauthorized),
             code => Err(NetError::Status(code)),
         }
+    }
+
+    /// Herhangi bir yöntemle, başlıklar ve gövdeyle istek; (durum kodu,
+    /// en fazla `limit` baytlık gövde). Durum kodunu çağıran yorumlar
+    /// (çeviri ve WebDAV kendi hata kodlarına bakar).
+    pub fn send(
+        &self,
+        method: &str,
+        url: &str,
+        headers: &[(&str, String)],
+        body: Vec<u8>,
+        limit: u64,
+    ) -> Result<(u16, Vec<u8>), NetError> {
+        let mut b = ureq::http::Request::builder().method(method).uri(url);
+        for (k, v) in headers {
+            b = b.header(*k, v);
+        }
+        let req = b.body(body).map_err(|e| NetError::Invalid(e.to_string()))?;
+        let mut resp = self.agent.run(req)?;
+        let status = resp.status().as_u16();
+        let mut out = Vec::new();
+        resp.body_mut()
+            .as_reader()
+            .take(limit + 1)
+            .read_to_end(&mut out)
+            .map_err(|e| NetError::from(ureq::Error::Io(e)))?;
+        if out.len() as u64 > limit {
+            return Err(NetError::TooLarge);
+        }
+        Ok((status, out))
     }
 
     /// Yanıtın gövdesi (en fazla `limit` bayt).
