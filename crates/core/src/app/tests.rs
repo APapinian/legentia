@@ -3882,3 +3882,161 @@ fn wallabag_articles_arrive_as_epubs_and_finished_ones_are_archived() {
     app.view = View::Services;
     app.draw(&mut c);
 }
+
+/// Sahte Dropbox (yetki, API ve içerik sunucusu tek yerde).
+fn dropbox_server() -> String {
+    use std::io::{BufRead, BufReader, Read, Write};
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let url = format!("http://{}", listener.local_addr().unwrap());
+    let base = url.clone();
+    std::thread::spawn(move || {
+        let mut stored: Option<Vec<u8>> = None;
+        for stream in listener.incoming().flatten() {
+            let mut reader = BufReader::new(stream.try_clone().unwrap());
+            let mut first = String::new();
+            reader.read_line(&mut first).unwrap();
+            let (mut auth, mut arg, mut len) = (String::new(), String::new(), 0usize);
+            loop {
+                let mut line = String::new();
+                reader.read_line(&mut line).unwrap();
+                if line.trim().is_empty() {
+                    break;
+                }
+                let lower = line.to_lowercase();
+                if lower.starts_with("authorization:") {
+                    auth = line[14..].trim().to_string();
+                }
+                if lower.starts_with("dropbox-api-arg:") {
+                    arg = line[16..].trim().to_string();
+                }
+                if let Some(v) = lower.strip_prefix("content-length:") {
+                    len = v.trim().parse().unwrap();
+                }
+            }
+            let mut body = vec![0; len];
+            reader.read_exact(&mut body).unwrap();
+            let text = String::from_utf8_lossy(&body).into_owned();
+            let path = first.split_whitespace().nth(1).unwrap().to_string();
+            let ok_auth = auth == "Bearer t";
+            let (status, answer): (&str, Vec<u8>) = match path.as_str() {
+                "/oauth2/token" if text.contains("grant_type=authorization_code") && text.contains("code=DBXKOD")
+                    && text.contains("code_verifier=") && text.contains("client_id=0gzqlf7pa2k80lv") =>
+                    ("200 OK", br#"{"access_token":"t","refresh_token":"r"}"#.to_vec()),
+                "/oauth2/token" if text.contains("grant_type=refresh_token&refresh_token=r") =>
+                    ("200 OK", br#"{"access_token":"t"}"#.to_vec()),
+                "/oauth2/token" => ("400 Bad Request", br#"{"error":"invalid_grant"}"#.to_vec()),
+                _ if !ok_auth && !path.starts_with("/dosya/") => ("401 Unauthorized", Vec::new()),
+                "/2/files/list_folder" => ("200 OK", br#"{"entries":[
+                    {".tag":"file","name":"kitap.epub","path_display":"/kitap.epub"},
+                    {".tag":"file","name":"resim.jpg","path_display":"/resim.jpg"},
+                    {".tag":"folder","name":"Romanlar","path_display":"/Romanlar"}],"cursor":"c","has_more":false}"#.to_vec()),
+                "/2/files/upload" if arg.contains("Legentia yedek.json") && arg.contains("overwrite") => {
+                    stored = Some(body);
+                    ("200 OK", b"{}".to_vec())
+                }
+                "/2/files/download" => match &stored {
+                    Some(b) => ("200 OK", b.clone()),
+                    None => ("409 Conflict", br#"{"error_summary":"path/not_found/"}"#.to_vec()),
+                },
+                "/2/files/get_temporary_link" => ("200 OK", format!(r#"{{"link":"{base}/dosya/kitap.epub"}}"#).into_bytes()),
+                "/dosya/kitap.epub" => ("200 OK", epub2_sample()),
+                _ => ("404 Not Found", Vec::new()),
+            };
+            let mut s = stream;
+            let _ = write!(
+                s,
+                "HTTP/1.1 {status}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                answer.len()
+            );
+            let _ = s.write_all(&answer);
+        }
+    });
+    url
+}
+
+#[test]
+fn dropbox_connects_through_the_phone_page_and_syncs() {
+    let url = dropbox_server();
+    let (mut app, data, root) = setup(&[]);
+    app.dropbox.hosts = super::dropbox::Hosts {
+        auth: url.clone(),
+        api: url.clone(),
+        content: url.clone(),
+    };
+    app.start_dropbox_connect(Some(std::net::IpAddr::from([127, 0, 0, 1])));
+    assert!(matches!(app.view, View::DropboxConnect));
+    let mut c = Canvas::new(W, LIBRA2_HEIGHT);
+    app.draw(&mut c);
+    let (addr, code) = {
+        let c = app.dropbox.connect.as_ref().unwrap();
+        (c.address.clone(), c.code.clone())
+    };
+    let (_, page) = http(&addr, "GET", "/?kod=000000x", b"");
+    assert!(
+        !page.contains("oauth2/authorize"),
+        "yanlış kodla bağlantı verilmez"
+    );
+    let (_, page) = http(&addr, "GET", &format!("/?kod={code}"), b"");
+    assert!(page.contains("oauth2/authorize?client_id=0gzqlf7pa2k80lv"));
+    let (_, page) = http(&addr, "GET", &format!("/?kod={code}&dbx=DBXKOD"), b"");
+    assert!(page.contains("cihaza") || page.contains("device"));
+    settle(&mut app);
+    assert!(matches!(app.view, View::Dropbox), "bağlandı");
+    assert!(app.dropbox.connect.is_none(), "sayfa kapandı");
+    let saved = std::fs::read_to_string(data.join("dropbox.json")).unwrap();
+    assert!(saved.contains("\"r\""));
+
+    let [push, pull, browse, logout] = app.dropbox_buttons();
+    tap(&mut app, pull.center());
+    settle(&mut app);
+    assert!(matches!(
+        app.view,
+        View::Message {
+            msg: Msg::DavNoBackup,
+            ..
+        }
+    ));
+    app.view = View::Dropbox;
+    tap(&mut app, push.center());
+    settle(&mut app);
+    assert!(matches!(
+        app.view,
+        View::Message {
+            msg: Msg::DropboxPushed,
+            ..
+        }
+    ));
+    app.view = View::Dropbox;
+    tap(&mut app, pull.center());
+    settle(&mut app);
+    assert!(matches!(
+        app.view,
+        View::Message {
+            msg: Msg::RestoreDone { .. },
+            ..
+        }
+    ));
+
+    app.view = View::Dropbox;
+    tap(&mut app, browse.center());
+    settle(&mut app);
+    let names: Vec<String> = app
+        .dropbox
+        .dirs
+        .last()
+        .unwrap()
+        .1
+        .iter()
+        .map(|e| e.name.clone())
+        .collect();
+    assert_eq!(names, ["Romanlar", "kitap.epub"]);
+    app.draw(&mut c);
+    tap_row(&mut app, &super::dropbox::DBX_LIST, 1);
+    settle(&mut app);
+    assert!(root.join("İndirilenler/kitap.epub").exists());
+
+    app.view = View::Dropbox;
+    tap(&mut app, logout.center());
+    assert!(app.dropbox.account.is_none());
+    assert!(!data.join("dropbox.json").exists());
+}

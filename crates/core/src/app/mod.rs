@@ -12,6 +12,7 @@ mod bookcase;
 mod catalog;
 mod covers;
 mod downloads;
+mod dropbox;
 mod export;
 mod form;
 mod images;
@@ -103,6 +104,14 @@ enum View {
     Services,
     /// Arka plan işi sürüyor (ör. Wallabag eşitlemesi); bitince sonuç gösterilir.
     Working,
+    /// Dropbox'a bağlanma sayfası açık (`dropbox.connect`).
+    DropboxConnect,
+    /// Bağlı Dropbox: yedek gönder/al, gez, bağlantıyı kes.
+    Dropbox,
+    /// Dropbox klasörü (`dropbox.dirs` sonuncusu).
+    DropboxBrowse {
+        page: usize,
+    },
     /// Haber beslemeleri (`news`).
     NewsFeeds {
         page: usize,
@@ -220,6 +229,8 @@ pub struct App {
     /// ve eksikleri üreten iş.
     covers: HashMap<String, Option<covers::Thumb>>,
     cover_job: Option<covers::CoverJob>,
+    /// Dropbox hesabı, bağlanma sayfası, iş ve açılan klasörler.
+    dropbox: dropbox::Dropbox,
     /// Wallabag hesabı ve indirilen yazılar; sürmekte olan iş.
     wallabag: Option<wallabag::Wallabag>,
     wallabag_job: Option<wallabag::WallabagJob>,
@@ -354,6 +365,10 @@ impl App {
             cover_job: None,
             upload: None,
             deepl_key,
+            dropbox: dropbox::Dropbox {
+                account: store.load(dropbox::DROPBOX_FILE),
+                ..Default::default()
+            },
             wallabag: store.load(wallabag::WALLABAG_FILE),
             wallabag_job: None,
             update_dir: None,
@@ -515,8 +530,10 @@ impl App {
             let news = self.poll_news();
             let update = self.poll_update();
             let wallabag = self.poll_wallabag();
+            let dropbox = self.poll_dropbox();
             return [
                 feed, downloads, online, turned, covers, upload, dav, news, update, wallabag,
+                dropbox,
             ]
             .into_iter()
             .flatten()
@@ -585,6 +602,9 @@ impl App {
             View::Update => self.handle_update(event),
             View::Services => self.handle_services(event),
             View::Working => None,
+            View::DropboxConnect => self.handle_dropbox_connect(event),
+            View::Dropbox => self.handle_dropbox(event),
+            View::DropboxBrowse { page } => self.handle_dropbox_browse(*page, event),
             View::NewsItems { feed, page } => self.handle_news_items(*feed, *page, event),
             View::NewsArticle { feed, item, page } => {
                 self.handle_news_article(*feed, *item, *page, event)
@@ -819,6 +839,9 @@ impl App {
             View::NewsFeeds { page } => self.draw_news_feeds(canvas, *page),
             View::Update => self.draw_update(canvas),
             View::Services => self.draw_services(canvas),
+            View::DropboxConnect => self.draw_dropbox_connect(canvas),
+            View::Dropbox => self.draw_dropbox(canvas),
+            View::DropboxBrowse { page } => self.draw_dropbox_browse(canvas, *page),
             View::Working => {
                 self.text
                     .draw_msg(canvas, &Msg::Loading, ui::MARGIN, ui::TOP + 300, ui::ROW_PX)

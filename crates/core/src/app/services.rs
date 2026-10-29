@@ -49,6 +49,9 @@ impl App {
         if self.wallabag.is_some() && self.wallabag_account_button().contains(x, y) {
             return self.open_wallabag_form();
         }
+        if self.dropbox_button().contains(x, y) {
+            return self.open_dropbox();
+        }
         None
     }
 
@@ -79,5 +82,6 @@ impl App {
             let r = self.wallabag_account_button();
             draw_button(t, canvas, r, &tr(&Msg::WallabagAccount), ROW_PX);
         }
+        draw_button(t, canvas, self.dropbox_button(), "Dropbox", ROW_PX);
     }
 }

@@ -206,6 +206,8 @@ impl App {
             || self.dav.job.is_some()
             || self.news.job.is_some()
             || self.wallabag_job.is_some()
+            || self.dropbox.job.is_some()
+            || self.dropbox.connect.is_some()
             || matches!(
                 self.update,
                 Some(update::Step::Checking(_) | update::Step::Downloading(_))

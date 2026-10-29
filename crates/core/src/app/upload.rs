@@ -63,7 +63,7 @@ impl Drop for Server {
 
 /// Bu cihazın yerel ağ adresi: dışarıya bağlanır gibi yapan UDP soketinin
 /// kaynak adresi (paket gönderilmez).
-fn local_ip() -> Option<std::net::IpAddr> {
+pub(super) fn local_ip() -> Option<std::net::IpAddr> {
     let socket = std::net::UdpSocket::bind("0.0.0.0:0").ok()?;
     socket.connect("192.0.2.1:9").ok()?;
     let ip = socket.local_addr().ok()?.ip();
@@ -72,7 +72,7 @@ fn local_ip() -> Option<std::net::IpAddr> {
 
 /// Saatten ve süreç kimliğinden üretilen 6 haneli kod (gizlilik için değil,
 /// aynı ağdaki başkası yanlışlıkla ya da tahminle yükleyemesin diye).
-fn new_code() -> String {
+pub(super) fn new_code() -> String {
     let nanos = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(0, |d| d.as_nanos() as u64);
@@ -114,7 +114,7 @@ fn free_path(dir: &Path, name: &str) -> PathBuf {
 }
 
 /// `%XX` ve `+` çözülmüş sorgu değeri.
-fn query_value(query: &str, key: &str) -> Option<String> {
+pub(super) fn query_value(query: &str, key: &str) -> Option<String> {
     let raw = query
         .split('&')
         .find_map(|kv| kv.strip_prefix(key)?.strip_prefix('='))?;
@@ -141,7 +141,7 @@ fn query_value(query: &str, key: &str) -> Option<String> {
     String::from_utf8(out).ok()
 }
 
-fn respond(stream: &mut TcpStream, status: &str, kind: &str, body: &str) {
+pub(super) fn respond(stream: &mut TcpStream, status: &str, kind: &str, body: &str) {
     let head = format!(
         "HTTP/1.1 {status}\r\nContent-Type: {kind}; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\nCache-Control: no-store\r\n\r\n",
         body.len()
