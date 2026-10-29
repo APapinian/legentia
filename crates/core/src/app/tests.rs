@@ -3116,7 +3116,7 @@ fn book_info_is_edited_without_touching_the_file() {
     assert_eq!(e.series_label().as_deref(), Some("Romanlar #2,5"));
     assert_eq!(std::fs::read(root.join("b.epub")).unwrap(), before);
 
-    let mut app = restart(&data, &root);
+    let app = restart(&data, &root);
     assert_eq!(app.library[0].authors, ["Sabahattin Ali", "X"], "kalıcı");
     let mut c = Canvas::new(W, LIBRA2_HEIGHT);
     app.draw(&mut c);
